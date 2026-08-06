@@ -24,6 +24,7 @@ jobs:
 
     outputs:
       jira_enabled: ${{ steps.validate.outputs.jira_enabled }}
+      jira_target: ${{ steps.validate.outputs.jira_target }}
 
     steps:
       - name: Validate Issue
@@ -51,6 +52,21 @@ jobs:
             } 
 
             const workType=labels[0];
+
+            const jiraTarget =
+            CONFIG.workTypes.includes(workType);
+
+            core.setOutput(
+              "jira_target",
+              jiraTarget ? "true" : "false"
+            );
+
+            if(!jiraTarget){
+              console.log(
+                "Skip Jira Sync. Unsupported Work Type."
+              );
+              return;
+            }
 
             const errors=[];
 
@@ -112,12 +128,6 @@ jobs:
                 );
                 return;
               }
-
-              if(!CONFIG.workTypes.includes(labels[0])){
-                errors.push(
-                  "Unsupported Work Type: " + labels[0]
-                );
-              }
             };
 
             const validatePriority=()=>{
@@ -173,7 +183,9 @@ jobs:
   jira-sync:
     name: Create Jira Task
     needs: validate
-    if: needs.validate.outputs.jira_enabled == 'true'
+    if: |
+      needs.validate.outputs.jira_enabled == 'true'
+      needs.validate.outputs.jira_target == 'true'
     runs-on: ubuntu-latest
 
     steps:
