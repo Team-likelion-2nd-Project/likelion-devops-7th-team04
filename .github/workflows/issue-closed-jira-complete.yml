@@ -1,0 +1,43 @@
+name: Sync Jira Status on Issue Closed
+
+on:
+  issues:
+    types: [closed]
+
+jobs:
+  sync-jira:
+    runs-on: ubuntu-latest
+    steps:
+      # 1. 이슈 제목에서 [DEV-16] 형태의 지라 키 추출
+      - name: Extract Jira Key
+        id: extract_key
+        run: |
+          ISSUE_TITLE="${{ github.event.issue.title }}"
+          # [DEV-16] 패턴에서 지라 키 추출
+          JIRA_KEY=$(echo "$ISSUE_TITLE" | grep -oE '[A-Z0-9]+-[0-9]+' | head -n 1)
+
+          if [ -z "$JIRA_KEY" ]; then
+            echo "지라 키가 없는 이슈입니다. (스크럼 미팅 등 단순 이슈 -> Skip)"
+            echo "has_key=false" >> $GITHUB_OUTPUT
+          else
+            echo "Found Jira Key: $JIRA_KEY"
+            echo "jira_key=$JIRA_KEY" >> $GITHUB_OUTPUT
+            echo "has_key=true" >> $GITHUB_OUTPUT
+          fi
+
+      # 2. 지라 키가 존재하는 경우에만 로그인
+      - name: Login to Jira
+        if: steps.extract_key.outputs.has_key == 'true'
+        uses: atlassian/gajira-login@v3
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+
+      # 3. 지라 이슈 상태를 '완료'로 변경
+      - name: Transition Jira Issue to 'Done'
+        if: steps.extract_key.outputs.has_key == 'true'
+        uses: atlassian/gajira-transition@v3
+        with:
+          issue: ${{ steps.extract_key.outputs.jira_key }}
+          transition: "완료" # 지라 컬럼명이 영문이면 "Done"으로 수정
