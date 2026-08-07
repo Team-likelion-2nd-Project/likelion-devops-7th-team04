@@ -47,4 +47,4 @@ jobs:
         uses: atlassian/gajira-transition@v3
         with:
           issue: ${{ steps.extract_key.outputs.jira_key }}
-          transition: "In Review" # 💡 팀 지라 컬럼명에 맞게 "검토중" 또는 "In Review"로 수정
+          transition: "검토 중" # 💡 팀 지라 컬럼명에 맞게 "검토중" 또는 "In Review"로 수정

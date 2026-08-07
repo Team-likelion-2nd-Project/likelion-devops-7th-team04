@@ -52,4 +52,4 @@ jobs:
         uses: atlassian/gajira-transition@v3
         with:
           issue: ${{ steps.extract_key.outputs.jira_key }}
-          transition: "In Progress" # 💡 팀의 지라 보드 컬럼명이 한글이면 "진행중"으로 수정
+          transition: "진행 중" # 💡 팀의 지라 보드 컬럼명이 한글이면 "진행중"으로 수정
