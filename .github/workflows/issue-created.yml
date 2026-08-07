@@ -53,8 +53,20 @@ jobs:
 
             const workType=labels[0];
 
+            const errors=[];
+
+            const CONFIG={
+              workTypes:process.env.ALLOWED_WORK_TYPES
+                .split(",")
+                .map(type=>type.trim().toLowerCase()),
+
+              priorities:process.env.ALLOWED_PRIORITIES.split(","),
+
+              projectKey:process.env.PROJECT_KEY
+            };
+
             const jiraTarget =
-            CONFIG.workTypes.includes(workType);
+              CONFIG.workTypes.includes(workType);
 
             core.setOutput(
               "jira_target",
@@ -68,17 +80,7 @@ jobs:
               return;
             }
 
-            const errors=[];
-
-            const CONFIG={
-              workTypes:process.env.ALLOWED_WORK_TYPES
-                .split(",")
-                .map(type=>type.trim().toLowerCase()),
-
-              priorities:process.env.ALLOWED_PRIORITIES.split(","),
-
-              projectKey:process.env.PROJECT_KEY
-            };
+            
 
             const getField=(name)=>{
               const regex=new RegExp(
