@@ -183,9 +183,7 @@ jobs:
   jira-sync:
     name: Create Jira Task
     needs: validate
-    if: |
-      needs.validate.outputs.jira_enabled == 'true'
-      needs.validate.outputs.jira_target == 'true'
+    if: needs.validate.outputs.jira_enabled == 'true' && needs.validate.outputs.jira_target == 'true'
     runs-on: ubuntu-latest
 
     steps:
