@@ -11,7 +11,7 @@ permissions:
 
 env:
   PROJECT_KEY: DEV
-  ALLOWED_WORK_TYPES: feature,bug
+  ALLOWED_WORK_TYPES: feature,bug,docs,infra
   ALLOWED_PRIORITIES: Highest,High,Medium,Low,Lowest
   JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
   JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
