@@ -1,0 +1,50 @@
+name: Sync Jira Status on PR Re-requested
+
+on:
+  pull_request:
+    # 1. review_requested: Reviewers의 🔄(재요청) 버튼을 눌렀을 때
+    types: [review_requested]
+
+jobs:
+  sync-to-in-review:
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. PR 제목 또는 브랜치명에서 [DEV-16] 지라 키 추출
+      - name: Extract Jira Key
+        id: extract_key
+        run: |
+          PR_TITLE="${{ github.event.pull_request.title }}"
+          PR_BRANCH="${{ github.event.pull_request.head.ref }}"
+          
+          # PR 제목 우선, 없으면 브랜치명에서 지라 키(예: DEV-16) 추출
+          JIRA_KEY=$(echo "$PR_TITLE" | grep -oE '[A-Z]{2,}-[0-9]+' | head -n 1)
+          if [ -z "$JIRA_KEY" ]; then
+            JIRA_KEY=$(echo "$PR_BRANCH" | grep -oE '[A-Z]{2,}-[0-9]+' | head -n 1)
+          fi
+
+          if [ -z "$JIRA_KEY" ]; then
+            echo "지라 키를 찾을 수 없습니다."
+            echo "has_key=false" >> $GITHUB_OUTPUT
+          else
+            echo "Found Jira Key: $JIRA_KEY"
+            echo "jira_key=$JIRA_KEY" >> $GITHUB_OUTPUT
+            echo "has_key=true" >> $GITHUB_OUTPUT
+          fi
+
+      # 2. 지라 로그인
+      - name: Login to Jira
+        if: steps.extract_key.outputs.has_key == 'true'
+        uses: atlassian/gajira-login@v3
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+
+      # 3. 지라 이슈 상태를 '검토중(In Review)'으로 자동 변경
+      - name: Transition Jira Issue to 'In Review'
+        if: steps.extract_key.outputs.has_key == 'true'
+        uses: atlassian/gajira-transition@v3
+        with:
+          issue: ${{ steps.extract_key.outputs.jira_key }}
+          transition: "검토 중" # 💡 팀 지라 컬럼명에 맞게 "검토중" 또는 "In Review"로 수정
