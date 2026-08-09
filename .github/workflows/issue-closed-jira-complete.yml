@@ -10,10 +10,8 @@ jobs:
 
     # 1. 일감 라벨이 달린 이슈가 닫혔을 때만 실행 (자원 소모 절감)
     if: |
-      contains(github.event.issue.labels.*.name, 'feature') || 
-      contains(github.event.issue.labels.*.name, 'bug') ||
-      contains(github.event.issue.labels.*.name, 'docs') ||
-      contains(github.event.issue.labels.*.name, 'infra')
+      github.event.issue.labels[0].name != '' && 
+      contains(vars.ALLOWED_WORK_TYPES, github.event.issue.labels[0].name)
 
     steps:
       # 2. 이슈 제목에서 [DEV-16] 형태의 지라 키 추출
