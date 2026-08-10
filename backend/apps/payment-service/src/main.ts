@@ -1,8 +1,8 @@
 import { NestFactory } from '@nestjs/core';
-import { RagServiceModule } from './rag-service.module';
+import { PaymentServiceModule } from './payment-service.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(RagServiceModule);
+  const app = await NestFactory.create(PaymentServiceModule);
   await app.listen(process.env.port ?? 3000);
 }
 bootstrap();
