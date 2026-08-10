@@ -1,0 +1,52 @@
+name: Sync Jira Status on Issue Closed
+
+on:
+  issues:
+    types: [closed]
+
+jobs:
+  sync-jira:
+    runs-on: ubuntu-latest
+
+    # 1. 일감 라벨이 달린 이슈가 닫혔을 때만 실행 (자원 소모 절감)
+    if: |
+      github.event.issue.labels[0].name != '' && 
+      contains(vars.ALLOWED_WORK_TYPES, github.event.issue.labels[0].name)
+
+    steps:
+      # 2. 이슈 제목에서 [DEV-16] 형태의 지라 키 추출
+      - name: Extract Jira Key
+        id: extract_key
+        run: |
+          ISSUE_TITLE="${{ github.event.issue.title }}"
+          echo "Issue Title: $ISSUE_TITLE"
+
+          # [A-Z]{2,}-[0-9]+ 로 정규식 변경 (알파벳 대문자 2자 이상 시작)
+          # -> 2026-08 같은 날짜 형식이 지라 키로 오인되는 오류 완전히 차단
+          JIRA_KEY=$(echo "$ISSUE_TITLE" | grep -oE '[A-Z]{2,}-[0-9]+' | head -n 1)
+
+          if [ -z "$JIRA_KEY" ]; then
+            echo "::warning::지라 키가 없는 이슈입니다. (Skip)"
+            echo "has_key=false" >> $GITHUB_OUTPUT
+          else
+            echo "Found Jira Key: $JIRA_KEY"
+            echo "jira_key=$JIRA_KEY" >> $GITHUB_OUTPUT
+            echo "has_key=true" >> $GITHUB_OUTPUT
+          fi
+
+      # 3. 지라 키가 존재하는 경우에만 로그인
+      - name: Login to Jira
+        if: steps.extract_key.outputs.has_key == 'true'
+        uses: atlassian/gajira-login@v3
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+
+      # 4. 지라 이슈 상태를 '완료'로 변경
+      - name: Transition Jira Issue to 'Done'
+        if: steps.extract_key.outputs.has_key == 'true'
+        uses: atlassian/gajira-transition@v3
+        with:
+          issue: ${{ steps.extract_key.outputs.jira_key }}
+          transition: "완료" # 지라 보드의 컬럼명이 영문이면 "Done"으로 수정
