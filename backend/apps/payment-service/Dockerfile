@@ -8,8 +8,8 @@ RUN npm ci
 
 COPY . .
 
-# rag-service 서비스 빌드
-RUN npm run build rag-service
+# payment-service 서비스 빌드
+RUN npm run build payment-service
 
 # --- Production Stage ---
 FROM node:20-alpine AS production
@@ -22,9 +22,9 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 RUN npm ci --only=production
 
-COPY --from=builder /usr/src/app/dist/apps/rag-service ./dist/apps/rag-service
+COPY --from=builder /usr/src/app/dist/apps/payment-service ./dist/apps/payment-service
 
-# RAG Service 포트 (예: 3002)
-EXPOSE 3003
+# Payment Service 포트 (예: 3004)
+EXPOSE 3004
 
-CMD ["node", "dist/apps/rag-service/main"]
+CMD ["node", "dist/apps/payment-service/main"]
