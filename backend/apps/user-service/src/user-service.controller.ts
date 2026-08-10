@@ -1,13 +1,15 @@
 import { Controller, Get } from '@nestjs/common';
+import { GrpcMethod } from '@nestjs/microservices';
 import { UserServiceService } from './user-service.service';
 
 @Controller()
 export class UserServiceController {
   constructor(private readonly userServiceService: UserServiceService) {}
-
-  @Get()
-  getHello(): string {
-    return this.userServiceService.getHello();
+  
+  // proto의 UserService / GetHello 메서드와 매핑
+  @GrpcMethod('UserService', 'GetHello')
+  getHello(): { message: string } {
+    return { message: this.userServiceService.getHello() };
   }
   
   // DB 연결 확인 엔드포인트 (GET /db-check)

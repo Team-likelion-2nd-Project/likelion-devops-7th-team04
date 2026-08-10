@@ -22,7 +22,7 @@ export class HotelServiceService {
     }
   
     getHello(): string {
-      return 'Hello World!';
+      return 'Hotel Hello World!';
     }
     
     async testConnection(): Promise<string> {

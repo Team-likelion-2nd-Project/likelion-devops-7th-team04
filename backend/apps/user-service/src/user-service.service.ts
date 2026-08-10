@@ -22,7 +22,7 @@ export class UserServiceService implements OnModuleInit{
   }
 
   getHello(): string {
-    return 'Hello World!';
+    return 'User Hello World!';
   }
   
   async testConnection(): Promise<string> {

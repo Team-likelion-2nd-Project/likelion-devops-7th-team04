@@ -1,0 +1,13 @@
+syntax = "proto3";
+
+package payment;
+
+service PaymentService {
+  rpc GetHello (Empty) returns (HelloResponse);
+}
+
+message Empty {}
+
+message HelloResponse {
+  string message = 1;
+}

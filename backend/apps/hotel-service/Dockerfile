@@ -8,7 +8,8 @@ RUN npm ci
 
 COPY . .
 
-# hotel-service 서비스 빌드
+# libs/common 과 hotel-service 빌드
+RUN npm run build common
 RUN npm run build hotel-service
 
 # --- Production Stage ---
@@ -22,9 +23,11 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 RUN npm ci --only=production
 
+# 🟢 [핵심] 공통 라이브러리(proto 포함)와 앱 빌드 결과물을 모두 복사
+COPY --from=builder /usr/src/app/dist/libs ./dist/libs
 COPY --from=builder /usr/src/app/dist/apps/hotel-service ./dist/apps/hotel-service
 
-# Hotel Service 포트 (예: 3001 또는 gRPC/TCP 포트)
+# 🟢 hotel-service의 실제 gRPC 포트인 3002 지정
 EXPOSE 3002
 
 CMD ["node", "dist/apps/hotel-service/main"]

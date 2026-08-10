@@ -1,12 +1,13 @@
 import { NestFactory } from '@nestjs/core';
+import { MicroserviceOptions } from '@nestjs/microservices';
+import { getGrpcOptions } from '@app/common';
 import { UserServiceModule } from './user-service.module';
 
 async function bootstrap() {
-  const app = await NestFactory.create(UserServiceModule);
-  // 1. 대문자 PORT 환경변수 사용 & user-service 기본 포트 지정 
-  const port = process.env.PORT ?? 3001;
-
-  // 2. 테스트를 위해 외부접속 허용
-  await app.listen(port, '0.0.0.0');
+  const app = await NestFactory.createMicroservice<MicroserviceOptions>(
+    UserServiceModule,
+    getGrpcOptions('user', 'user.proto', '0.0.0.0:3001'),
+  );
+  await app.listen();
 }
 bootstrap();
