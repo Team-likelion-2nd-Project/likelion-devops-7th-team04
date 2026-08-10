@@ -31,3 +31,17 @@ variable "secondary_region" {
   type    = string
   default = "us-east-2"
 }
+# DEV-41 Network Module
+module "network" {
+  source = "../../modules/network"
+
+  project_name = "team04-hotel"
+}
+
+# DEV-41 Security Module
+module "security" {
+  source = "../../modules/security"
+
+  project_name = "team04-hotel"
+  vpc_id       = module.network.vpc_id
+}
