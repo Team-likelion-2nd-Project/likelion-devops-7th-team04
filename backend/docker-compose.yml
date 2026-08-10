@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  api-gateway:
+    build:
+      context: .
+      dockerfile: apps/api-gateway/Dockerfile
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - USER_SERVICE_HOST=user-service
+      - HOTEL_SERVICE_HOST=hotel-service
+      - RAG_SERVICE_HOST=rag-service
+
+  user-service:
+    build:
+      context: .
+      dockerfile: apps/user-service/Dockerfile
+    ports:
+      - "3001:3001"
+    environment:
+      - NODE_ENV=development
+
+  hotel-service:
+    build:
+      context: .
+      dockerfile: apps/hotel-service/Dockerfile
+    ports:
+      - "3002:3002"
+    environment:
+      - NODE_ENV=development
+
+  rag-service:
+    build:
+      context: .
+      dockerfile: apps/rag-service/Dockerfile
+    ports:
+      - "3003:3003"
+    environment:
+      - NODE_ENV=development
