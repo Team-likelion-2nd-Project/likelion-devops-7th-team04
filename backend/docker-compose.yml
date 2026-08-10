@@ -1,12 +1,34 @@
 version: '3.8'
 
 services:
+
+  # 1. MariaDB 서비스
+  mariadb:
+    image: mariadb:11.2
+    container_name: mariadb
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    # 현재 DB 구축을 하지 않았기 때문에 볼륨 사용하지 않았습니다. 사용하려면 아래의 주석 해제
+    # volumes:
+    #   - mariadb_data:/var/lib/mysql
+
+  # 2. API Gateway
   api-gateway:
     build:
       context: .
       dockerfile: apps/api-gateway/Dockerfile
     ports:
       - "3000:3000"
+    env_file:
+      - .env
     environment:
       - NODE_ENV=development
       - USER_SERVICE_HOST=user-service
@@ -21,6 +43,8 @@ services:
       dockerfile: apps/user-service/Dockerfile
     ports:
       - "3001:3001"
+    env_file:
+      - .env
     environment:
       - NODE_ENV=development
 
@@ -30,9 +54,25 @@ services:
       dockerfile: apps/hotel-service/Dockerfile
     ports:
       - "3002:3002"
+    env_file:
+      - .env
     environment:
       - NODE_ENV=development
 
+
+# rag-service명을 chatbot-service로 변경 후 수정해야 하는 부분
+  # rag-service:
+  #   build:
+  #     context: .
+  #     dockerfile: apps/rag-service/Dockerfile
+  #   ports:
+  #     - "3003:3003"
+  #   environment:
+  #     - NODE_ENV=development
+
+# DB 볼륨 사용 시 아래 주속 해제
+# volumes:
+#   mariadb_data:
   booking-service:
     build:
       context: .
