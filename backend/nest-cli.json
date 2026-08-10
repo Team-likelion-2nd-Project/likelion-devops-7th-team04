@@ -19,21 +19,6 @@
         "tsConfigPath": "apps/api-gateway/tsconfig.app.json"
       }
     },
-    "common": {
-      "type": "library",
-      "root": "libs/common",
-      "entryFile": "index",
-      "sourceRoot": "libs/common/src",
-      "compilerOptions": {
-        "tsConfigPath": "libs/common/tsconfig.lib.json",
-        "assets": [
-          {
-            "include": "proto/*.proto",
-            "outDir": "dist/libs/common"
-          }
-        ]
-      }
-    },
     "booking-service": {
       "type": "application",
       "root": "apps/booking-service",
@@ -50,6 +35,21 @@
       "sourceRoot": "apps/chat-bot-service/src",
       "compilerOptions": {
         "tsConfigPath": "apps/chat-bot-service/tsconfig.app.json"
+      }
+    },
+    "common": {
+      "type": "library",
+      "root": "libs/common",
+      "entryFile": "index",
+      "sourceRoot": "libs/common/src",
+      "compilerOptions": {
+        "tsConfigPath": "libs/common/tsconfig.lib.json",
+        "assets": [
+          {
+            "include": "proto/*.proto",
+            "outDir": "dist/libs/common"
+          }
+        ]
       }
     },
     "hotel-service": {

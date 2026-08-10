@@ -11,12 +11,16 @@ services:
       - NODE_ENV=development
       - USER_SERVICE_HOST=user-service:3001
       - HOTEL_SERVICE_HOST=hotel-service:3002
-      - BOOKING_SERVICE_HOST=booking-service
-      - PAYMENT_SERVICE_HOST=payment-service
-      - CHAT_BOT_SERVICE_HOST=chat-bot-service
+      - BOOKING_SERVICE_HOST=booking-service:3003
+      - PAYMENT_SERVICE_HOST=payment-service:3004
+      - CHAT_BOT_SERVICE_HOST=chat-bot-service:3005
+      
     depends_on:
       - user-service
       - hotel-service
+      - booking-service
+      - payment-service
+      - chat-bot-service
 
   user-service:
     build:

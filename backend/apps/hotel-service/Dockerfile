@@ -27,7 +27,7 @@ RUN npm ci --only=production
 COPY --from=builder /usr/src/app/dist/libs ./dist/libs
 COPY --from=builder /usr/src/app/dist/apps/hotel-service ./dist/apps/hotel-service
 
-# 🟢 user-service의 실제 gRPC 포트인 3002 지정
+# 🟢 hotel-service의 실제 gRPC 포트인 3002 지정
 EXPOSE 3002
 
 CMD ["node", "dist/apps/hotel-service/main"]
