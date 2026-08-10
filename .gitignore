@@ -40,6 +40,40 @@ __pycache__/
 venv/
 *.egg-info/
 
+# ── Infra / Terraform ─────────────────────────────
+# 1. 테라폼 초기화 및 프로바이더/모듈 캐시 디렉터리
+**/.terraform/
+
+# 2. 테라폼 상태(State) 파일
+# (주의: State 파일에는 DB 비밀번호, API 키 등 민감한 평문 정보가 들어가므로 절대 Git에 올리면 안 됩니다)
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
+
+# 3. 환경별 변수 파일 (비밀번호, 시크릿 값 포함)
+*.tfvars
+*.tfvars.json
+
+# (선택) 팀원 공유용 예시 변수 파일은 Git 추적 허용
+!*.tfvars.example
+!example.tfvars
+
+# 4. 개발자 개인 로컬 오버라이드 파일
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# 5. 테라폼 CLI 개인 설정 및 크래시 로그
+.terraformrc
+terraform.rc
+crash.log
+crash.*.log
+
+# 6. Terragrunt 캐시 (Terragrunt 사용 시)
+.terragrunt-cache/
+
+
 # ── IDE / OS ──────────────────────────────────
 .idea/
 .vscode/
