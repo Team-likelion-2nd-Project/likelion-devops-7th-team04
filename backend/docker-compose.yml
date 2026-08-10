@@ -11,12 +11,13 @@ services:
       - NODE_ENV=development
       - USER_SERVICE_HOST=user-service:3001
       - HOTEL_SERVICE_HOST=hotel-service:3002
-      - RAG_SERVICE_HOST=rag-service:3003
+      - BOOKING_SERVICE_HOST=booking-service
+      - PAYMENT_SERVICE_HOST=payment-service
+      - CHAT_BOT_SERVICE_HOST=chat-bot-service
     depends_on:
       - user-service
       - hotel-service
-      - rag-service
-      
+
   user-service:
     build:
       context: .
@@ -35,11 +36,29 @@ services:
     environment:
       - NODE_ENV=development
 
-  rag-service:
+  booking-service:
     build:
       context: .
-      dockerfile: apps/rag-service/Dockerfile
+      dockerfile: apps/booking-service/Dockerfile
     ports:
       - "3003:3003"
+    environment:
+      - NODE_ENV=development
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: apps/payment-service/Dockerfile
+    ports:
+      - "3004:3004"
+    environment:
+      - NODE_ENV=development
+
+  chat-bot-service:
+    build:
+      context: .
+      dockerfile: apps/chat-bot-service/Dockerfile
+    ports:
+      - "3005:3005"
     environment:
       - NODE_ENV=development

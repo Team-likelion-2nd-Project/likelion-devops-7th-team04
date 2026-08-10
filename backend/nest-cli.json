@@ -34,6 +34,24 @@
         ]
       }
     },
+    "booking-service": {
+      "type": "application",
+      "root": "apps/booking-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/booking-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/booking-service/tsconfig.app.json"
+      }
+    },
+    "chat-bot-service": {
+      "type": "application",
+      "root": "apps/chat-bot-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/chat-bot-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/chat-bot-service/tsconfig.app.json"
+      }
+    },
     "hotel-service": {
       "type": "application",
       "root": "apps/hotel-service",
@@ -43,13 +61,13 @@
         "tsConfigPath": "apps/hotel-service/tsconfig.app.json"
       }
     },
-    "rag-service": {
+    "payment-service": {
       "type": "application",
-      "root": "apps/rag-service",
+      "root": "apps/payment-service",
       "entryFile": "main",
-      "sourceRoot": "apps/rag-service/src",
+      "sourceRoot": "apps/payment-service/src",
       "compilerOptions": {
-        "tsConfigPath": "apps/rag-service/tsconfig.app.json"
+        "tsConfigPath": "apps/payment-service/tsconfig.app.json"
       }
     },
     "user-service": {
