@@ -1,12 +1,14 @@
 import { Controller, Get } from '@nestjs/common';
+import { GrpcMethod } from '@nestjs/microservices';
 import { HotelServiceService } from './hotel-service.service';
 
 @Controller()
 export class HotelServiceController {
   constructor(private readonly hotelServiceService: HotelServiceService) {}
-
-  @Get()
-  getHello(): string {
-    return this.hotelServiceService.getHello();
+  
+  // proto의 HotelService / GetHello 메서드와 매핑
+  @GrpcMethod('HotelService', 'GetHello')
+  getHello(): { message: string } {
+    return { message: this.hotelServiceService.getHello() };
   }
 }

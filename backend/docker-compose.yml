@@ -9,10 +9,14 @@ services:
       - "3000:3000"
     environment:
       - NODE_ENV=development
-      - USER_SERVICE_HOST=user-service
-      - HOTEL_SERVICE_HOST=hotel-service
-      - RAG_SERVICE_HOST=rag-service
-
+      - USER_SERVICE_HOST=user-service:3001
+      - HOTEL_SERVICE_HOST=hotel-service:3002
+      - RAG_SERVICE_HOST=rag-service:3003
+    depends_on:
+      - user-service
+      - hotel-service
+      - rag-service
+      
   user-service:
     build:
       context: .
