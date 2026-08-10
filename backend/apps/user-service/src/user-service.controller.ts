@@ -9,4 +9,10 @@ export class UserServiceController {
   getHello(): string {
     return this.userServiceService.getHello();
   }
+  
+  // DB 연결 확인 엔드포인트 (GET /db-check)
+  @Get('db-check')
+  async checkDb() {
+    return await this.userServiceService.testConnection();
+  }
 }
