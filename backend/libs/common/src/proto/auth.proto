@@ -5,6 +5,15 @@ package auth;
 service AuthService {
   // 회원가입: user-service에 프로필을 생성하고 자격증명(비밀번호 해시)을 저장한 뒤 토큰을 발급합니다.
   rpc Register (RegisterRequest) returns (AuthResponse);
+
+  // 로그인: user-service에서 이메일로 프로필을 조회하고 비밀번호 해시를 검증한 뒤 토큰을 발급합니다.
+  rpc Login (LoginRequest) returns (AuthResponse);
+
+  // 토큰 재발급: 리프레시 토큰을 검증하고 Redis에 저장된 값과 대조한 뒤 액세스/리프레시 토큰을 새로 발급합니다.
+  rpc Refresh (RefreshRequest) returns (AuthResponse);
+
+  // 로그아웃: Redis에 저장된 리프레시 토큰을 삭제해 재발급(Refresh)을 더 이상 할 수 없게 합니다.
+  rpc Logout (LogoutRequest) returns (LogoutResponse);
 }
 
 message RegisterRequest {
@@ -12,6 +21,23 @@ message RegisterRequest {
   string password = 2;
   string name = 3;
   string phoneNumber = 4;
+}
+
+message LoginRequest {
+  string email = 1;
+  string password = 2;
+}
+
+message RefreshRequest {
+  string refreshToken = 1;
+}
+
+message LogoutRequest {
+  int32 userId = 1;
+}
+
+message LogoutResponse {
+  bool success = 1;
 }
 
 message AuthResponse {

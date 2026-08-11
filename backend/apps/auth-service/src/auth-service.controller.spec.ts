@@ -4,11 +4,14 @@ import { AuthServiceService } from './auth-service.service';
 
 describe('AuthServiceController', () => {
   let authServiceController: AuthServiceController;
-  let authServiceService: { register: jest.Mock };
+  let authServiceService: { register: jest.Mock; login: jest.Mock; refresh: jest.Mock; logout: jest.Mock };
 
   beforeEach(async () => {
     authServiceService = {
       register: jest.fn(),
+      login: jest.fn(),
+      refresh: jest.fn(),
+      logout: jest.fn(),
     };
 
     const app: TestingModule = await Test.createTestingModule({
@@ -33,6 +36,42 @@ describe('AuthServiceController', () => {
 
       expect(authServiceService.register).toHaveBeenCalledWith(dto);
       expect(result).toEqual({ accessToken: 'access', refreshToken: 'refresh' });
+    });
+  });
+
+  describe('login', () => {
+    it('should delegate to AuthServiceService.login', async () => {
+      const dto = { email: 'user@example.com', password: 'password123' };
+      authServiceService.login.mockResolvedValue({ accessToken: 'access', refreshToken: 'refresh' });
+
+      const result = await authServiceController.login(dto);
+
+      expect(authServiceService.login).toHaveBeenCalledWith(dto);
+      expect(result).toEqual({ accessToken: 'access', refreshToken: 'refresh' });
+    });
+  });
+
+  describe('refresh', () => {
+    it('should delegate to AuthServiceService.refresh', async () => {
+      const dto = { refreshToken: 'refresh' };
+      authServiceService.refresh.mockResolvedValue({ accessToken: 'new-access', refreshToken: 'new-refresh' });
+
+      const result = await authServiceController.refresh(dto);
+
+      expect(authServiceService.refresh).toHaveBeenCalledWith(dto);
+      expect(result).toEqual({ accessToken: 'new-access', refreshToken: 'new-refresh' });
+    });
+  });
+
+  describe('logout', () => {
+    it('should delegate to AuthServiceService.logout', async () => {
+      const dto = { userId: 1 };
+      authServiceService.logout.mockResolvedValue({ success: true });
+
+      const result = await authServiceController.logout(dto);
+
+      expect(authServiceService.logout).toHaveBeenCalledWith(dto);
+      expect(result).toEqual({ success: true });
     });
   });
 });

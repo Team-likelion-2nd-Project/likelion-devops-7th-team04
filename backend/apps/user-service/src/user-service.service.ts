@@ -75,6 +75,15 @@ export class UserServiceService implements OnModuleInit{
     return this.toGrpcResponse(saved);
   }
 
+  // auth-service 로그인 요청으로 이메일 기준 프로필 조회. 미가입 이메일이면 RpcException.
+  async getUserByEmail(email: string): Promise<UserGrpcResponse> {
+    const user = await this.userRepository.findOne({ where: { email } });
+    if (!user) {
+      throw new RpcException('가입되지 않은 이메일입니다.');
+    }
+    return this.toGrpcResponse(user);
+  }
+
   private toGrpcResponse(user: User): UserGrpcResponse {
     return {
       id: user.id,
