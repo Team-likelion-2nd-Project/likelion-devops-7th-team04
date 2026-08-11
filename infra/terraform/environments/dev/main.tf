@@ -59,3 +59,15 @@ module "database" {
   ebs_volume_size = 20
   ebs_volume_type = "gp3"
 }
+
+# DEV-45 Redis Module (새로 추가할 부분)
+module "redis" {
+  source = "../../modules/redis"
+
+  environment             = "dev"
+  vpc_id                  = module.network.vpc_id
+  private_data_subnet_ids = module.network.private_data_subnet_ids
+  redis_security_group_id = module.security.redis_security_group_id
+
+  node_type = "cache.t3.micro"
+}
