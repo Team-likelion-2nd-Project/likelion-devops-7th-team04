@@ -45,3 +45,17 @@ module "security" {
   project_name = "team04-hotel"
   vpc_id       = module.network.vpc_id
 }
+
+# Database Module (DEV-43)
+module "database" {
+  source = "../../modules/database"
+
+  environment             = "dev"
+  vpc_id                  = module.network.vpc_id
+  private_data_subnet_ids = module.network.private_data_subnet_ids
+  db_security_group_id    = module.security.db_security_group_id
+
+  instance_type   = "t3.micro"
+  ebs_volume_size = 20
+  ebs_volume_type = "gp3"
+}
