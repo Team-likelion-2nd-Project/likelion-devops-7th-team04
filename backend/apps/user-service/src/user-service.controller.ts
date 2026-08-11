@@ -24,6 +24,18 @@ export class UserServiceController {
     return this.userServiceService.getUserByEmail(data.email);
   }
 
+  // api-gateway가 관리자 전용 "전체 유저 목록 조회"(GET /users)에서 호출
+  @GrpcMethod('UserService', 'GetUsers')
+  async getUsers() {
+    return this.userServiceService.getUsers();
+  }
+
+  // api-gateway가 "내 정보 조회"(GET /users/me), 관리자 "특정 유저 조회"(GET /users/:userId)에서 호출
+  @GrpcMethod('UserService', 'GetUserById')
+  async getUserById(data: { id: number }) {
+    return this.userServiceService.getUserById(data.id);
+  }
+
   // DB 연결 확인 엔드포인트 (GET /db-check)
   @Get('db-check')
   async checkDb() {
