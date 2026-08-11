@@ -19,6 +19,10 @@ service UserService {
 
   // api-gateway가 "내 정보 수정"(JWT의 userId)에서 호출합니다. (없으면 에러)
   rpc UpdateUser (UpdateUserRequest) returns (User);
+
+  // auth-service가 "회원 탈퇴"(JWT의 userId)에서 호출합니다. users 레코드를 deleted_user 백업 테이블로
+  // 옮긴 뒤 users 테이블에서 제거합니다. (없으면 에러)
+  rpc DeleteUser (DeleteUserRequest) returns (DeleteUserResponse);
 }
 
 message Empty {}
@@ -45,6 +49,14 @@ message UpdateUserRequest {
   int32 id = 1;
   string name = 2;
   string phoneNumber = 3;
+}
+
+message DeleteUserRequest {
+  int32 id = 1;
+}
+
+message DeleteUserResponse {
+  bool success = 1;
 }
 
 message UserListResponse {

@@ -45,6 +45,13 @@ export class UserServiceController {
     });
   }
 
+  // auth-service가 "회원 탈퇴"(DELETE /api/users/me)에서 호출: users 레코드를 deleted_user 백업
+  // 테이블로 옮긴 뒤 users 테이블에서 제거 (없으면 에러)
+  @GrpcMethod('UserService', 'DeleteUser')
+  async deleteUser(data: { id: number }) {
+    return this.userServiceService.deleteUser(data.id);
+  }
+
   // DB 연결 확인 엔드포인트 (GET /db-check)
   @Get('db-check')
   async checkDb() {

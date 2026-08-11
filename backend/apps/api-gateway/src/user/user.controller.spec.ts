@@ -9,6 +9,7 @@ describe('UserController', () => {
   const getUsersMock = jest.fn();
   const getUserByIdMock = jest.fn();
   const updateUserMock = jest.fn();
+  const withdrawMock = jest.fn();
 
   beforeEach(async () => {
     getHelloMock.mockReturnValue(of({ message: 'User Hello World!' }));
@@ -19,6 +20,7 @@ describe('UserController', () => {
     updateUserMock.mockReturnValue(
       of({ id: 1, email: 'user@example.com', name: '홍길동', phoneNumber: '010-1234-5678', role: 'USER', status: 'ACTIVE' }),
     );
+    withdrawMock.mockReturnValue(of({ success: true }));
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [UserController],
@@ -31,6 +33,14 @@ describe('UserController', () => {
               getUsers: getUsersMock,
               getUserById: getUserByIdMock,
               updateUser: updateUserMock,
+            }),
+          },
+        },
+        {
+          provide: 'AUTH_SERVICE',
+          useValue: {
+            getService: () => ({
+              withdraw: withdrawMock,
             }),
           },
         },
@@ -109,6 +119,24 @@ describe('UserController', () => {
       const dto = { name: '김철수', phoneNumber: '010-9999-9999' };
 
       await expect(controller.updateMe(user, dto)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('deleteMe', () => {
+    it('should withdraw the current user by the id from the JWT payload', async () => {
+      const user = { userId: 1, email: 'user@example.com', role: 'USER' };
+
+      const result = await controller.deleteMe(user);
+
+      expect(withdrawMock).toHaveBeenCalledWith({ userId: 1 });
+      expect(result).toEqual({ message: '회원 탈퇴가 완료되었습니다.' });
+    });
+
+    it('should throw NotFoundException when the profile is missing', async () => {
+      withdrawMock.mockReturnValue(throwError(() => ({ message: '존재하지 않는 유저입니다.' })));
+      const user = { userId: 999, email: 'ghost@example.com', role: 'USER' };
+
+      await expect(controller.deleteMe(user)).rejects.toThrow(NotFoundException);
     });
   });
 

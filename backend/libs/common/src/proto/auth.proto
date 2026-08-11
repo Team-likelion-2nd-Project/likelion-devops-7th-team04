@@ -18,6 +18,10 @@ service AuthService {
   // 비밀번호 변경: 현재 비밀번호를 검증한 뒤 새 비밀번호로 해시를 교체합니다. 이후 재발급(Refresh)을 막기 위해
   // Redis에 저장된 리프레시 토큰도 함께 삭제합니다(다른 기기/세션은 강제 재로그인).
   rpc ChangePassword (ChangePasswordRequest) returns (ChangePasswordResponse);
+
+  // 회원 탈퇴: user-service에 프로필 삭제(백업 테이블 이관 포함)를 요청한 뒤, 자격증명(비밀번호 해시)을
+  // 삭제하고 Redis에 저장된 리프레시 토큰도 삭제합니다.
+  rpc Withdraw (WithdrawRequest) returns (WithdrawResponse);
 }
 
 message RegisterRequest {
@@ -51,6 +55,14 @@ message ChangePasswordRequest {
 }
 
 message ChangePasswordResponse {
+  bool success = 1;
+}
+
+message WithdrawRequest {
+  int32 userId = 1;
+}
+
+message WithdrawResponse {
   bool success = 1;
 }
 

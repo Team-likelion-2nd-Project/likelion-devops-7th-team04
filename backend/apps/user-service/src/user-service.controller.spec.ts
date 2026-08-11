@@ -8,15 +8,33 @@ import { User } from './entities/user.entity';
 describe('UserServiceController', () => {
   let userServiceController: UserServiceController;
   let userRepository: { findOne: jest.Mock; find: jest.Mock; save: jest.Mock };
+  let queryRunner: {
+    connect: jest.Mock;
+    startTransaction: jest.Mock;
+    commitTransaction: jest.Mock;
+    rollbackTransaction: jest.Mock;
+    release: jest.Mock;
+    manager: { insert: jest.Mock; delete: jest.Mock };
+  };
+  let dataSource: { createQueryRunner: jest.Mock };
 
   beforeEach(async () => {
     userRepository = { findOne: jest.fn(), find: jest.fn(), save: jest.fn() };
+    queryRunner = {
+      connect: jest.fn(),
+      startTransaction: jest.fn(),
+      commitTransaction: jest.fn(),
+      rollbackTransaction: jest.fn(),
+      release: jest.fn(),
+      manager: { insert: jest.fn(), delete: jest.fn() },
+    };
+    dataSource = { createQueryRunner: jest.fn(() => queryRunner) };
 
     const app: TestingModule = await Test.createTestingModule({
       controllers: [UserServiceController],
       providers: [
         UserServiceService,
-        { provide: DataSource, useValue: {} },
+        { provide: DataSource, useValue: dataSource },
         { provide: getRepositoryToken(User), useValue: userRepository },
       ],
     }).compile();
@@ -154,6 +172,68 @@ describe('UserServiceController', () => {
       await expect(
         userServiceController.updateUser({ id: 999, name: '김철수', phoneNumber: '010-9999-9999' }),
       ).rejects.toThrow();
+    });
+  });
+
+  describe('deleteUser', () => {
+    it('should back up the user into deleted_user and remove it from users within a transaction', async () => {
+      const existing = {
+        id: 1,
+        email: 'user@example.com',
+        name: '홍길동',
+        phoneNumber: '010-1234-5678',
+        role: 'USER',
+        status: 'ACTIVE',
+        createdAt: new Date('2024-01-01'),
+        updatedAt: new Date('2024-01-02'),
+      };
+      userRepository.findOne.mockResolvedValue(existing);
+
+      const result = await userServiceController.deleteUser({ id: 1 });
+
+      expect(userRepository.findOne).toHaveBeenCalledWith({ where: { id: 1 } });
+      expect(queryRunner.manager.insert).toHaveBeenCalledWith(
+        expect.anything(),
+        expect.objectContaining({
+          originalId: 1,
+          email: 'user@example.com',
+          // 탈퇴 전 상태가 ACTIVE였더라도 백업 레코드는 항상 INACTIVE(탈퇴 처리)로 남아야 합니다.
+          status: 'INACTIVE',
+          originalCreatedAt: existing.createdAt,
+          originalUpdatedAt: existing.updatedAt,
+        }),
+      );
+      expect(queryRunner.manager.delete).toHaveBeenCalledWith(expect.anything(), { id: 1 });
+      expect(queryRunner.commitTransaction).toHaveBeenCalled();
+      expect(queryRunner.release).toHaveBeenCalled();
+      expect(result).toEqual({ success: true });
+    });
+
+    it('should throw when the id does not exist', async () => {
+      userRepository.findOne.mockResolvedValue(null);
+
+      await expect(userServiceController.deleteUser({ id: 999 })).rejects.toThrow();
+      expect(dataSource.createQueryRunner).not.toHaveBeenCalled();
+    });
+
+    it('should roll back the transaction when the backup insert fails', async () => {
+      userRepository.findOne.mockResolvedValue({
+        id: 1,
+        email: 'user@example.com',
+        name: '홍길동',
+        phoneNumber: '010-1234-5678',
+        role: 'USER',
+        status: 'ACTIVE',
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+      queryRunner.manager.insert.mockRejectedValue(new Error('DB error'));
+
+      await expect(userServiceController.deleteUser({ id: 1 })).rejects.toThrow('DB error');
+
+      expect(queryRunner.rollbackTransaction).toHaveBeenCalled();
+      expect(queryRunner.commitTransaction).not.toHaveBeenCalled();
+      expect(queryRunner.release).toHaveBeenCalled();
     });
   });
 });

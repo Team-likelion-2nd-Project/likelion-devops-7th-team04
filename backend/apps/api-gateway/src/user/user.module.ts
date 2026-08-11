@@ -15,6 +15,16 @@ import { UserController } from './user.controller';
           process.env.USER_SERVICE_HOST || 'localhost:3001', // user-service gRPC 주소
         ),
       },
+      {
+        // 회원 탈퇴(DELETE /api/users/me)는 프로필(user-service)과 자격증명/세션(auth-service)에
+        // 걸쳐 있어, 그 조율을 이미 register 등에서 담당하는 auth-service에 위임합니다.
+        name: 'AUTH_SERVICE',
+        ...getGrpcOptions(
+          'auth', // auth.proto의 package명
+          'auth.proto', // proto 파일명
+          process.env.AUTH_SERVICE_HOST || 'localhost:3006', // auth-service gRPC 주소
+        ),
+      },
     ]),
   ],
   controllers: [UserController],

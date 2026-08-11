@@ -44,4 +44,10 @@ export class AuthServiceController {
   }) {
     return this.authServiceService.changePassword(data);
   }
+
+  // proto의 AuthService / Withdraw 메서드와 매핑 (회원 탈퇴)
+  @GrpcMethod('AuthService', 'Withdraw')
+  async withdraw(data: { userId: number }) {
+    return this.authServiceService.withdraw(data);
+  }
 }

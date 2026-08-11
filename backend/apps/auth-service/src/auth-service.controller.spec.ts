@@ -10,6 +10,7 @@ describe('AuthServiceController', () => {
     refresh: jest.Mock;
     logout: jest.Mock;
     changePassword: jest.Mock;
+    withdraw: jest.Mock;
   };
 
   beforeEach(async () => {
@@ -19,6 +20,7 @@ describe('AuthServiceController', () => {
       refresh: jest.fn(),
       logout: jest.fn(),
       changePassword: jest.fn(),
+      withdraw: jest.fn(),
     };
 
     const app: TestingModule = await Test.createTestingModule({
@@ -100,6 +102,18 @@ describe('AuthServiceController', () => {
       const result = await authServiceController.changePassword(data);
 
       expect(authServiceService.changePassword).toHaveBeenCalledWith(data);
+      expect(result).toEqual({ success: true });
+    });
+  });
+
+  describe('withdraw', () => {
+    it('should delegate to AuthServiceService.withdraw', async () => {
+      const data = { userId: 1 };
+      authServiceService.withdraw.mockResolvedValue({ success: true });
+
+      const result = await authServiceController.withdraw(data);
+
+      expect(authServiceService.withdraw).toHaveBeenCalledWith(data);
       expect(result).toEqual({ success: true });
     });
   });
