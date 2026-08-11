@@ -1,12 +1,16 @@
 import { Controller, Get, Inject, OnModuleInit } from '@nestjs/common';
 import { ClientGrpc } from '@nestjs/microservices'; 
 import { Observable } from 'rxjs';
+import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { ApiCommonResponses } from '@app/common/decorators/api-response.decorator';
 
 // proto의 HotelService 스펙과 1:1 대응되는 TS 인터페이스
 interface HotelService {
   getHello(data: {}): Observable<{ message: string }>;
 }
 
+@ApiTags('HotelService')
+@ApiCommonResponses()
 @Controller('api/hotels')
 export class HotelController implements OnModuleInit {
   private hotelService!: HotelService;
@@ -22,9 +26,17 @@ export class HotelController implements OnModuleInit {
 
   /**
    * GET http://localhost:3000/api/hotel/hello
-   * 브라우저/프론트엔드 HTTP 요청 수신 -> user-service gRPC 호출
+   * 브라우저/프론트엔드 HTTP 요청 수신 -> hotel-service gRPC 호출
    */
   @Get('hello')
+  @ApiOperation({ 
+    summary: '호텔 도메인 서버 헬스체크', 
+    description: 'gRPC를 통해 hotel-service 서버의 상태 및 Hello 메시지를 가져옵니다.' 
+  })
+  @ApiResponse({ 
+    status: 200, 
+    description: 'Hotel Hello World! 출력' 
+  })
   getHello(): Observable<{ message: string }> {
     return this.hotelService.getHello({});
   }
