@@ -71,3 +71,11 @@ module "redis" {
 
   node_type = "cache.t3.micro"
 }
+
+# Frontend S3 & CloudFront CDN 모듈 연동
+module "s3_frontend" {
+  source = "../../modules/s3_frontend"
+
+  project_name = "team04"
+  environment  = "dev"
+}
