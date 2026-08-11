@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Inject,
@@ -6,6 +7,7 @@ import {
   OnModuleInit,
   Param,
   ParseIntPipe,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import { ClientGrpc } from '@nestjs/microservices';
@@ -13,6 +15,7 @@ import { Observable, firstValueFrom } from 'rxjs';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { ApiCommonResponses } from '@app/common/decorators/api-response.decorator';
 import { JwtAuthGuard, RolesGuard, Roles, CurrentUser, AuthenticatedUser } from '@app/common';
+import { UpdateMeDto } from './dto/update-me.dto';
 
 // proto의 User 메시지와 1:1 대응되는 응답 형태
 interface UserResponse {
@@ -29,6 +32,7 @@ interface UserService {
   getHello(data: {}): Observable<{ message: string }>;
   getUsers(data: {}): Observable<{ users: UserResponse[] }>;
   getUserById(data: { id: number }): Observable<UserResponse>;
+  updateUser(data: { id: number; name: string; phoneNumber: string }): Observable<UserResponse>;
 }
 
 @ApiTags('UserService')
@@ -102,6 +106,36 @@ export class UserController implements OnModuleInit {
   })
   async getMe(@CurrentUser() user: AuthenticatedUser): Promise<UserResponse> {
     return firstValueFrom(this.userService.getUserById({ id: user.userId })).catch((err) => {
+      throw new NotFoundException(err?.details || err?.message || '유저 정보를 찾을 수 없습니다.');
+    });
+  }
+
+  /**
+   * PUT http://localhost:3000/api/users/me
+   * 로그인한 사용자 본인의 정보를 수정합니다.
+   */
+  @Put('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: '내 정보 수정',
+    description: '유효한 액세스 토큰을 가진 사용자 본인의 이름/전화번호를 수정합니다.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '내 정보 수정 성공',
+  })
+  @ApiResponse({
+    status: 400,
+    description: '요청 형식이 올바르지 않음',
+  })
+  async updateMe(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: UpdateMeDto,
+  ): Promise<UserResponse> {
+    return firstValueFrom(
+      this.userService.updateUser({ id: user.userId, ...dto }),
+    ).catch((err) => {
       throw new NotFoundException(err?.details || err?.message || '유저 정보를 찾을 수 없습니다.');
     });
   }

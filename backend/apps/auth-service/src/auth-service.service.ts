@@ -14,6 +14,7 @@ const SALT_ROUNDS = 10;
 // 이메일/비밀번호 불일치와 미가입 이메일을 동일 메시지로 응답해 계정 존재 여부가 노출되지 않도록 합니다.
 const INVALID_CREDENTIALS_MESSAGE = '이메일 또는 비밀번호가 일치하지 않습니다.';
 const INVALID_REFRESH_TOKEN_MESSAGE = '유효하지 않거나 만료된 리프레시 토큰입니다.';
+const INVALID_CURRENT_PASSWORD_MESSAGE = '현재 비밀번호가 일치하지 않습니다.';
 
 // Redis에 리프레시 토큰을 저장하는 키. 사용자당 1개만 유지하며(재로그인 시 이전 토큰은 자동 무효화),
 // 로그아웃 시 이 키를 삭제하면 이후 Refresh 요청이 거부됩니다.
@@ -139,6 +140,31 @@ export class AuthServiceService implements OnModuleInit {
   // (기본 15분) 만료 시점까지는 계속 유효하지만, Refresh를 통한 재발급은 즉시 차단됩니다.
   async logout(data: { userId: number }): Promise<{ success: boolean }> {
     await this.redis.del(refreshTokenKey(data.userId));
+    return { success: true };
+  }
+
+  // 비밀번호 변경: 현재 비밀번호 검증 → 새 비밀번호로 해시 교체 → 다른 기기/세션 강제 재로그인(리프레시 토큰 삭제)
+  async changePassword(data: {
+    userId: number;
+    currentPassword: string;
+    newPassword: string;
+  }): Promise<{ success: boolean }> {
+    const credential = await this.credentialRepository.findOne({ where: { userId: data.userId } });
+    if (!credential) {
+      throw new RpcException(INVALID_CURRENT_PASSWORD_MESSAGE);
+    }
+
+    const isCurrentPasswordValid = await bcrypt.compare(data.currentPassword, credential.passwordHash);
+    if (!isCurrentPasswordValid) {
+      throw new RpcException(INVALID_CURRENT_PASSWORD_MESSAGE);
+    }
+
+    credential.passwordHash = await bcrypt.hash(data.newPassword, SALT_ROUNDS);
+    await this.credentialRepository.save(credential);
+
+    // 비밀번호가 바뀌었으므로 기존에 발급된 리프레시 토큰은 무효화합니다(다른 기기/세션은 재로그인 필요).
+    await this.redis.del(refreshTokenKey(data.userId));
+
     return { success: true };
   }
 

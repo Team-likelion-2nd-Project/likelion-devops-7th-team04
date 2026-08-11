@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Inject, OnModuleInit, Post, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Inject, OnModuleInit, Patch, Post, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { ClientGrpc } from '@nestjs/microservices';
 import { Observable, firstValueFrom } from 'rxjs';
 import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
@@ -7,6 +7,7 @@ import { JwtAuthGuard, CurrentUser, AuthenticatedUser } from '@app/common';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
+import { ChangePasswordDto } from './dto/change-password.dto';
 
 interface AuthTokenResponse {
   accessToken: string;
@@ -23,6 +24,11 @@ interface AuthService {
   login(data: LoginDto): Observable<AuthTokenResponse>;
   refresh(data: RefreshDto): Observable<AuthTokenResponse>;
   logout(data: { userId: number }): Observable<{ success: boolean }>;
+  changePassword(data: {
+    userId: number;
+    currentPassword: string;
+    newPassword: string;
+  }): Observable<{ success: boolean }>;
 }
 
 @ApiTags('AuthService')
@@ -141,5 +147,37 @@ export class AuthController implements OnModuleInit {
       throw new BadRequestException(err?.details || err?.message || '로그아웃에 실패했습니다.');
     });
     return { message: '로그아웃되었습니다.' };
+  }
+
+  /**
+   * PATCH http://localhost:3000/api/auth/password
+   * 액세스 토큰(Authorization: Bearer)이 유효한 사용자 본인의 비밀번호를 변경합니다.
+   * auth-service가 현재 비밀번호를 검증한 뒤 새 비밀번호로 해시를 교체하고, Redis의 리프레시 토큰을
+   * 삭제해 다른 기기/세션은 재로그인이 필요하도록 만듭니다.
+   */
+  @Patch('password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: '비밀번호 변경',
+    description:
+      '유효한 액세스 토큰을 가진 사용자 본인의 비밀번호를 변경합니다. 현재 비밀번호가 일치해야 하며, ' +
+      '변경 성공 시 다른 기기/세션의 리프레시 토큰은 무효화되어 재로그인이 필요합니다.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '비밀번호 변경 성공',
+  })
+  @ApiResponse({
+    status: 401,
+    description: '현재 비밀번호가 일치하지 않음',
+  })
+  async changePassword(@CurrentUser() user: AuthenticatedUser, @Body() dto: ChangePasswordDto) {
+    await firstValueFrom(
+      this.authService.changePassword({ userId: user.userId, ...dto }),
+    ).catch((err) => {
+      throw new UnauthorizedException(err?.details || err?.message || '비밀번호 변경에 실패했습니다.');
+    });
+    return { message: '비밀번호가 변경되었습니다.' };
   }
 }

@@ -7,10 +7,10 @@ import { User } from './entities/user.entity';
 
 describe('UserServiceController', () => {
   let userServiceController: UserServiceController;
-  let userRepository: { findOne: jest.Mock; find: jest.Mock };
+  let userRepository: { findOne: jest.Mock; find: jest.Mock; save: jest.Mock };
 
   beforeEach(async () => {
-    userRepository = { findOne: jest.fn(), find: jest.fn() };
+    userRepository = { findOne: jest.fn(), find: jest.fn(), save: jest.fn() };
 
     const app: TestingModule = await Test.createTestingModule({
       controllers: [UserServiceController],
@@ -112,6 +112,48 @@ describe('UserServiceController', () => {
       userRepository.findOne.mockResolvedValue(null);
 
       await expect(userServiceController.getUserById({ id: 999 })).rejects.toThrow();
+    });
+  });
+
+  describe('updateUser', () => {
+    it('should update the name/phoneNumber and return the saved profile', async () => {
+      const existing = {
+        id: 1,
+        email: 'user@example.com',
+        name: '홍길동',
+        phoneNumber: '010-1234-5678',
+        role: 'USER',
+        status: 'ACTIVE',
+      };
+      userRepository.findOne.mockResolvedValue(existing);
+      userRepository.save.mockImplementation((user) => Promise.resolve(user));
+
+      const result = await userServiceController.updateUser({
+        id: 1,
+        name: '김철수',
+        phoneNumber: '010-9999-9999',
+      });
+
+      expect(userRepository.findOne).toHaveBeenCalledWith({ where: { id: 1 } });
+      expect(userRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({ name: '김철수', phoneNumber: '010-9999-9999' }),
+      );
+      expect(result).toEqual({
+        id: 1,
+        email: 'user@example.com',
+        name: '김철수',
+        phoneNumber: '010-9999-9999',
+        role: 'USER',
+        status: 'ACTIVE',
+      });
+    });
+
+    it('should throw when the id does not exist', async () => {
+      userRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        userServiceController.updateUser({ id: 999, name: '김철수', phoneNumber: '010-9999-9999' }),
+      ).rejects.toThrow();
     });
   });
 });

@@ -14,6 +14,10 @@ service AuthService {
 
   // 로그아웃: Redis에 저장된 리프레시 토큰을 삭제해 재발급(Refresh)을 더 이상 할 수 없게 합니다.
   rpc Logout (LogoutRequest) returns (LogoutResponse);
+
+  // 비밀번호 변경: 현재 비밀번호를 검증한 뒤 새 비밀번호로 해시를 교체합니다. 이후 재발급(Refresh)을 막기 위해
+  // Redis에 저장된 리프레시 토큰도 함께 삭제합니다(다른 기기/세션은 강제 재로그인).
+  rpc ChangePassword (ChangePasswordRequest) returns (ChangePasswordResponse);
 }
 
 message RegisterRequest {
@@ -37,6 +41,16 @@ message LogoutRequest {
 }
 
 message LogoutResponse {
+  bool success = 1;
+}
+
+message ChangePasswordRequest {
+  int32 userId = 1;
+  string currentPassword = 2;
+  string newPassword = 3;
+}
+
+message ChangePasswordResponse {
   bool success = 1;
 }
 
