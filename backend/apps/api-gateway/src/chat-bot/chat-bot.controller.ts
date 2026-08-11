@@ -1,5 +1,5 @@
 import { Controller, Get, Inject, OnModuleInit } from '@nestjs/common';
-import { ClientGrpc } from '@nestjs/microservices'; 
+import { ClientGrpc } from '@nestjs/microservices';
 import { Observable } from 'rxjs';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { ApiCommonResponses } from '@app/common/decorators/api-response.decorator';
@@ -21,7 +21,8 @@ export class ChatBotController implements OnModuleInit {
 
   // NestJS 생명주기: 모듈이 초기화될 때 gRPC 서비스 객체를 추출합니다.
   onModuleInit() {
-    this.chatBotService = this.client.getService<ChatBotService>('ChatBotService');
+    this.chatBotService =
+      this.client.getService<ChatBotService>('ChatBotService');
   }
 
   /**
@@ -29,13 +30,14 @@ export class ChatBotController implements OnModuleInit {
    * 브라우저/프론트엔드 HTTP 요청 수신 -> chat-bot-service gRPC 호출
    */
   @Get('hello')
-  @ApiOperation({ 
-    summary: '챗봇 도메인 서버 헬스체크', 
-    description: 'gRPC를 통해 chat-bot-service 서버의 상태 및 Hello 메시지를 가져옵니다.' 
+  @ApiOperation({
+    summary: '챗봇 도메인 서버 헬스체크',
+    description:
+      'gRPC를 통해 chat-bot-service 서버의 상태 및 Hello 메시지를 가져옵니다.',
   })
-  @ApiResponse({ 
-    status: 200, 
-    description: 'ChatBot Hello World! 출력' 
+  @ApiResponse({
+    status: 200,
+    description: 'ChatBot Hello World! 출력',
   })
   getHello(): Observable<{ message: string }> {
     return this.chatBotService.getHello({});

@@ -4,10 +4,28 @@ package hotel;
 
 service HotelService {
   rpc GetHello (Empty) returns (HelloResponse);
+  rpc GetHotels (Empty) returns (HotelListResponse);
+  rpc GetHotel (GetHotelRequest) returns (Hotel);
 }
 
 message Empty {}
 
 message HelloResponse {
   string message = 1;
+}
+
+message GetHotelRequest {
+  int32 hotelId = 1;
+}
+
+message Hotel {
+  int32 hotelId = 1;
+  string name = 2;
+  string address = 3;
+  string phoneNumber = 4;
+  string description = 5;
+}
+
+message HotelListResponse {
+  repeated Hotel hotels = 1;
 }

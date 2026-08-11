@@ -10,8 +10,8 @@ import { ChatBotController } from './chat-bot.controller';
       {
         name: 'CHAT_BOT_SERVICE', // DI(의존성 주입)에 사용될 토큰 명
         ...getGrpcOptions(
-          'chatBot',       // chat-bot.proto의 package명
-          'chat-bot.proto',  // proto 파일명
+          'chatBot', // chat-bot.proto의 package명
+          'chat-bot.proto', // proto 파일명
           process.env.CHAT_BOT_SERVICE_HOST || 'localhost:3005', // chat-bot-service gRPC 주소
         ),
       },

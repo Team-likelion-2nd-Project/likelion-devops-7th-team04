@@ -21,12 +21,16 @@ describe('UserServiceController', () => {
       ],
     }).compile();
 
-    userServiceController = app.get<UserServiceController>(UserServiceController);
+    userServiceController = app.get<UserServiceController>(
+      UserServiceController,
+    );
   });
 
   describe('getHello', () => {
     it('should return "User Hello World!"', () => {
-      expect(userServiceController.getHello()).toEqual({ message: 'User Hello World!' });
+      expect(userServiceController.getHello()).toEqual({
+        message: 'User Hello World!',
+      });
     });
   });
 

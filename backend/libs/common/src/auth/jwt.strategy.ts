@@ -11,7 +11,9 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     const secret = process.env.JWT_ACCESS_SECRET;
     if (!secret) {
       // 운영 환경에서 시크릿 누락을 조용히 넘기지 않기 위한 방어 로직
-      console.warn('⚠️ JWT_ACCESS_SECRET이 설정되지 않아 개발용 기본값을 사용합니다.');
+      console.warn(
+        '⚠️ JWT_ACCESS_SECRET이 설정되지 않아 개발용 기본값을 사용합니다.',
+      );
     }
 
     super({

@@ -31,9 +31,7 @@ interface AuthService {
 export class AuthController implements OnModuleInit {
   private authService!: AuthService;
 
-  constructor(
-    @Inject('AUTH_SERVICE') private readonly client: ClientGrpc,
-  ) {}
+  constructor(@Inject('AUTH_SERVICE') private readonly client: ClientGrpc) {}
 
   // NestJS 생명주기: 모듈이 초기화될 때 gRPC 서비스 객체를 추출합니다.
   onModuleInit() {
@@ -57,7 +55,9 @@ export class AuthController implements OnModuleInit {
   })
   async register(@Body() dto: RegisterDto) {
     return firstValueFrom(this.authService.register(dto)).catch((err) => {
-      throw new BadRequestException(err?.details || err?.message || '회원가입에 실패했습니다.');
+      throw new BadRequestException(
+        err?.details || err?.message || '회원가입에 실패했습니다.',
+      );
     });
   }
 

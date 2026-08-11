@@ -14,8 +14,8 @@ import { AuthController } from './auth.controller';
       {
         name: 'AUTH_SERVICE', // DI(의존성 주입)에 사용될 토큰 명
         ...getGrpcOptions(
-          'auth',       // auth.proto의 package명
-          'auth.proto',  // proto 파일명
+          'auth', // auth.proto의 package명
+          'auth.proto', // proto 파일명
           process.env.AUTH_SERVICE_HOST || 'localhost:3006', // auth-service gRPC 주소
         ),
       },
