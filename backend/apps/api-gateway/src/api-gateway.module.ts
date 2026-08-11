@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ApiGatewayController } from './api-gateway.controller';
 import { ApiGatewayService } from './api-gateway.service';
+import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { HotelModule } from './hotel/hotel.module';
 import { BookingController } from './booking/booking.controller';
@@ -11,7 +12,7 @@ import { PaymentModule } from './payment/payment.module';
 import { BookingModule } from './booking/booking.module';
 
 @Module({
-  imports: [UserModule, HotelModule, ChatBotModule, PaymentModule, BookingModule],
+  imports: [AuthModule, UserModule, HotelModule, ChatBotModule, PaymentModule, BookingModule],
   controllers: [ApiGatewayController],
   providers: [ApiGatewayService],
 })

@@ -1,13 +1,23 @@
 import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
 import { ApiGatewayModule } from './api-gateway.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(ApiGatewayModule);
-  
+
   app.enableCors({
     origin: 'http://localhost:5173',
   });
+
+  // DTO(class-validator)로 정의한 유효성 검사 규칙을 전역 적용 (회원가입 등)
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true, // DTO에 없는 필드는 제거
+      forbidNonWhitelisted: true, // DTO에 없는 필드가 오면 400 에러
+      transform: true, // payload를 DTO 클래스 인스턴스로 변환
+    }),
+  );
 
   const config = new DocumentBuilder()
     .setTitle('RAG 기반 챗봇 호텔 예약 웹서비스 API')
