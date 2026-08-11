@@ -20,7 +20,21 @@ services:
     # volumes:
     #   - mariadb_data:/var/lib/mysql
 
-  # 2. API Gateway
+  # 2. Redis (로컬 개발용. 운영에서는 AWS ElastiCache를 사용하며, 그때는 auth-service의
+  #    REDIS_HOST/REDIS_PORT/REDIS_PASSWORD/REDIS_TLS 값만 바꾸면 되고 코드 변경은 필요 없습니다.)
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # 3. API Gateway
   api-gateway:
     build:
       context: .
@@ -68,8 +82,11 @@ services:
     environment:
       - NODE_ENV=development
       - USER_SERVICE_HOST=user-service:3001
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     depends_on:
       - user-service
+      - redis
 
   hotel-service:
     build:

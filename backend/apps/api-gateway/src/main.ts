@@ -23,7 +23,7 @@ async function bootstrap() {
     .setTitle('RAG 기반 챗봇 호텔 예약 웹서비스 API')
     .setDescription('API Gateway Swagger 문서입니다.')
     .setVersion('1.0')
-    //.addBearerAuth() // JWT 토큰 인증 기능 (선택)
+    .addBearerAuth() // JWT 토큰 인증 (로그아웃 등 @ApiBearerAuth() 라우트에서 Swagger의 Authorize 버튼 사용)
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

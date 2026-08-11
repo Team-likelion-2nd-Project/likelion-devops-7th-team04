@@ -3,7 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ClientsModule } from '@nestjs/microservices';
 import { JwtModule } from '@nestjs/jwt';
-import { getGrpcOptions } from '@app/common';
+import { getGrpcOptions, RedisModule } from '@app/common';
 import { AuthServiceController } from './auth-service.controller';
 import { AuthServiceService } from './auth-service.service';
 import { Credential } from './entities/credential.entity';
@@ -53,6 +53,9 @@ import { Credential } from './entities/credential.entity';
         ),
       },
     ]),
+
+    // 6. 리프레시 토큰 저장소 (로컬: docker-compose의 redis 컨테이너, 운영: AWS ElastiCache)
+    RedisModule,
   ],
   controllers: [AuthServiceController],
   providers: [AuthServiceService],
