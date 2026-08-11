@@ -4,7 +4,13 @@ import { AuthServiceService } from './auth-service.service';
 
 describe('AuthServiceController', () => {
   let authServiceController: AuthServiceController;
-  let authServiceService: { register: jest.Mock; login: jest.Mock; refresh: jest.Mock; logout: jest.Mock };
+  let authServiceService: {
+    register: jest.Mock;
+    login: jest.Mock;
+    refresh: jest.Mock;
+    logout: jest.Mock;
+    changePassword: jest.Mock;
+  };
 
   beforeEach(async () => {
     authServiceService = {
@@ -12,6 +18,7 @@ describe('AuthServiceController', () => {
       login: jest.fn(),
       refresh: jest.fn(),
       logout: jest.fn(),
+      changePassword: jest.fn(),
     };
 
     const app: TestingModule = await Test.createTestingModule({
@@ -81,6 +88,18 @@ describe('AuthServiceController', () => {
       const result = await authServiceController.logout(dto);
 
       expect(authServiceService.logout).toHaveBeenCalledWith(dto);
+      expect(result).toEqual({ success: true });
+    });
+  });
+
+  describe('changePassword', () => {
+    it('should delegate to AuthServiceService.changePassword', async () => {
+      const data = { userId: 1, currentPassword: 'password123', newPassword: 'newPassword456' };
+      authServiceService.changePassword.mockResolvedValue({ success: true });
+
+      const result = await authServiceController.changePassword(data);
+
+      expect(authServiceService.changePassword).toHaveBeenCalledWith(data);
       expect(result).toEqual({ success: true });
     });
   });

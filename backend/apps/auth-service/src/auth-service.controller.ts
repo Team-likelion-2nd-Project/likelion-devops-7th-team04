@@ -34,4 +34,14 @@ export class AuthServiceController {
   async logout(data: { userId: number }) {
     return this.authServiceService.logout(data);
   }
+
+  // proto의 AuthService / ChangePassword 메서드와 매핑 (비밀번호 변경)
+  @GrpcMethod('AuthService', 'ChangePassword')
+  async changePassword(data: {
+    userId: number;
+    currentPassword: string;
+    newPassword: string;
+  }) {
+    return this.authServiceService.changePassword(data);
+  }
 }

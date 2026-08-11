@@ -106,6 +106,22 @@ export class UserServiceService implements OnModuleInit {
     return this.toGrpcResponse(user);
   }
 
+  // api-gateway "내 정보 수정"(JWT의 userId) 요청. 없으면 RpcException.
+  async updateUser(
+    id: number,
+    data: { name: string; phoneNumber: string },
+  ): Promise<UserGrpcResponse> {
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user) {
+      throw new RpcException('존재하지 않는 유저입니다.');
+    }
+
+    user.name = data.name;
+    user.phoneNumber = data.phoneNumber;
+    const saved = await this.userRepository.save(user);
+    return this.toGrpcResponse(saved);
+  }
+
   private toGrpcResponse(user: User): UserGrpcResponse {
     return {
       id: user.id,

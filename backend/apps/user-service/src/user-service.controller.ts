@@ -36,6 +36,15 @@ export class UserServiceController {
     return this.userServiceService.getUserById(data.id);
   }
 
+  // api-gateway가 "내 정보 수정"(PUT /users/me)에서 호출
+  @GrpcMethod('UserService', 'UpdateUser')
+  async updateUser(data: { id: number; name: string; phoneNumber: string }) {
+    return this.userServiceService.updateUser(data.id, {
+      name: data.name,
+      phoneNumber: data.phoneNumber,
+    });
+  }
+
   // DB 연결 확인 엔드포인트 (GET /db-check)
   @Get('db-check')
   async checkDb() {

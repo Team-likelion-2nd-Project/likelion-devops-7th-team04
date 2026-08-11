@@ -8,11 +8,15 @@ describe('UserController', () => {
   const getHelloMock = jest.fn();
   const getUsersMock = jest.fn();
   const getUserByIdMock = jest.fn();
+  const updateUserMock = jest.fn();
 
   beforeEach(async () => {
     getHelloMock.mockReturnValue(of({ message: 'User Hello World!' }));
     getUsersMock.mockReturnValue(of({ users: [] }));
     getUserByIdMock.mockReturnValue(
+      of({ id: 1, email: 'user@example.com', name: '홍길동', phoneNumber: '010-1234-5678', role: 'USER', status: 'ACTIVE' }),
+    );
+    updateUserMock.mockReturnValue(
       of({ id: 1, email: 'user@example.com', name: '홍길동', phoneNumber: '010-1234-5678', role: 'USER', status: 'ACTIVE' }),
     );
 
@@ -26,6 +30,7 @@ describe('UserController', () => {
               getHello: getHelloMock,
               getUsers: getUsersMock,
               getUserById: getUserByIdMock,
+              updateUser: updateUserMock,
             }),
           },
         },
@@ -74,6 +79,36 @@ describe('UserController', () => {
       const user = { userId: 999, email: 'ghost@example.com', role: 'USER' };
 
       await expect(controller.getMe(user)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('updateMe', () => {
+    it('should update the current user by the id from the JWT payload', async () => {
+      const user = { userId: 1, email: 'user@example.com', role: 'USER' };
+      const dto = { name: '김철수', phoneNumber: '010-9999-9999' };
+      updateUserMock.mockReturnValue(
+        of({ id: 1, email: 'user@example.com', name: '김철수', phoneNumber: '010-9999-9999', role: 'USER', status: 'ACTIVE' }),
+      );
+
+      const result = await controller.updateMe(user, dto);
+
+      expect(updateUserMock).toHaveBeenCalledWith({ id: 1, name: '김철수', phoneNumber: '010-9999-9999' });
+      expect(result).toEqual({
+        id: 1,
+        email: 'user@example.com',
+        name: '김철수',
+        phoneNumber: '010-9999-9999',
+        role: 'USER',
+        status: 'ACTIVE',
+      });
+    });
+
+    it('should throw NotFoundException when the profile is missing', async () => {
+      updateUserMock.mockReturnValue(throwError(() => ({ message: '존재하지 않는 유저입니다.' })));
+      const user = { userId: 999, email: 'ghost@example.com', role: 'USER' };
+      const dto = { name: '김철수', phoneNumber: '010-9999-9999' };
+
+      await expect(controller.updateMe(user, dto)).rejects.toThrow(NotFoundException);
     });
   });
 

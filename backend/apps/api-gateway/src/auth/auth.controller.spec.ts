@@ -1,5 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
-import { of } from 'rxjs';
+import { of, throwError } from 'rxjs';
+import { UnauthorizedException } from '@nestjs/common';
 import { AuthController } from './auth.controller';
 
 describe('AuthController', () => {
@@ -8,12 +9,14 @@ describe('AuthController', () => {
   const loginMock = jest.fn();
   const refreshMock = jest.fn();
   const logoutMock = jest.fn();
+  const changePasswordMock = jest.fn();
 
   beforeEach(async () => {
     registerMock.mockReturnValue(of({ accessToken: 'access', refreshToken: 'refresh' }));
     loginMock.mockReturnValue(of({ accessToken: 'access', refreshToken: 'refresh' }));
     refreshMock.mockReturnValue(of({ accessToken: 'new-access', refreshToken: 'new-refresh' }));
     logoutMock.mockReturnValue(of({ success: true }));
+    changePasswordMock.mockReturnValue(of({ success: true }));
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
@@ -26,6 +29,7 @@ describe('AuthController', () => {
               login: loginMock,
               refresh: refreshMock,
               logout: logoutMock,
+              changePassword: changePasswordMock,
             }),
           },
         },
@@ -89,6 +93,26 @@ describe('AuthController', () => {
 
       expect(logoutMock).toHaveBeenCalledWith({ userId: 1 });
       expect(result).toEqual({ message: '로그아웃되었습니다.' });
+    });
+  });
+
+  describe('changePassword', () => {
+    it('should call auth-service via gRPC with the current user id and dto, and return a success message', async () => {
+      const user = { userId: 1, email: 'user@example.com', role: 'USER' };
+      const dto = { currentPassword: 'password123', newPassword: 'newPassword456' };
+
+      const result = await controller.changePassword(user, dto);
+
+      expect(changePasswordMock).toHaveBeenCalledWith({ userId: 1, ...dto });
+      expect(result).toEqual({ message: '비밀번호가 변경되었습니다.' });
+    });
+
+    it('should throw UnauthorizedException when the current password is wrong', async () => {
+      changePasswordMock.mockReturnValue(throwError(() => ({ message: '현재 비밀번호가 일치하지 않습니다.' })));
+      const user = { userId: 1, email: 'user@example.com', role: 'USER' };
+      const dto = { currentPassword: 'wrong-password', newPassword: 'newPassword456' };
+
+      await expect(controller.changePassword(user, dto)).rejects.toThrow(UnauthorizedException);
     });
   });
 });
