@@ -5,9 +5,19 @@ import { JwtService, JwtSignOptions } from '@nestjs/jwt';
 import { Repository } from 'typeorm';
 import { Observable, firstValueFrom } from 'rxjs';
 import * as bcrypt from 'bcrypt';
+import Redis from 'ioredis';
+import { REDIS_CLIENT, JwtPayload } from '@app/common';
 import { Credential } from './entities/credential.entity';
 
 const SALT_ROUNDS = 10;
+
+// 이메일/비밀번호 불일치와 미가입 이메일을 동일 메시지로 응답해 계정 존재 여부가 노출되지 않도록 합니다.
+const INVALID_CREDENTIALS_MESSAGE = '이메일 또는 비밀번호가 일치하지 않습니다.';
+const INVALID_REFRESH_TOKEN_MESSAGE = '유효하지 않거나 만료된 리프레시 토큰입니다.';
+
+// Redis에 리프레시 토큰을 저장하는 키. 사용자당 1개만 유지하며(재로그인 시 이전 토큰은 자동 무효화),
+// 로그아웃 시 이 키를 삭제하면 이후 Refresh 요청이 거부됩니다.
+const refreshTokenKey = (userId: number) => `refresh:${userId}`;
 
 // libs/common/src/proto/user.proto의 User 메시지와 1:1 대응
 interface UserGrpcResponse {
@@ -21,6 +31,7 @@ interface UserGrpcResponse {
 
 interface UserGrpcService {
   createUser(data: { email: string; name: string; phoneNumber: string }): Observable<UserGrpcResponse>;
+  getUserByEmail(data: { email: string }): Observable<UserGrpcResponse>;
 }
 
 export interface AuthTokens {
@@ -40,6 +51,7 @@ export class AuthServiceService implements OnModuleInit {
     @InjectRepository(Credential) private readonly credentialRepository: Repository<Credential>,
     private readonly jwtService: JwtService,
     @Inject('USER_SERVICE') private readonly userClient: ClientGrpc,
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
   ) {}
 
   onModuleInit() {
@@ -71,17 +83,75 @@ export class AuthServiceService implements OnModuleInit {
     return this.issueTokens(user);
   }
 
-  private issueTokens(user: UserGrpcResponse): AuthTokens {
+  // 로그인: user-service에서 이메일로 프로필 조회 → 비밀번호 해시 검증 → 토큰 발급
+  async login(data: { email: string; password: string }): Promise<AuthTokens> {
+    const user = await firstValueFrom(this.userService.getUserByEmail({ email: data.email })).catch(() => {
+      // 미가입 이메일도 동일한 메시지로 응답 (계정 존재 여부 비노출)
+      throw new RpcException(INVALID_CREDENTIALS_MESSAGE);
+    });
+
+    const credential = await this.credentialRepository.findOne({ where: { userId: user.id } });
+    if (!credential) {
+      throw new RpcException(INVALID_CREDENTIALS_MESSAGE);
+    }
+
+    const isPasswordValid = await bcrypt.compare(data.password, credential.passwordHash);
+    if (!isPasswordValid) {
+      throw new RpcException(INVALID_CREDENTIALS_MESSAGE);
+    }
+
+    return this.issueTokens(user);
+  }
+
+  // 토큰 재발급: 리프레시 토큰 서명 검증 → Redis에 저장된 값과 일치하는지 대조 → 토큰 재발급(로테이션)
+  // 로그아웃된(= Redis에서 삭제된) 리프레시 토큰은 서명이 유효해도 거부됩니다.
+  async refresh(data: { refreshToken: string }): Promise<AuthTokens> {
+    let payload: JwtPayload;
+    try {
+      payload = this.jwtService.verify<JwtPayload>(data.refreshToken, {
+        secret: process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret',
+      });
+    } catch {
+      throw new RpcException(INVALID_REFRESH_TOKEN_MESSAGE);
+    }
+
+    const storedToken = await this.redis.get(refreshTokenKey(payload.sub));
+    if (!storedToken || storedToken !== data.refreshToken) {
+      throw new RpcException(INVALID_REFRESH_TOKEN_MESSAGE);
+    }
+
+    // 최신 프로필(이름/권한 변경 등)을 반영해 토큰을 재발급합니다.
+    const user = await firstValueFrom(this.userService.getUserByEmail({ email: payload.email })).catch(() => {
+      throw new RpcException(INVALID_REFRESH_TOKEN_MESSAGE);
+    });
+
+    return this.issueTokens(user);
+  }
+
+  // 로그아웃: Redis에서 리프레시 토큰을 삭제합니다. JWT는 무상태이므로 이미 발급된 액세스 토큰은
+  // (기본 15분) 만료 시점까지는 계속 유효하지만, Refresh를 통한 재발급은 즉시 차단됩니다.
+  async logout(data: { userId: number }): Promise<{ success: boolean }> {
+    await this.redis.del(refreshTokenKey(data.userId));
+    return { success: true };
+  }
+
+  private async issueTokens(user: UserGrpcResponse): Promise<AuthTokens> {
     const payload = { sub: user.id, email: user.email, role: user.role };
 
     const accessToken = this.jwtService.sign(payload, {
       secret: process.env.JWT_ACCESS_SECRET || 'dev-access-secret',
       expiresIn: (process.env.JWT_ACCESS_EXPIRES_IN || '15m') as JwtSignOptions['expiresIn'],
     });
+    const refreshExpiresIn = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
     const refreshToken = this.jwtService.sign(payload, {
       secret: process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret',
-      expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN || '7d') as JwtSignOptions['expiresIn'],
+      expiresIn: refreshExpiresIn as JwtSignOptions['expiresIn'],
     });
+
+    // 리프레시 토큰의 TTL을 JWT의 실제 만료 시각(exp)에 맞춰 Redis에 저장합니다 (사용자당 1개, 재로그인 시 덮어씀).
+    const { exp } = this.jwtService.decode<{ exp: number }>(refreshToken);
+    const ttlSeconds = Math.max(exp - Math.floor(Date.now() / 1000), 1);
+    await this.redis.set(refreshTokenKey(user.id), refreshToken, 'EX', ttlSeconds);
 
     return {
       accessToken,

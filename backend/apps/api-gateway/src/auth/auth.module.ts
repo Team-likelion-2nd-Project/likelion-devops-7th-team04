@@ -1,10 +1,14 @@
 import { Module } from '@nestjs/common';
 import { ClientsModule } from '@nestjs/microservices';
-import { getGrpcOptions } from '@app/common';
+import { PassportModule } from '@nestjs/passport';
+import { getGrpcOptions, JwtStrategy } from '@app/common';
 import { AuthController } from './auth.controller';
 
 @Module({
   imports: [
+    // JwtAuthGuard(@UseGuards(JwtAuthGuard))가 사용하는 'jwt' passport 전략 등록
+    PassportModule,
+
     // auth-service gRPC 클라이언트 등록
     ClientsModule.register([
       {
@@ -18,5 +22,6 @@ import { AuthController } from './auth.controller';
     ]),
   ],
   controllers: [AuthController],
+  providers: [JwtStrategy],
 })
 export class AuthModule {}
