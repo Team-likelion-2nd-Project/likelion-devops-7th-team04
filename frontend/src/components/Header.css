@@ -1,0 +1,97 @@
+.site-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 20px 32px;
+  border-bottom: 1px solid var(--border);
+
+  @media (max-width: 767px) {
+    padding: 16px 20px;
+  }
+}
+
+.site-logo {
+  font-family: var(--heading);
+  font-size: 20px;
+  letter-spacing: 0.08em;
+  color: var(--text-h);
+  text-decoration: none;
+}
+
+.site-nav {
+  display: flex;
+  gap: 8px;
+
+  @media (max-width: 767px) {
+    display: none;
+  }
+}
+
+.nav-item {
+  position: relative;
+}
+
+.nav-trigger {
+  appearance: none;
+  background: none;
+  border: none;
+  font: inherit;
+  font-size: 15px;
+  color: var(--text-h);
+  padding: 10px 14px;
+  cursor: pointer;
+  text-decoration: none;
+  display: inline-block;
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+.nav-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  min-width: 160px;
+  margin: 0;
+  padding: 8px;
+  list-style: none;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  text-align: left;
+  z-index: 10;
+
+  a {
+    display: block;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 14px;
+    color: var(--text);
+    text-decoration: none;
+
+    &:hover,
+    &:focus-visible {
+      background: var(--accent-bg);
+      color: var(--text-h);
+    }
+  }
+}
+
+.nav-cta {
+  font-size: 14px;
+  padding: 10px 20px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--bg);
+  text-decoration: none;
+  white-space: nowrap;
+
+  &:hover,
+  &:focus-visible {
+    opacity: 0.85;
+  }
+}
