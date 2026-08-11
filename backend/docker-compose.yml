@@ -36,13 +36,15 @@ services:
       - BOOKING_SERVICE_HOST=booking-service:3003
       - PAYMENT_SERVICE_HOST=payment-service:3004
       - CHAT_BOT_SERVICE_HOST=chat-bot-service:3005
-      
+      - AUTH_SERVICE_HOST=auth-service:3006
+
     depends_on:
       - user-service
       - hotel-service
       - booking-service
       - payment-service
       - chat-bot-service
+      - auth-service
 
   user-service:
     build:
@@ -54,6 +56,20 @@ services:
       - .env
     environment:
       - NODE_ENV=development
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: apps/auth-service/Dockerfile
+    ports:
+      - "3006:3006"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=development
+      - USER_SERVICE_HOST=user-service:3001
+    depends_on:
+      - user-service
 
   hotel-service:
     build:

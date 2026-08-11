@@ -1,0 +1,24 @@
+syntax = "proto3";
+
+package auth;
+
+service AuthService {
+  // 회원가입: user-service에 프로필을 생성하고 자격증명(비밀번호 해시)을 저장한 뒤 토큰을 발급합니다.
+  rpc Register (RegisterRequest) returns (AuthResponse);
+}
+
+message RegisterRequest {
+  string email = 1;
+  string password = 2;
+  string name = 3;
+  string phoneNumber = 4;
+}
+
+message AuthResponse {
+  string accessToken = 1;
+  string refreshToken = 2;
+  int32 userId = 3;
+  string email = 4;
+  string name = 5;
+  string role = 6;
+}
