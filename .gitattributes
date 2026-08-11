@@ -1,0 +1,15 @@
+# 텍스트 파일은 전부 CRLF로 정규화 (Windows VS Code 기준 통일)
+* text=auto eol=crlf
+
+# 바이너리 파일은 줄바꿈 변환 대상에서 제외
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary
+*.zip binary
