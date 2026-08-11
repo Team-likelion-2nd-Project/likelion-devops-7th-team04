@@ -7,10 +7,10 @@ import { User } from './entities/user.entity';
 
 describe('UserServiceController', () => {
   let userServiceController: UserServiceController;
-  let userRepository: { findOne: jest.Mock };
+  let userRepository: { findOne: jest.Mock; find: jest.Mock };
 
   beforeEach(async () => {
-    userRepository = { findOne: jest.fn() };
+    userRepository = { findOne: jest.fn(), find: jest.fn() };
 
     const app: TestingModule = await Test.createTestingModule({
       controllers: [UserServiceController],
@@ -62,6 +62,56 @@ describe('UserServiceController', () => {
       userRepository.findOne.mockResolvedValue(null);
 
       await expect(userServiceController.getUserByEmail({ email: 'missing@example.com' })).rejects.toThrow();
+    });
+  });
+
+  describe('getUsers', () => {
+    it('should return every user mapped to the gRPC response shape', async () => {
+      userRepository.find.mockResolvedValue([
+        { id: 1, email: 'a@example.com', name: 'A', phoneNumber: '010-0000-0000', role: 'USER', status: 'ACTIVE' },
+        { id: 2, email: 'b@example.com', name: 'B', phoneNumber: '010-1111-1111', role: 'ADMIN', status: 'ACTIVE' },
+      ]);
+
+      const result = await userServiceController.getUsers();
+
+      expect(userRepository.find).toHaveBeenCalled();
+      expect(result).toEqual({
+        users: [
+          { id: 1, email: 'a@example.com', name: 'A', phoneNumber: '010-0000-0000', role: 'USER', status: 'ACTIVE' },
+          { id: 2, email: 'b@example.com', name: 'B', phoneNumber: '010-1111-1111', role: 'ADMIN', status: 'ACTIVE' },
+        ],
+      });
+    });
+  });
+
+  describe('getUserById', () => {
+    it('should return the profile when the id exists', async () => {
+      userRepository.findOne.mockResolvedValue({
+        id: 1,
+        email: 'user@example.com',
+        name: '홍길동',
+        phoneNumber: '010-1234-5678',
+        role: 'USER',
+        status: 'ACTIVE',
+      });
+
+      const result = await userServiceController.getUserById({ id: 1 });
+
+      expect(userRepository.findOne).toHaveBeenCalledWith({ where: { id: 1 } });
+      expect(result).toEqual({
+        id: 1,
+        email: 'user@example.com',
+        name: '홍길동',
+        phoneNumber: '010-1234-5678',
+        role: 'USER',
+        status: 'ACTIVE',
+      });
+    });
+
+    it('should throw when the id does not exist', async () => {
+      userRepository.findOne.mockResolvedValue(null);
+
+      await expect(userServiceController.getUserById({ id: 999 })).rejects.toThrow();
     });
   });
 });

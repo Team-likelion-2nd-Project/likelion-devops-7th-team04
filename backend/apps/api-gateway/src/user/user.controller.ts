@@ -1,12 +1,34 @@
-import { Controller, Get, Inject, OnModuleInit } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Inject,
+  NotFoundException,
+  OnModuleInit,
+  Param,
+  ParseIntPipe,
+  UseGuards,
+} from '@nestjs/common';
 import { ClientGrpc } from '@nestjs/microservices';
-import { Observable } from 'rxjs';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import { Observable, firstValueFrom } from 'rxjs';
+import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth, ApiParam } from '@nestjs/swagger';
 import { ApiCommonResponses } from '@app/common/decorators/api-response.decorator';
+import { JwtAuthGuard, RolesGuard, Roles, CurrentUser, AuthenticatedUser } from '@app/common';
+
+// proto의 User 메시지와 1:1 대응되는 응답 형태
+interface UserResponse {
+  id: number;
+  email: string;
+  name: string;
+  phoneNumber: string;
+  role: string;
+  status: string;
+}
 
 // proto의 UserService 스펙과 1:1 대응되는 TS 인터페이스
 interface UserService {
   getHello(data: {}): Observable<{ message: string }>;
+  getUsers(data: {}): Observable<{ users: UserResponse[] }>;
+  getUserById(data: { id: number }): Observable<UserResponse>;
 }
 
 @ApiTags('UserService')
@@ -29,14 +51,89 @@ export class UserController implements OnModuleInit {
   @Get('hello')
   @ApiOperation({
     summary: '유저 도메인 서버 헬스체크',
-    description:
-      'gRPC를 통해 user-service 서버의 상태 및 Hello 메시지를 가져옵니다.',
+    description: 'gRPC를 통해 user-service 서버의 상태 및 Hello 메시지를 가져옵니다.'
   })
   @ApiResponse({
     status: 200,
-    description: 'User Hello World! 출력',
+    description: 'User Hello World! 출력'
   })
   getHello(): Observable<{ message: string }> {
     return this.userService.getHello({});
+  }
+
+  /**
+   * GET http://localhost:3000/api/users
+   * 관리자 전용. 전체 유저 목록을 조회합니다.
+   */
+  @Get()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: '전체 유저 목록 조회 (관리자 전용)',
+    description: '관리자 권한을 가진 사용자만 호출할 수 있습니다. gRPC를 통해 user-service의 전체 유저 목록을 가져옵니다.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '전체 유저 목록 조회 성공',
+  })
+  @ApiResponse({
+    status: 403,
+    description: '관리자 권한이 없음',
+  })
+  async getUsers(): Promise<{ users: UserResponse[] }> {
+    return firstValueFrom(this.userService.getUsers({}));
+  }
+
+  /**
+   * GET http://localhost:3000/api/users/me
+   * 로그인한 사용자 본인의 정보를 조회합니다.
+   */
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: '내 정보 조회',
+    description: '유효한 액세스 토큰을 가진 사용자 본인의 프로필 정보를 조회합니다.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '내 정보 조회 성공',
+  })
+  async getMe(@CurrentUser() user: AuthenticatedUser): Promise<UserResponse> {
+    return firstValueFrom(this.userService.getUserById({ id: user.userId })).catch((err) => {
+      throw new NotFoundException(err?.details || err?.message || '유저 정보를 찾을 수 없습니다.');
+    });
+  }
+
+  /**
+   * GET http://localhost:3000/api/users/:userId
+   * 관리자 전용. 특정 유저의 정보를 조회합니다.
+   */
+  @Get(':userId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiParam({ name: 'userId', description: '조회할 유저의 ID', type: Number })
+  @ApiOperation({
+    summary: '특정 유저 정보 조회 (관리자 전용)',
+    description: '관리자 권한을 가진 사용자만 호출할 수 있습니다. userId로 특정 유저의 프로필 정보를 조회합니다.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '유저 정보 조회 성공',
+  })
+  @ApiResponse({
+    status: 403,
+    description: '관리자 권한이 없음',
+  })
+  @ApiResponse({
+    status: 404,
+    description: '존재하지 않는 유저',
+  })
+  async getUserById(@Param('userId', ParseIntPipe) userId: number): Promise<UserResponse> {
+    return firstValueFrom(this.userService.getUserById({ id: userId })).catch((err) => {
+      throw new NotFoundException(err?.details || err?.message || '유저 정보를 찾을 수 없습니다.');
+    });
   }
 }

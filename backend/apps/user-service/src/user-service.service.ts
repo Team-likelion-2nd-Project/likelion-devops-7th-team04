@@ -91,6 +91,21 @@ export class UserServiceService implements OnModuleInit {
     return this.toGrpcResponse(user);
   }
 
+  // api-gateway 관리자 전용 "전체 유저 목록 조회" 요청.
+  async getUsers(): Promise<{ users: UserGrpcResponse[] }> {
+    const users = await this.userRepository.find();
+    return { users: users.map((user) => this.toGrpcResponse(user)) };
+  }
+
+  // api-gateway "내 정보 조회"(JWT의 userId) 및 관리자 "특정 유저 조회" 요청. 없으면 RpcException.
+  async getUserById(id: number): Promise<UserGrpcResponse> {
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user) {
+      throw new RpcException('존재하지 않는 유저입니다.');
+    }
+    return this.toGrpcResponse(user);
+  }
+
   private toGrpcResponse(user: User): UserGrpcResponse {
     return {
       id: user.id,
