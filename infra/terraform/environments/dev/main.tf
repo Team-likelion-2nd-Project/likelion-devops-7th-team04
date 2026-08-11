@@ -79,3 +79,11 @@ module "s3_frontend" {
   project_name = "team04"
   environment  = "dev"
 }
+
+# DEV-50 AI Chatbot Data Infrastructure Module
+module "ai_data" {
+  source = "../../modules/ai_data"
+
+  project_name = "team04"
+  environment  = "dev"
+}
