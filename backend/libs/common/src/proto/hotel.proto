@@ -6,6 +6,9 @@ service HotelService {
   rpc GetHello (Empty) returns (HelloResponse);
   rpc GetHotels (Empty) returns (HotelListResponse);
   rpc GetHotel (GetHotelRequest) returns (Hotel);
+
+  // 관리자 전용: 특정 호텔에 신규 객실을 등록합니다. (hotelId가 존재하지 않으면 에러)
+  rpc CreateRoom (CreateRoomRequest) returns (Room);
 }
 
 message Empty {}
@@ -28,4 +31,19 @@ message Hotel {
 
 message HotelListResponse {
   repeated Hotel hotels = 1;
+}
+
+message CreateRoomRequest {
+  int32 hotelId = 1;
+  string name = 2;
+  int32 capacity = 3;
+  string description = 4;
+}
+
+message Room {
+  int32 roomId = 1;
+  int32 hotelId = 2;
+  string name = 3;
+  int32 capacity = 4;
+  string description = 5;
 }

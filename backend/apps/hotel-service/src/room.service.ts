@@ -1,0 +1,58 @@
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { RpcException } from '@nestjs/microservices';
+import { Repository } from 'typeorm';
+import { Room } from './entities/room.entity';
+import { Hotel } from './entities/hotel.entity';
+
+// proto의 Room 메시지와 1:1 대응되는 응답 형태
+export interface RoomGrpcResponse {
+  roomId: number;
+  hotelId: number;
+  name: string;
+  capacity: number;
+  description: string;
+}
+
+@Injectable()
+export class RoomService {
+  constructor(
+    @InjectRepository(Room) private readonly roomRepository: Repository<Room>,
+    @InjectRepository(Hotel)
+    private readonly hotelRepository: Repository<Hotel>,
+  ) {}
+
+  // 신규 객실 등록. hotelId가 존재하지 않으면 RpcException.
+  async createRoom(data: {
+    hotelId: number;
+    name: string;
+    capacity: number;
+    description?: string;
+  }): Promise<RoomGrpcResponse> {
+    const hotel = await this.hotelRepository.findOne({
+      where: { hotelId: data.hotelId },
+    });
+    if (!hotel) {
+      throw new RpcException('존재하지 않는 호텔입니다.');
+    }
+
+    const room = this.roomRepository.create({
+      hotelId: data.hotelId,
+      name: data.name,
+      capacity: data.capacity,
+      description: data.description,
+    });
+    const saved = await this.roomRepository.save(room);
+    return this.toGrpcResponse(saved);
+  }
+
+  private toGrpcResponse(room: Room): RoomGrpcResponse {
+    return {
+      roomId: room.roomId,
+      hotelId: room.hotelId,
+      name: room.name,
+      capacity: room.capacity,
+      description: room.description ?? '',
+    };
+  }
+}

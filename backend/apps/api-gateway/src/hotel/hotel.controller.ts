@@ -1,15 +1,27 @@
 import {
+  Body,
   Controller,
   Get,
   Inject,
   NotFoundException,
   OnModuleInit,
   Param,
+  ParseIntPipe,
+  Post,
+  UseGuards,
 } from '@nestjs/common';
 import { ClientGrpc } from '@nestjs/microservices';
 import { Observable, firstValueFrom } from 'rxjs';
-import { ApiTags, ApiOperation, ApiResponse, ApiParam } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiParam,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { ApiCommonResponses } from '@app/common/decorators/api-response.decorator';
+import { JwtAuthGuard, RolesGuard, Roles } from '@app/common';
+import { CreateRoomDto } from './dto/create-room.dto';
 
 // proto의 Hotel 메시지와 1:1 대응되는 응답 형태
 interface HotelDto {
@@ -20,11 +32,26 @@ interface HotelDto {
   description: string;
 }
 
+// proto의 Room 메시지와 1:1 대응되는 응답 형태
+interface RoomDto {
+  roomId: number;
+  hotelId: number;
+  name: string;
+  capacity: number;
+  description: string;
+}
+
 // proto의 HotelService 스펙과 1:1 대응되는 TS 인터페이스
 interface HotelService {
   getHello(data: {}): Observable<{ message: string }>;
   getHotels(data: {}): Observable<{ hotels: HotelDto[] }>;
   getHotel(data: { hotelId: number }): Observable<HotelDto>;
+  createRoom(data: {
+    hotelId: number;
+    name: string;
+    capacity: number;
+    description?: string;
+  }): Observable<RoomDto>;
 }
 
 @ApiTags('HotelService')
@@ -89,6 +116,41 @@ export class HotelController implements OnModuleInit {
   async getHotel(@Param('hotelId') hotelId: string): Promise<HotelDto> {
     return firstValueFrom(
       this.hotelService.getHotel({ hotelId: Number(hotelId) }),
+    ).catch((err) => {
+      throw new NotFoundException(
+        err?.details || err?.message || '존재하지 않는 호텔입니다.',
+      );
+    });
+  }
+
+  /**
+   * POST http://localhost:3000/api/hotels/{hotelId}/rooms
+   * 관리자 전용. 특정 호텔에 신규 객실을 등록합니다.
+   */
+  @Post(':hotelId/rooms')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiParam({
+    name: 'hotelId',
+    description: '호텔 PK ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiOperation({
+    summary: '신규 객실 등록 (관리자 전용)',
+    description:
+      '관리자 권한을 가진 사용자만 호출할 수 있습니다. gRPC를 통해 hotel-service에 신규 객실 정보를 등록합니다.',
+  })
+  @ApiResponse({ status: 201, description: '객실 등록 성공' })
+  @ApiResponse({ status: 403, description: '관리자 권한이 없음' })
+  @ApiResponse({ status: 404, description: '존재하지 않는 호텔' })
+  async createRoom(
+    @Param('hotelId', ParseIntPipe) hotelId: number,
+    @Body() dto: CreateRoomDto,
+  ): Promise<RoomDto> {
+    return firstValueFrom(
+      this.hotelService.createRoom({ hotelId, ...dto }),
     ).catch((err) => {
       throw new NotFoundException(
         err?.details || err?.message || '존재하지 않는 호텔입니다.',
