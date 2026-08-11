@@ -10,8 +10,8 @@ import { PaymentController } from './payment.controller';
       {
         name: 'PAYMENT_SERVICE', // DI(의존성 주입)에 사용될 토큰 명
         ...getGrpcOptions(
-          'payment',       // payment.proto의 package명
-          'payment.proto',  // proto 파일명
+          'payment', // payment.proto의 package명
+          'payment.proto', // proto 파일명
           process.env.PAYMENT_SERVICE_HOST || 'localhost:3004', // payment-service gRPC 주소
         ),
       },

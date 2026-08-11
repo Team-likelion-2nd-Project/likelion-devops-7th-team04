@@ -10,8 +10,8 @@ import { HotelController } from './hotel.controller';
       {
         name: 'HOTEL_SERVICE', // DI(의존성 주입)에 사용될 토큰 명
         ...getGrpcOptions(
-          'hotel',       // hotel.proto의 package명
-          'hotel.proto',  // proto 파일명
+          'hotel', // hotel.proto의 package명
+          'hotel.proto', // proto 파일명
           process.env.HOTEL_SERVICE_HOST || 'localhost:3002', // hotel-service gRPC 주소
         ),
       },

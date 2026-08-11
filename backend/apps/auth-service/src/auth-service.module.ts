@@ -31,7 +31,7 @@ import { Credential } from './entities/credential.entity';
         //    존재하지 않아 글롭(glob) 경로로는 엔티티를 찾지 못합니다. 클래스를 직접 등록합니다.
         entities: [Credential],
         synchronize: true, // ⚠️ 개발 환경(Dev)에서만 true 사용
-        logging: true,     // SQL 실행 쿼리 로깅
+        logging: true, // SQL 실행 쿼리 로깅
       }),
     }),
 

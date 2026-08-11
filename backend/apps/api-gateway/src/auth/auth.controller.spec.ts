@@ -7,7 +7,9 @@ describe('AuthController', () => {
   const registerMock = jest.fn();
 
   beforeEach(async () => {
-    registerMock.mockReturnValue(of({ accessToken: 'access', refreshToken: 'refresh' }));
+    registerMock.mockReturnValue(
+      of({ accessToken: 'access', refreshToken: 'refresh' }),
+    );
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [AuthController],
@@ -39,7 +41,10 @@ describe('AuthController', () => {
       const result = await controller.register(dto);
 
       expect(registerMock).toHaveBeenCalledWith(dto);
-      expect(result).toEqual({ accessToken: 'access', refreshToken: 'refresh' });
+      expect(result).toEqual({
+        accessToken: 'access',
+        refreshToken: 'refresh',
+      });
     });
   });
 });

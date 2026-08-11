@@ -13,10 +13,14 @@ describe('AuthServiceController', () => {
 
     const app: TestingModule = await Test.createTestingModule({
       controllers: [AuthServiceController],
-      providers: [{ provide: AuthServiceService, useValue: authServiceService }],
+      providers: [
+        { provide: AuthServiceService, useValue: authServiceService },
+      ],
     }).compile();
 
-    authServiceController = app.get<AuthServiceController>(AuthServiceController);
+    authServiceController = app.get<AuthServiceController>(
+      AuthServiceController,
+    );
   });
 
   describe('register', () => {
@@ -27,12 +31,18 @@ describe('AuthServiceController', () => {
         name: '홍길동',
         phoneNumber: '010-1234-5678',
       };
-      authServiceService.register.mockResolvedValue({ accessToken: 'access', refreshToken: 'refresh' });
+      authServiceService.register.mockResolvedValue({
+        accessToken: 'access',
+        refreshToken: 'refresh',
+      });
 
       const result = await authServiceController.register(dto);
 
       expect(authServiceService.register).toHaveBeenCalledWith(dto);
-      expect(result).toEqual({ accessToken: 'access', refreshToken: 'refresh' });
+      expect(result).toEqual({
+        accessToken: 'access',
+        refreshToken: 'refresh',
+      });
     });
   });
 });

@@ -20,7 +20,11 @@ interface UserGrpcResponse {
 }
 
 interface UserGrpcService {
-  createUser(data: { email: string; name: string; phoneNumber: string }): Observable<UserGrpcResponse>;
+  createUser(data: {
+    email: string;
+    name: string;
+    phoneNumber: string;
+  }): Observable<UserGrpcResponse>;
 }
 
 export interface AuthTokens {
@@ -37,13 +41,15 @@ export class AuthServiceService implements OnModuleInit {
   private userService!: UserGrpcService;
 
   constructor(
-    @InjectRepository(Credential) private readonly credentialRepository: Repository<Credential>,
+    @InjectRepository(Credential)
+    private readonly credentialRepository: Repository<Credential>,
     private readonly jwtService: JwtService,
     @Inject('USER_SERVICE') private readonly userClient: ClientGrpc,
   ) {}
 
   onModuleInit() {
-    this.userService = this.userClient.getService<UserGrpcService>('UserService');
+    this.userService =
+      this.userClient.getService<UserGrpcService>('UserService');
   }
 
   // 회원가입: user-service에 프로필 생성 → 비밀번호 해시 저장 → 토큰 발급
@@ -61,11 +67,16 @@ export class AuthServiceService implements OnModuleInit {
       }),
     ).catch((err) => {
       // user-service가 이메일 중복 등으로 던진 RpcException 메시지를 그대로 전달
-      throw new RpcException(err?.details || err?.message || '회원가입에 실패했습니다.');
+      throw new RpcException(
+        err?.details || err?.message || '회원가입에 실패했습니다.',
+      );
     });
 
     const passwordHash = await bcrypt.hash(data.password, SALT_ROUNDS);
-    const credential = this.credentialRepository.create({ userId: user.id, passwordHash });
+    const credential = this.credentialRepository.create({
+      userId: user.id,
+      passwordHash,
+    });
     await this.credentialRepository.save(credential);
 
     return this.issueTokens(user);
@@ -76,11 +87,13 @@ export class AuthServiceService implements OnModuleInit {
 
     const accessToken = this.jwtService.sign(payload, {
       secret: process.env.JWT_ACCESS_SECRET || 'dev-access-secret',
-      expiresIn: (process.env.JWT_ACCESS_EXPIRES_IN || '15m') as JwtSignOptions['expiresIn'],
+      expiresIn: (process.env.JWT_ACCESS_EXPIRES_IN ||
+        '15m') as JwtSignOptions['expiresIn'],
     });
     const refreshToken = this.jwtService.sign(payload, {
       secret: process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret',
-      expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN || '7d') as JwtSignOptions['expiresIn'],
+      expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN ||
+        '7d') as JwtSignOptions['expiresIn'],
     });
 
     return {
