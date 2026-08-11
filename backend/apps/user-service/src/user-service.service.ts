@@ -15,7 +15,7 @@ export interface UserGrpcResponse {
 }
 
 @Injectable()
-export class UserServiceService implements OnModuleInit{
+export class UserServiceService implements OnModuleInit {
   private readonly logger = new Logger(UserServiceService.name);
 
   // TypeORM의 DataSource를 주입받음
@@ -50,7 +50,8 @@ export class UserServiceService implements OnModuleInit{
       const result = await queryRunner.query('SELECT VERSION() AS version');
       return `DB Connection OK! MariaDB Version: ${result[0].version}`;
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error);
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
       return `DB Connection Failed: ${errorMessage}`;
     } finally {
       await queryRunner.release();
@@ -58,8 +59,14 @@ export class UserServiceService implements OnModuleInit{
   }
 
   // auth-service 회원가입 요청으로 프로필 생성. 이메일 중복 시 RpcException.
-  async createUser(data: { email: string; name: string; phoneNumber: string }): Promise<UserGrpcResponse> {
-    const existing = await this.userRepository.findOne({ where: { email: data.email } });
+  async createUser(data: {
+    email: string;
+    name: string;
+    phoneNumber: string;
+  }): Promise<UserGrpcResponse> {
+    const existing = await this.userRepository.findOne({
+      where: { email: data.email },
+    });
     if (existing) {
       throw new RpcException('이미 가입된 이메일입니다.');
     }

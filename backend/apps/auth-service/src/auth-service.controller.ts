@@ -8,7 +8,12 @@ export class AuthServiceController {
 
   // proto의 AuthService / Register 메서드와 매핑 (회원가입)
   @GrpcMethod('AuthService', 'Register')
-  async register(data: { email: string; password: string; name: string; phoneNumber: string }) {
+  async register(data: {
+    email: string;
+    password: string;
+    name: string;
+    phoneNumber: string;
+  }) {
     return this.authServiceService.register(data);
   }
 

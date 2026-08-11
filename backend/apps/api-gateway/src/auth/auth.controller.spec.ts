@@ -52,7 +52,10 @@ describe('AuthController', () => {
       const result = await controller.register(dto);
 
       expect(registerMock).toHaveBeenCalledWith(dto);
-      expect(result).toEqual({ accessToken: 'access', refreshToken: 'refresh' });
+      expect(result).toEqual({
+        accessToken: 'access',
+        refreshToken: 'refresh',
+      });
     });
   });
 

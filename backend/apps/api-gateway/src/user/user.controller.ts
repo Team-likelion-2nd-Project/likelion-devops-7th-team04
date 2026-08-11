@@ -37,9 +37,7 @@ interface UserService {
 export class UserController implements OnModuleInit {
   private userService!: UserService;
 
-  constructor(
-    @Inject('USER_SERVICE') private readonly client: ClientGrpc,
-  ) {}
+  constructor(@Inject('USER_SERVICE') private readonly client: ClientGrpc) {}
 
   // NestJS 생명주기: 모듈이 초기화될 때 gRPC 서비스 객체를 추출합니다.
   onModuleInit() {

@@ -11,7 +11,9 @@ describe('ChatBotServiceController', () => {
       providers: [ChatBotServiceService],
     }).compile();
 
-    chatBotServiceController = app.get<ChatBotServiceController>(ChatBotServiceController);
+    chatBotServiceController = app.get<ChatBotServiceController>(
+      ChatBotServiceController,
+    );
   });
 
   describe('root', () => {

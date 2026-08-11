@@ -12,7 +12,14 @@ import { PaymentModule } from './payment/payment.module';
 import { BookingModule } from './booking/booking.module';
 
 @Module({
-  imports: [AuthModule, UserModule, HotelModule, ChatBotModule, PaymentModule, BookingModule],
+  imports: [
+    AuthModule,
+    UserModule,
+    HotelModule,
+    ChatBotModule,
+    PaymentModule,
+    BookingModule,
+  ],
   controllers: [ApiGatewayController],
   providers: [ApiGatewayService],
 })
