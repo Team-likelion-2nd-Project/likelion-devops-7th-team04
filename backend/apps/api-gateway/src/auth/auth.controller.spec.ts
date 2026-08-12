@@ -159,12 +159,12 @@ describe('AuthController', () => {
 
   describe('logout', () => {
     it('should call auth-service with the current user id, clear the refresh cookie, and return a success message', async () => {
-      const user = { userId: 1, email: 'user@example.com', role: 'USER' };
+      const user = { userId: 1, email: 'user@example.com', role: 'USER', type: 'USER' as const };
       const res = createResMock();
 
       const result = await controller.logout(user, res);
 
-      expect(logoutMock).toHaveBeenCalledWith({ userId: 1 });
+      expect(logoutMock).toHaveBeenCalledWith({ userId: 1, type: 'USER' });
       expect(res.clearCookie).toHaveBeenCalledWith(
         'refreshToken',
         expect.objectContaining({ httpOnly: true }),
@@ -176,7 +176,7 @@ describe('AuthController', () => {
 
   describe('changePassword', () => {
     it('should call auth-service via gRPC with the current user id and dto, and return a success message', async () => {
-      const user = { userId: 1, email: 'user@example.com', role: 'USER' };
+      const user = { userId: 1, email: 'user@example.com', role: 'USER', type: 'USER' as const };
       const dto = {
         currentPassword: 'password123',
         newPassword: 'newPassword456',
@@ -192,7 +192,7 @@ describe('AuthController', () => {
       changePasswordMock.mockReturnValue(
         throwError(() => ({ message: '현재 비밀번호가 일치하지 않습니다.' })),
       );
-      const user = { userId: 1, email: 'user@example.com', role: 'USER' };
+      const user = { userId: 1, email: 'user@example.com', role: 'USER', type: 'USER' as const };
       const dto = {
         currentPassword: 'wrong-password',
         newPassword: 'newPassword456',

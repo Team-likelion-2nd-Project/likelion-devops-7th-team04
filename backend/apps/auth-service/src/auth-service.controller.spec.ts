@@ -7,6 +7,7 @@ describe('AuthServiceController', () => {
   let authServiceService: {
     register: jest.Mock;
     login: jest.Mock;
+    adminLogin: jest.Mock;
     refresh: jest.Mock;
     logout: jest.Mock;
     changePassword: jest.Mock;
@@ -17,6 +18,7 @@ describe('AuthServiceController', () => {
     authServiceService = {
       register: jest.fn(),
       login: jest.fn(),
+      adminLogin: jest.fn(),
       refresh: jest.fn(),
       logout: jest.fn(),
       changePassword: jest.fn(),
@@ -70,6 +72,18 @@ describe('AuthServiceController', () => {
     });
   });
 
+  describe('adminLogin', () => {
+    it('should delegate to AuthServiceService.adminLogin', async () => {
+      const dto = { email: 'admin@example.com', password: 'password123' };
+      authServiceService.adminLogin.mockResolvedValue({ accessToken: 'access', refreshToken: 'refresh' });
+
+      const result = await authServiceController.adminLogin(dto);
+
+      expect(authServiceService.adminLogin).toHaveBeenCalledWith(dto);
+      expect(result).toEqual({ accessToken: 'access', refreshToken: 'refresh' });
+    });
+  });
+
   describe('refresh', () => {
     it('should delegate to AuthServiceService.refresh', async () => {
       const dto = { refreshToken: 'refresh' };
@@ -84,7 +98,7 @@ describe('AuthServiceController', () => {
 
   describe('logout', () => {
     it('should delegate to AuthServiceService.logout', async () => {
-      const dto = { userId: 1 };
+      const dto: { userId: number; type: 'USER' | 'ADMIN' } = { userId: 1, type: 'USER' };
       authServiceService.logout.mockResolvedValue({ success: true });
 
       const result = await authServiceController.logout(dto);

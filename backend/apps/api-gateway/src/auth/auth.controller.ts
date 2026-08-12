@@ -45,8 +45,12 @@ type AuthClientResponse = Omit<AuthTokenResponse, 'refreshToken'>;
 interface AuthService {
   register(data: RegisterDto): Observable<AuthTokenResponse>;
   login(data: LoginDto): Observable<AuthTokenResponse>;
+  adminLogin(data: LoginDto): Observable<AuthTokenResponse>;
   refresh(data: RefreshDto): Observable<AuthTokenResponse>;
-  logout(data: { userId: number }): Observable<{ success: boolean }>;
+  logout(data: {
+    userId: number;
+    type: AuthenticatedUser['type'];
+  }): Observable<{ success: boolean }>;
   changePassword(data: {
     userId: number;
     currentPassword: string;
@@ -170,6 +174,44 @@ export class AuthController implements OnModuleInit {
   }
 
   /**
+   * POST http://localhost:3000/api/auth/admin/login
+   * 관리자 전용 로그인. 고객(/api/auth/login)과 완전히 다른 테이블(admins/admin_credentials)을 조회합니다.
+   * 요청/응답 형태(email/password → 토큰)는 고객 로그인과 동일하지만, 엔드포인트를 분리해두면 이후
+   * 관리자 로그인에만 2FA·IP 제한·로그인 감사로그 같은 정책을 고객 로그인에 영향 없이 추가할 수 있습니다.
+   */
+  @Post('admin/login')
+  @ApiOperation({
+    summary: '관리자 로그인',
+    description:
+      '이메일/비밀번호를 받아 auth-service에 관리자 로그인을 요청합니다. auth-service는 gRPC로 ' +
+      'user-service의 AdminService에서 관리자 계정을 조회하고, 자체 DB의 관리자 비밀번호 해시와 대조한 뒤 ' +
+      '액세스/리프레시 토큰을 발급합니다(role: "ADMIN"). 리프레시 토큰은 httpOnly 쿠키로, 액세스 토큰은 ' +
+      '응답 바디로 전달됩니다.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '로그인 성공 (액세스 토큰은 응답 바디, 리프레시 토큰은 httpOnly 쿠키로 발급)',
+  })
+  @ApiResponse({
+    status: 401,
+    description: '이메일 또는 비밀번호가 일치하지 않음',
+  })
+  async adminLogin(
+    @Body() dto: LoginDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const tokens = await firstValueFrom(this.authService.adminLogin(dto)).catch(
+      (err) => {
+        throw new UnauthorizedException(
+          err?.details || err?.message || '로그인에 실패했습니다.',
+        );
+      },
+    );
+    this.setRefreshCookie(res, tokens.refreshToken);
+    return this.toClientResponse(tokens);
+  }
+
+  /**
    * POST http://localhost:3000/api/auth/refresh
    * 브라우저/프론트엔드 HTTP 요청 수신 -> auth-service gRPC 호출 -> Redis에 저장된 리프레시 토큰과 대조 후 재발급
    * 리프레시 토큰은 요청 바디가 아닌 httpOnly 쿠키에서 읽습니다 (JS로 접근 불가능하므로 body에 담을 수 없음).
@@ -241,7 +283,7 @@ export class AuthController implements OnModuleInit {
     @Res({ passthrough: true }) res: Response,
   ) {
     await firstValueFrom(
-      this.authService.logout({ userId: user.userId }),
+      this.authService.logout({ userId: user.userId, type: user.type }),
     ).catch((err) => {
       throw new BadRequestException(
         err?.details || err?.message || '로그아웃에 실패했습니다.',
