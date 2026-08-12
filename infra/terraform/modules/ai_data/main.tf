@@ -1,42 +1,62 @@
-# 1. DynamoDB Table (대화 세션 및 히스토리 저장용)
-resource "aws_dynamodb_table" "chat_history" {
-  name         = "${var.project_name}-${var.environment}-chat-history"
-  billing_mode = "PAY_PER_REQUEST"
-  hash_key     = "SessionId"
-  range_key    = "CreatedAt"
+# ------------------------------------------------------------------------------
+# 1. Neptune Graph DB 인프라 (기존)
+# ------------------------------------------------------------------------------
 
-  attribute {
-    name = "SessionId"
-    type = "S"
+# Neptune Subnet Group
+resource "aws_neptune_subnet_group" "ai_data" {
+  name       = "team04-${var.environment}-neptune-subnet-group"
+  subnet_ids = var.private_subnet_ids
+}
+
+# Neptune 보안 그룹 (기본 포트 8182)
+resource "aws_security_group" "ai_data_sg" {
+  name        = "team04-${var.environment}-neptune-sg"
+  description = "Security group for Neptune Graph DB"
+  vpc_id      = var.vpc_id
+
+  ingress {
+    from_port   = 8182
+    to_port     = 8182
+    protocol    = "tcp"
+    cidr_blocks = ["10.0.0.0/16"]
   }
 
-  attribute {
-    name = "CreatedAt"
-    type = "S"
-  }
-
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-chat-history"
-    Environment = var.environment
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
-# 2. Vector Store & 임베딩 문서 저장용 S3 Bucket
-resource "aws_s3_bucket" "vector_store" {
-  bucket        = "${var.project_name}-${var.environment}-vector-store-bucket"
-  force_destroy = true
-
-  tags = {
-    Name        = "${var.project_name}-${var.environment}-vector-store-bucket"
-    Environment = var.environment
-  }
+# Neptune DB 클러스터 생성
+resource "aws_neptune_cluster" "ai_data" {
+  cluster_identifier                  = "team04-${var.environment}-neptune-cluster"
+  engine                              = "neptune"
+  neptune_subnet_group_name           = aws_neptune_subnet_group.ai_data.name
+  vpc_security_group_ids              = [aws_security_group.ai_data_sg.id]
+  skip_final_snapshot                 = true
+  iam_database_authentication_enabled = false
 }
 
-# 3. Vector Store S3 Bucket Public Access Block
-resource "aws_s3_bucket_public_access_block" "vector_store_public_access" {
-  bucket                  = aws_s3_bucket.vector_store.id
-  block_public_acls       = true
-  block_public_policy     = true
-  ignore_public_acls      = true
-  restrict_public_buckets = true
+# Neptune DB 클러스터 인스턴스 노드 생성
+resource "aws_neptune_cluster_instance" "ai_data_instance" {
+  count              = 1
+  identifier         = "team04-${var.environment}-neptune-instance-${count.index}"
+  cluster_identifier = aws_neptune_cluster.ai_data.id
+  instance_class     = var.instance_class
+  engine             = "neptune"
 }
+
+# ------------------------------------------------------------------------------
+# 2. S3 Vectors 인프라 (awscc 프로바이더 활용)
+# ------------------------------------------------------------------------------
+
+# S3 Vector Bucket 생성
+resource "awscc_s3express_directory_bucket" "vector_bucket" {
+  bucket_name     = var.vector_bucket_name != "" ? var.vector_bucket_name : "team04-${var.environment}-vector-bucket--ap-northeast-2a--x-s3"
+  location_name   = "apne2-az1"
+  data_redundancy = "SingleAvailabilityZone"
+}
+
+# 참고: AWS S3 Vectors 및 S3 Express Directory Bucket의 구체적인 awscc 스키마 사양이나 환경별 설정에 맞춰 리소스 명칭을 조정할 수 있습니다.

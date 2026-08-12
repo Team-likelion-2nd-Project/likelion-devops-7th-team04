@@ -5,6 +5,11 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 5.0"
     }
+    # awscc 프로바이더 추가
+    awscc = {
+      source  = "hashicorp/awscc"
+      version = "~> 1.0"
+    }
   }
 
   # 백엔드 설정 (backend-config/dev.hcl 을 통해 주입받음)
