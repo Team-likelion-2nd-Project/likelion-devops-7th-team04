@@ -1,6 +1,8 @@
 import { useState } from 'react'
-import { Link, NavLink } from 'react-router-dom'
+import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { HOTELS } from '../data/hotels'
+import { logout } from '../api/gateway'
+import { useAccessToken, useUser } from '../api/tokenStore'
 import './Header.css'
 
 const PHILOSOPHY_ITEMS = [
@@ -10,12 +12,21 @@ const PHILOSOPHY_ITEMS = [
   { slug: 'eco', label: '에코' },
 ]
 
-type MenuKey = 'philosophy' | 'hotels' | null
+type MenuKey = 'philosophy' | 'hotels' | 'profile' | null
 
 function Header() {
   const [openMenu, setOpenMenu] = useState<MenuKey>(null)
+  const accessToken = useAccessToken()
+  const user = useUser()
+  const navigate = useNavigate()
 
   const closeMenu = () => setOpenMenu(null)
+
+  const handleLogout = async () => {
+    closeMenu()
+    await logout()
+    navigate('/')
+  }
 
   return (
     <header className="site-header">
@@ -86,9 +97,57 @@ function Header() {
         </div>
       </nav>
 
-      <Link to="/reservation" className="nav-cta">
-        예약하기
-      </Link>
+      <div className="header-actions">
+        <Link to="/reservation" className="nav-cta">
+          예약하기
+        </Link>
+        {accessToken && user ? (
+          <div
+            className="nav-item profile-item"
+            onMouseEnter={() => setOpenMenu('profile')}
+            onMouseLeave={closeMenu}
+          >
+            <button
+              type="button"
+              className="profile-trigger"
+              aria-expanded={openMenu === 'profile'}
+              onFocus={() => setOpenMenu('profile')}
+              onClick={() => setOpenMenu((prev) => (prev === 'profile' ? null : 'profile'))}
+            >
+              <span className="profile-avatar" aria-hidden="true">
+                {user.name.charAt(0)}
+              </span>
+              <span className="profile-name">{user.name} 님</span>
+              <span className="profile-caret" aria-hidden="true">
+                ▾
+              </span>
+            </button>
+            {openMenu === 'profile' && (
+              <ul className="nav-dropdown profile-dropdown">
+                <li>
+                  <NavLink to="/mypage" onClick={closeMenu}>
+                    내 정보 수정
+                  </NavLink>
+                </li>
+                <li>
+                  <NavLink to="/reservation" onClick={closeMenu}>
+                    예약 내역
+                  </NavLink>
+                </li>
+                <li>
+                  <button type="button" className="profile-logout" onClick={handleLogout}>
+                    로그아웃
+                  </button>
+                </li>
+              </ul>
+            )}
+          </div>
+        ) : (
+          <Link to="/login" className="nav-login">
+            로그인
+          </Link>
+        )}
+      </div>
     </header>
   )
 }

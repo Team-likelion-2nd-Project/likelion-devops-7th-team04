@@ -1,13 +1,19 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import cookieParser from 'cookie-parser';
 import { ApiGatewayModule } from './api-gateway.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(ApiGatewayModule);
 
+  // 로그인 시 발급되는 httpOnly 쿠키(refreshToken)를 req.cookies로 파싱합니다.
+  app.use(cookieParser());
+
   app.enableCors({
     origin: 'http://localhost:5173',
+    // 프론트가 fetch(..., { credentials: 'include' })로 보내는 httpOnly 쿠키를 주고받으려면 필수
+    credentials: true,
   });
 
   // DTO(class-validator)로 정의한 유효성 검사 규칙을 전역 적용 (회원가입 등)
