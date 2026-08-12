@@ -41,3 +41,8 @@ variable "ebs_volume_type" {
   type        = string
   default     = "gp3"
 }
+variable "iam_instance_profile_name" {
+  description = "IAM Instance Profile name attached to the MariaDB EC2 instance"
+  type        = string
+  default     = null
+}

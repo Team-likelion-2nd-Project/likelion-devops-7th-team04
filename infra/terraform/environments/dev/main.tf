@@ -91,6 +91,9 @@ module "ai_data" {
 
   project_name = "team04"
   environment  = "dev"
+
+  vpc_id             = module.network.vpc_id
+  private_subnet_ids = module.network.private_data_subnet_ids
 }
 
 # DEV-53 CloudWatch Monitoring Module
@@ -102,4 +105,20 @@ module "cloudwatch" {
 
   # 기존 database 모듈이 있다면 EC2 ID 연결 (없다면 생략 가능)
   # ec2_instance_id = module.database.db_instance_id
+}
+# =========================
+# DEV-57 IAM Module
+# =========================
+
+module "iam" {
+  source = "../../modules/iam"
+
+  project_name  = "team04-hotel"
+  github_org    = "Team-likelion-2nd-Project"
+  github_repo   = "likelion-devops-7th-team04"
+  github_branch = "infra"
+
+  frontend_bucket_arn         = module.s3_frontend.frontend_bucket_arn
+  cloudfront_distribution_arn = module.s3_frontend.cloudfront_distribution_arn
+  vector_index_arn            = module.ai_data.vector_index_arn
 }
