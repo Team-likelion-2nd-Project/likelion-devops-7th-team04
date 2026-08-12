@@ -1,0 +1,141 @@
+version: '3.8'
+
+services:
+
+  # 1. MariaDB 서비스
+  mariadb:
+    image: mariadb:11.2
+    container_name: mariadb
+    restart: always
+    env_file:
+      - .env
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    # 현재 DB 구축을 하지 않았기 때문에 볼륨 사용하지 않았습니다. 사용하려면 아래의 주석 해제
+    # volumes:
+    #   - mariadb_data:/var/lib/mysql
+
+  # 2. Redis (로컬 개발용. 운영에서는 AWS ElastiCache를 사용하며, 그때는 auth-service의
+  #    REDIS_HOST/REDIS_PORT/REDIS_PASSWORD/REDIS_TLS 값만 바꾸면 되고 코드 변경은 필요 없습니다.)
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    restart: always
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  # 3. API Gateway
+  api-gateway:
+    build:
+      context: .
+      dockerfile: apps/api-gateway/Dockerfile
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=development
+      - USER_SERVICE_HOST=user-service:3001
+      - HOTEL_SERVICE_HOST=hotel-service:3002
+      - BOOKING_SERVICE_HOST=booking-service:3003
+      - PAYMENT_SERVICE_HOST=payment-service:3004
+      - CHAT_BOT_SERVICE_HOST=chat-bot-service:3005
+      - AUTH_SERVICE_HOST=auth-service:3006
+
+    depends_on:
+      - user-service
+      - hotel-service
+      - booking-service
+      - payment-service
+      - chat-bot-service
+      - auth-service
+
+  user-service:
+    build:
+      context: .
+      dockerfile: apps/user-service/Dockerfile
+    ports:
+      - "3001:3001"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=development
+
+  auth-service:
+    build:
+      context: .
+      dockerfile: apps/auth-service/Dockerfile
+    ports:
+      - "3006:3006"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=development
+      - USER_SERVICE_HOST=user-service:3001
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+    depends_on:
+      - user-service
+      - redis
+
+  hotel-service:
+    build:
+      context: .
+      dockerfile: apps/hotel-service/Dockerfile
+    ports:
+      - "3002:3002"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=development
+
+
+# rag-service명을 chatbot-service로 변경 후 수정해야 하는 부분
+  # rag-service:
+  #   build:
+  #     context: .
+  #     dockerfile: apps/rag-service/Dockerfile
+  #   ports:
+  #     - "3003:3003"
+  #   environment:
+  #     - NODE_ENV=development
+
+# DB 볼륨 사용 시 아래 주속 해제
+# volumes:
+#   mariadb_data:
+  booking-service:
+    build:
+      context: .
+      dockerfile: apps/booking-service/Dockerfile
+    ports:
+      - "3003:3003"
+    environment:
+      - NODE_ENV=development
+
+  payment-service:
+    build:
+      context: .
+      dockerfile: apps/payment-service/Dockerfile
+    ports:
+      - "3004:3004"
+    environment:
+      - NODE_ENV=development
+
+  chat-bot-service:
+    build:
+      context: .
+      dockerfile: apps/chat-bot-service/Dockerfile
+    ports:
+      - "3005:3005"
+    environment:
+      - NODE_ENV=development

@@ -1,0 +1,42 @@
+import { NestFactory } from '@nestjs/core';
+import { ValidationPipe } from '@nestjs/common';
+import cookieParser from 'cookie-parser';
+import { ApiGatewayModule } from './api-gateway.module';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
+
+async function bootstrap() {
+  const app = await NestFactory.create(ApiGatewayModule);
+
+  // 로그인 시 발급되는 httpOnly 쿠키(refreshToken)를 req.cookies로 파싱합니다.
+  app.use(cookieParser());
+
+  app.enableCors({
+    origin: 'http://localhost:5173',
+    // 프론트가 fetch(..., { credentials: 'include' })로 보내는 httpOnly 쿠키를 주고받으려면 필수
+    credentials: true,
+  });
+
+  // DTO(class-validator)로 정의한 유효성 검사 규칙을 전역 적용 (회원가입 등)
+  app.useGlobalPipes(
+    new ValidationPipe({
+      whitelist: true, // DTO에 없는 필드는 제거
+      forbidNonWhitelisted: true, // DTO에 없는 필드가 오면 400 에러
+      transform: true, // payload를 DTO 클래스 인스턴스로 변환
+    }),
+  );
+
+  const config = new DocumentBuilder()
+    .setTitle('RAG 기반 챗봇 호텔 예약 웹서비스 API')
+    .setDescription('API Gateway Swagger 문서입니다.')
+    .setVersion('1.0')
+    .addBearerAuth() // JWT 토큰 인증 (로그아웃 등 @ApiBearerAuth() 라우트에서 Swagger의 Authorize 버튼 사용)
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  // http://localhost:3000/api-docs 로 접속하도록 설정
+  SwaggerModule.setup('api-docs', app, document);
+
+  const port = process.env.PORT ?? 3000;
+  await app.listen(port, '0.0.0.0');
+}
+bootstrap();
