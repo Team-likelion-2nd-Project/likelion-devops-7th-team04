@@ -1,9 +1,9 @@
-variable "environment" {
-  description = "배포 환경 (dev, prod 등)"
+variable "project_name" {
+  description = "프로젝트 이름"
   type        = string
 }
 
-variable "project_name" {
-  description = "프로젝트 이름"
+variable "environment" {
+  description = "배포 환경 (dev, prod 등)"
   type        = string
 }

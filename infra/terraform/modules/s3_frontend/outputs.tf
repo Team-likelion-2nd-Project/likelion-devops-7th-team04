@@ -1,14 +1,19 @@
-output "s3_bucket_name" {
-  description = "프론트엔드 S3 버킷 이름"
+output "frontend_bucket_name" {
+  description = "Frontend S3 Bucket Name"
   value       = aws_s3_bucket.frontend.id
 }
 
-output "cloudfront_domain_name" {
-  description = "AWS가 자동 생성한 CloudFront 도메인 주소"
-  value       = aws_cloudfront_distribution.frontend.domain_name
+output "frontend_bucket_arn" {
+  description = "Frontend S3 Bucket ARN"
+  value       = aws_s3_bucket.frontend.arn
 }
 
 output "cloudfront_distribution_id" {
-  description = "CloudFront Distribution ID (캐시 무효화용)"
+  description = "CloudFront Distribution ID"
   value       = aws_cloudfront_distribution.frontend.id
+}
+
+output "cloudfront_distribution_arn" {
+  description = "CloudFront Distribution ARN"
+  value       = aws_cloudfront_distribution.frontend.arn
 }
