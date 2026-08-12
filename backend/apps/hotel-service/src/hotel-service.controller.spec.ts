@@ -73,6 +73,59 @@ describe('HotelServiceController', () => {
     });
   });
 
+  describe('updateHotel', () => {
+    it('should update and save the hotel when it exists', async () => {
+      const existingHotel = { ...hotel };
+      hotelRepository.findOne.mockResolvedValue(existingHotel);
+      hotelRepository.save.mockImplementation((h: typeof existingHotel) =>
+        Promise.resolve(h),
+      );
+
+      const result = await hotelServiceController.updateHotel({
+        hotelId: 1,
+        name: '신라 스테이 서울',
+        address: '서울시 중구',
+        phoneNumber: '02-9876-5432',
+        description: '수정된 설명입니다.',
+      });
+
+      expect(hotelRepository.findOne).toHaveBeenCalledWith({
+        where: { hotelId: 1 },
+      });
+      expect(hotelRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          hotelId: 1,
+          name: '신라 스테이 서울',
+          address: '서울시 중구',
+          phoneNumber: '02-9876-5432',
+          description: '수정된 설명입니다.',
+        }),
+      );
+      expect(result).toEqual({
+        hotelId: 1,
+        name: '신라 스테이 서울',
+        address: '서울시 중구',
+        phoneNumber: '02-9876-5432',
+        description: '수정된 설명입니다.',
+      });
+    });
+
+    it('should throw RpcException when the hotel does not exist', async () => {
+      hotelRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        hotelServiceController.updateHotel({
+          hotelId: 999,
+          name: '신라 스테이 서울',
+          address: '서울시 중구',
+          phoneNumber: '02-9876-5432',
+          description: '수정된 설명입니다.',
+        }),
+      ).rejects.toThrow(RpcException);
+      expect(hotelRepository.save).not.toHaveBeenCalled();
+    });
+  });
+
   describe('getRooms', () => {
     it('should return the room list when the hotel exists', async () => {
       hotelRepository.findOne.mockResolvedValue(hotel);

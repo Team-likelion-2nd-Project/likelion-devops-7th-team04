@@ -7,6 +7,9 @@ service HotelService {
   rpc GetHotels (Empty) returns (HotelListResponse);
   rpc GetHotel (GetHotelRequest) returns (Hotel);
 
+  // 관리자 전용: 특정 호텔의 기존 정보를 수정합니다. (hotelId가 존재하지 않으면 에러)
+  rpc UpdateHotel (UpdateHotelRequest) returns (Hotel);
+
   // 특정 호텔에 등록된 전체 객실 목록을 조회합니다. (hotelId가 존재하지 않으면 에러)
   rpc GetRooms (GetRoomsRequest) returns (RoomListResponse);
   // 특정 호텔의 단건 객실 상세 정보를 조회합니다. (hotelId/roomId 조합이 존재하지 않으면 에러)
@@ -42,6 +45,14 @@ message Hotel {
 
 message HotelListResponse {
   repeated Hotel hotels = 1;
+}
+
+message UpdateHotelRequest {
+  int32 hotelId = 1;
+  string name = 2;
+  string address = 3;
+  string phoneNumber = 4;
+  string description = 5;
 }
 
 message GetRoomsRequest {
