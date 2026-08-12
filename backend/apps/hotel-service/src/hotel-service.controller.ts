@@ -65,6 +65,22 @@ export class HotelServiceController {
     return this.roomService.updateRoom(data.hotelId, data.roomId, data);
   }
 
+  // proto의 HotelService / GetRoomAvailability 메서드와 매핑: 특정 기간 객실 예약 가능 여부 조회
+  @GrpcMethod('HotelService', 'GetRoomAvailability')
+  async getRoomAvailability(data: {
+    hotelId: number;
+    roomId: number;
+    startDate: string;
+    endDate: string;
+  }) {
+    return this.roomService.getRoomAvailability(
+      data.hotelId,
+      data.roomId,
+      data.startDate,
+      data.endDate,
+    );
+  }
+
   // DB 연결 확인 엔드포인트 (GET /db-check)
   @Get('db-check')
   async checkDb() {

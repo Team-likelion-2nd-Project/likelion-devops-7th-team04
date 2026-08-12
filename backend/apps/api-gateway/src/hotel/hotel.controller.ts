@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -9,6 +10,7 @@ import {
   ParseIntPipe,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 import { ClientGrpc } from '@nestjs/microservices';
@@ -24,6 +26,7 @@ import { ApiCommonResponses } from '@app/common/decorators/api-response.decorato
 import { JwtAuthGuard, RolesGuard, Roles } from '@app/common';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
+import { RoomAvailabilityQueryDto } from './dto/room-availability-query.dto';
 
 // proto의 Hotel 메시지와 1:1 대응되는 응답 형태
 interface HotelDto {
@@ -41,6 +44,23 @@ interface RoomDto {
   name: string;
   capacity: number;
   description: string;
+}
+
+// proto의 RoomAvailabilityDay 메시지와 1:1 대응되는 응답 형태
+interface RoomAvailabilityDayDto {
+  date: string;
+  isAvailable: boolean;
+  price: number;
+}
+
+// proto의 RoomAvailabilityResponse 메시지와 1:1 대응되는 응답 형태
+interface RoomAvailabilityDto {
+  hotelId: number;
+  roomId: number;
+  startDate: string;
+  endDate: string;
+  isAvailable: boolean;
+  availabilities: RoomAvailabilityDayDto[];
 }
 
 // proto의 HotelService 스펙과 1:1 대응되는 TS 인터페이스
@@ -63,6 +83,12 @@ interface HotelService {
     capacity: number;
     description?: string;
   }): Observable<RoomDto>;
+  getRoomAvailability(data: {
+    hotelId: number;
+    roomId: number;
+    startDate: string;
+    endDate: string;
+  }): Observable<RoomAvailabilityDto>;
 }
 
 @ApiTags('HotelService')
@@ -199,6 +225,49 @@ export class HotelController implements OnModuleInit {
         );
       },
     );
+  }
+
+  /**
+   * GET http://localhost:3000/api/hotels/{hotelId}/rooms/{roomId}/availability
+   * 브라우저/프론트엔드 HTTP 요청 수신 -> hotel-service gRPC 호출 -> 특정 기간 예약 가능 여부 조회
+   */
+  @Get(':hotelId/rooms/:roomId/availability')
+  @ApiOperation({
+    summary: '객실 예약 가능 여부 조회',
+    description:
+      '호텔 PK ID, 객실 PK ID와 조회 기간(startDate~endDate, 둘 다 포함)을 바탕으로 gRPC를 통해 hotel-service에서 날짜별 예약 가능 여부와 가격을 조회합니다.',
+  })
+  @ApiParam({
+    name: 'hotelId',
+    description: '호텔 PK ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiParam({
+    name: 'roomId',
+    description: '객실 PK ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({ status: 200, description: '예약 가능 여부 조회 성공' })
+  @ApiResponse({ status: 404, description: '존재하지 않는 객실' })
+  async getRoomAvailability(
+    @Param('hotelId', ParseIntPipe) hotelId: number,
+    @Param('roomId', ParseIntPipe) roomId: number,
+    @Query() query: RoomAvailabilityQueryDto,
+  ): Promise<RoomAvailabilityDto> {
+    if (query.startDate > query.endDate) {
+      throw new BadRequestException(
+        'endDate는 startDate보다 빠를 수 없습니다.',
+      );
+    }
+    return firstValueFrom(
+      this.hotelService.getRoomAvailability({ hotelId, roomId, ...query }),
+    ).catch((err) => {
+      throw new NotFoundException(
+        err?.details || err?.message || '존재하지 않는 객실입니다.',
+      );
+    });
   }
 
   /**
