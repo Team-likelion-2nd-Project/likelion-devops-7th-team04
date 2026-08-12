@@ -3,7 +3,8 @@ import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { AuthenticatedUser, JwtPayload } from './jwt-payload.interface';
 
-// api-gateway에서 Authorization: Bearer <accessToken> 헤더를 검증하는 전략입니다.
+// 액세스 토큰은 httpOnly 쿠키가 아니라 프론트엔드가 메모리(변수)에 들고 있다가
+// Authorization: Bearer <accessToken> 헤더에 실어 보냅니다 (리프레시 토큰만 httpOnly 쿠키).
 // auth-service가 서명할 때 쓰는 것과 동일한 JWT_ACCESS_SECRET을 사용해야 합니다.
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy) {
