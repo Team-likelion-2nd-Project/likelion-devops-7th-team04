@@ -8,6 +8,7 @@ import {
   Param,
   ParseIntPipe,
   Post,
+  Put,
   UseGuards,
 } from '@nestjs/common';
 import { ClientGrpc } from '@nestjs/microservices';
@@ -22,6 +23,7 @@ import {
 import { ApiCommonResponses } from '@app/common/decorators/api-response.decorator';
 import { JwtAuthGuard, RolesGuard, Roles } from '@app/common';
 import { CreateRoomDto } from './dto/create-room.dto';
+import { UpdateRoomDto } from './dto/update-room.dto';
 
 // proto의 Hotel 메시지와 1:1 대응되는 응답 형태
 interface HotelDto {
@@ -50,6 +52,13 @@ interface HotelService {
   getRoom(data: { hotelId: number; roomId: number }): Observable<RoomDto>;
   createRoom(data: {
     hotelId: number;
+    name: string;
+    capacity: number;
+    description?: string;
+  }): Observable<RoomDto>;
+  updateRoom(data: {
+    hotelId: number;
+    roomId: number;
     name: string;
     capacity: number;
     description?: string;
@@ -223,6 +232,48 @@ export class HotelController implements OnModuleInit {
     ).catch((err) => {
       throw new NotFoundException(
         err?.details || err?.message || '존재하지 않는 호텔입니다.',
+      );
+    });
+  }
+
+  /**
+   * PUT http://localhost:3000/api/hotels/{hotelId}/rooms/{roomId}
+   * 관리자 전용. 기존 객실 정보를 수정합니다.
+   */
+  @Put(':hotelId/rooms/:roomId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiParam({
+    name: 'hotelId',
+    description: '호텔 PK ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiParam({
+    name: 'roomId',
+    description: '객실 PK ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiOperation({
+    summary: '객실 정보 수정 (관리자 전용)',
+    description:
+      '관리자 권한을 가진 사용자만 호출할 수 있습니다. gRPC를 통해 hotel-service의 기존 객실 정보를 수정합니다.',
+  })
+  @ApiResponse({ status: 200, description: '객실 수정 성공' })
+  @ApiResponse({ status: 403, description: '관리자 권한이 없음' })
+  @ApiResponse({ status: 404, description: '존재하지 않는 객실' })
+  async updateRoom(
+    @Param('hotelId', ParseIntPipe) hotelId: number,
+    @Param('roomId', ParseIntPipe) roomId: number,
+    @Body() dto: UpdateRoomDto,
+  ): Promise<RoomDto> {
+    return firstValueFrom(
+      this.hotelService.updateRoom({ hotelId, roomId, ...dto }),
+    ).catch((err) => {
+      throw new NotFoundException(
+        err?.details || err?.message || '존재하지 않는 객실입니다.',
       );
     });
   }

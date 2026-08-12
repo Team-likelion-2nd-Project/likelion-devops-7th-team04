@@ -73,6 +73,26 @@ export class RoomService {
     return this.toGrpcResponse(room);
   }
 
+  // 기존 객실 정보 수정. hotelId/roomId 조합이 존재하지 않으면 RpcException.
+  async updateRoom(
+    hotelId: number,
+    roomId: number,
+    data: { name: string; capacity: number; description?: string },
+  ): Promise<RoomGrpcResponse> {
+    const room = await this.roomRepository.findOne({
+      where: { hotelId, roomId },
+    });
+    if (!room) {
+      throw new RpcException('존재하지 않는 객실입니다.');
+    }
+
+    room.name = data.name;
+    room.capacity = data.capacity;
+    room.description = data.description;
+    const saved = await this.roomRepository.save(room);
+    return this.toGrpcResponse(saved);
+  }
+
   private toGrpcResponse(room: Room): RoomGrpcResponse {
     return {
       roomId: room.roomId,

@@ -14,6 +14,9 @@ service HotelService {
 
   // 관리자 전용: 특정 호텔에 신규 객실을 등록합니다. (hotelId가 존재하지 않으면 에러)
   rpc CreateRoom (CreateRoomRequest) returns (Room);
+
+  // 관리자 전용: 특정 호텔의 기존 객실 정보를 수정합니다. (hotelId/roomId 조합이 존재하지 않으면 에러)
+  rpc UpdateRoom (UpdateRoomRequest) returns (Room);
 }
 
 message Empty {}
@@ -61,6 +64,14 @@ message CreateRoomRequest {
 message Room {
   int32 roomId = 1;
   int32 hotelId = 2;
+  string name = 3;
+  int32 capacity = 4;
+  string description = 5;
+}
+
+message UpdateRoomRequest {
+  int32 hotelId = 1;
+  int32 roomId = 2;
   string name = 3;
   int32 capacity = 4;
   string description = 5;
