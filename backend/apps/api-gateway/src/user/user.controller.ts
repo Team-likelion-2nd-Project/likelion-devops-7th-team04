@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Inject,
   NotFoundException,
@@ -35,17 +36,27 @@ interface UserService {
   updateUser(data: { id: number; name: string; phoneNumber: string }): Observable<UserResponse>;
 }
 
+// proto의 AuthService 스펙 중 회원 탈퇴에 필요한 부분만 대응되는 TS 인터페이스
+interface AuthService {
+  withdraw(data: { userId: number }): Observable<{ success: boolean }>;
+}
+
 @ApiTags('UserService')
 @ApiCommonResponses()
 @Controller('api/users')
 export class UserController implements OnModuleInit {
   private userService!: UserService;
+  private authService!: AuthService;
 
-  constructor(@Inject('USER_SERVICE') private readonly client: ClientGrpc) {}
+  constructor(
+    @Inject('USER_SERVICE') private readonly client: ClientGrpc,
+    @Inject('AUTH_SERVICE') private readonly authClient: ClientGrpc,
+  ) {}
 
   // NestJS 생명주기: 모듈이 초기화될 때 gRPC 서비스 객체를 추출합니다.
   onModuleInit() {
     this.userService = this.client.getService<UserService>('UserService');
+    this.authService = this.authClient.getService<AuthService>('AuthService');
   }
 
   /**
@@ -138,6 +149,36 @@ export class UserController implements OnModuleInit {
     ).catch((err) => {
       throw new NotFoundException(err?.details || err?.message || '유저 정보를 찾을 수 없습니다.');
     });
+  }
+
+  /**
+   * DELETE http://localhost:3000/api/users/me
+   * 로그인한 사용자 본인의 계정을 탈퇴 처리합니다.
+   * auth-service가 gRPC로 user-service에 프로필 삭제(deleted_user 백업 테이블 이관 포함)를 요청하고,
+   * 이어서 자격증명(비밀번호 해시)과 Redis의 리프레시 토큰도 함께 삭제합니다.
+   */
+  @Delete('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: '회원 탈퇴',
+    description:
+      '유효한 액세스 토큰을 가진 사용자 본인의 계정을 탈퇴 처리합니다. 프로필은 users 테이블에서 제거되고 ' +
+      'deleted_user 백업 테이블로 그대로 이관되며, 비밀번호(자격증명)와 로그인 세션(리프레시 토큰)도 함께 삭제됩니다.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: '회원 탈퇴 성공',
+  })
+  @ApiResponse({
+    status: 404,
+    description: '존재하지 않는 유저',
+  })
+  async deleteMe(@CurrentUser() user: AuthenticatedUser): Promise<{ message: string }> {
+    await firstValueFrom(this.authService.withdraw({ userId: user.userId })).catch((err) => {
+      throw new NotFoundException(err?.details || err?.message || '회원 탈퇴에 실패했습니다.');
+    });
+    return { message: '회원 탈퇴가 완료되었습니다.' };
   }
 
   /**

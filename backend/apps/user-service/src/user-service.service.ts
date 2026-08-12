@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { RpcException } from '@nestjs/microservices';
 import { DataSource, Repository } from 'typeorm';
 import { User, UserRole, UserStatus } from './entities/user.entity';
+import { DeletedUser } from './entities/deleted-user.entity';
 
 // proto의 User 메시지와 1:1 대응되는 응답 형태
 export interface UserGrpcResponse {
@@ -120,6 +121,42 @@ export class UserServiceService implements OnModuleInit {
     user.phoneNumber = data.phoneNumber;
     const saved = await this.userRepository.save(user);
     return this.toGrpcResponse(saved);
+  }
+
+  // auth-service "회원 탈퇴"(JWT의 userId) 요청. users 레코드를 deleted_user 백업 테이블로 옮긴 뒤
+  // users 테이블에서 제거합니다. 두 작업은 하나의 트랜잭션으로 묶어 백업 없이 삭제되는 사고를 막습니다.
+  // 없으면 RpcException.
+  async deleteUser(id: number): Promise<{ success: boolean }> {
+    const user = await this.userRepository.findOne({ where: { id } });
+    if (!user) {
+      throw new RpcException('존재하지 않는 유저입니다.');
+    }
+
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
+    try {
+      await queryRunner.manager.insert(DeletedUser, {
+        originalId: user.id,
+        email: user.email,
+        name: user.name,
+        phoneNumber: user.phoneNumber,
+        role: user.role,
+        // 탈퇴 시점 상태와 무관하게 백업 레코드는 항상 탈퇴 처리(INACTIVE) 상태로 남깁니다.
+        status: UserStatus.INACTIVE,
+        originalCreatedAt: user.createdAt,
+        originalUpdatedAt: user.updatedAt,
+      });
+      await queryRunner.manager.delete(User, { id });
+      await queryRunner.commitTransaction();
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
+
+    return { success: true };
   }
 
   private toGrpcResponse(user: User): UserGrpcResponse {

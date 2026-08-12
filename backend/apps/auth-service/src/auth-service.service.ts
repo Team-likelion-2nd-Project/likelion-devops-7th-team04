@@ -33,6 +33,7 @@ interface UserGrpcResponse {
 interface UserGrpcService {
   createUser(data: { email: string; name: string; phoneNumber: string }): Observable<UserGrpcResponse>;
   getUserByEmail(data: { email: string }): Observable<UserGrpcResponse>;
+  deleteUser(data: { id: number }): Observable<{ success: boolean }>;
 }
 
 export interface AuthTokens {
@@ -163,6 +164,19 @@ export class AuthServiceService implements OnModuleInit {
     await this.credentialRepository.save(credential);
 
     // 비밀번호가 바뀌었으므로 기존에 발급된 리프레시 토큰은 무효화합니다(다른 기기/세션은 재로그인 필요).
+    await this.redis.del(refreshTokenKey(data.userId));
+
+    return { success: true };
+  }
+
+  // 회원 탈퇴: user-service에 프로필 삭제(백업 테이블 이관 포함)를 요청한 뒤, 자격증명과 Redis의
+  // 리프레시 토큰을 삭제해 더 이상 로그인/재발급이 불가능하도록 만듭니다.
+  async withdraw(data: { userId: number }): Promise<{ success: boolean }> {
+    await firstValueFrom(this.userService.deleteUser({ id: data.userId })).catch((err) => {
+      throw new RpcException(err?.details || err?.message || '회원 탈퇴에 실패했습니다.');
+    });
+
+    await this.credentialRepository.delete({ userId: data.userId });
     await this.redis.del(refreshTokenKey(data.userId));
 
     return { success: true };
