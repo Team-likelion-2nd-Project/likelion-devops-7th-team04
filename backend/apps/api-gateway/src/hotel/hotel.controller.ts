@@ -27,6 +27,7 @@ import { JwtAuthGuard, RolesGuard, Roles } from '@app/common';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
 import { RoomAvailabilityQueryDto } from './dto/room-availability-query.dto';
+import { UpdateHotelDto } from './dto/update-hotel.dto';
 
 // proto의 Hotel 메시지와 1:1 대응되는 응답 형태
 interface HotelDto {
@@ -68,6 +69,13 @@ interface HotelService {
   getHello(data: {}): Observable<{ message: string }>;
   getHotels(data: {}): Observable<{ hotels: HotelDto[] }>;
   getHotel(data: { hotelId: number }): Observable<HotelDto>;
+  updateHotel(data: {
+    hotelId: number;
+    name: string;
+    address: string;
+    phoneNumber: string;
+    description?: string;
+  }): Observable<HotelDto>;
   getRooms(data: { hotelId: number }): Observable<{ rooms: RoomDto[] }>;
   getRoom(data: { hotelId: number; roomId: number }): Observable<RoomDto>;
   createRoom(data: {
@@ -153,6 +161,41 @@ export class HotelController implements OnModuleInit {
   async getHotel(@Param('hotelId') hotelId: string): Promise<HotelDto> {
     return firstValueFrom(
       this.hotelService.getHotel({ hotelId: Number(hotelId) }),
+    ).catch((err) => {
+      throw new NotFoundException(
+        err?.details || err?.message || '존재하지 않는 호텔입니다.',
+      );
+    });
+  }
+
+  /**
+   * PUT http://localhost:3000/api/hotels/{hotelId}
+   * 관리자 전용. 기존 호텔 정보를 수정합니다.
+   */
+  @Put(':hotelId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiParam({
+    name: 'hotelId',
+    description: '호텔 PK ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiOperation({
+    summary: '호텔 정보 수정 (관리자 전용)',
+    description:
+      '관리자 권한을 가진 사용자만 호출할 수 있습니다. gRPC를 통해 hotel-service의 기존 호텔 정보를 수정합니다.',
+  })
+  @ApiResponse({ status: 200, description: '호텔 수정 성공' })
+  @ApiResponse({ status: 403, description: '관리자 권한이 없음' })
+  @ApiResponse({ status: 404, description: '존재하지 않는 호텔' })
+  async updateHotel(
+    @Param('hotelId', ParseIntPipe) hotelId: number,
+    @Body() dto: UpdateHotelDto,
+  ): Promise<HotelDto> {
+    return firstValueFrom(
+      this.hotelService.updateHotel({ hotelId, ...dto }),
     ).catch((err) => {
       throw new NotFoundException(
         err?.details || err?.message || '존재하지 않는 호텔입니다.',

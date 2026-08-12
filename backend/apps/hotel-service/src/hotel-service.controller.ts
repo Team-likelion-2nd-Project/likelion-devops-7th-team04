@@ -29,6 +29,18 @@ export class HotelServiceController {
     return this.hotelServiceService.getHotel(data.hotelId);
   }
 
+  // proto의 HotelService / UpdateHotel 메서드와 매핑: 기존 호텔 정보 수정 (관리자 전용, api-gateway에서 권한 검증)
+  @GrpcMethod('HotelService', 'UpdateHotel')
+  async updateHotel(data: {
+    hotelId: number;
+    name: string;
+    address: string;
+    phoneNumber: string;
+    description: string;
+  }) {
+    return this.hotelServiceService.updateHotel(data.hotelId, data);
+  }
+
   // proto의 HotelService / GetRooms 메서드와 매핑: 특정 호텔의 전체 객실 목록 조회
   @GrpcMethod('HotelService', 'GetRooms')
   async getRooms(data: { hotelId: number }) {
