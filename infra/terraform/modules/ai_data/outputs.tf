@@ -1,19 +1,25 @@
-output "dynamodb_table_name" {
-  description = "DynamoDB Chat History Table Name"
-  value       = aws_dynamodb_table.chat_history.name
+output "neptune_endpoint" {
+  value       = aws_neptune_cluster.ai_data.endpoint
+  description = "Neptune Graph DB 접속 엔드포인트"
 }
 
-output "dynamodb_table_arn" {
-  description = "DynamoDB Chat History Table ARN"
-  value       = aws_dynamodb_table.chat_history.arn
+# DEV-57 IAM 연결용 필수 Output
+output "vector_bucket_arn" {
+  value       = awscc_s3express_directory_bucket.vector_bucket.arn
+  description = "S3 Vector Bucket ARN"
 }
 
-output "vector_store_bucket_name" {
-  description = "Vector Store S3 Bucket Name"
-  value       = aws_s3_bucket.vector_store.id
+output "vector_bucket_name" {
+  value       = awscc_s3express_directory_bucket.vector_bucket.bucket_name
+  description = "S3 Vector Bucket Name"
 }
 
-output "vector_store_bucket_arn" {
-  description = "Vector Store S3 Bucket ARN"
-  value       = aws_s3_bucket.vector_store.arn
+output "vector_index_arn" {
+  value       = "${awscc_s3express_directory_bucket.vector_bucket.arn}/index/${var.vector_index_name}"
+  description = "S3 Vector Index ARN (DEV-57 Chatbot Role IAM 연동 필수값)"
+}
+
+output "vector_index_name" {
+  value       = var.vector_index_name
+  description = "S3 Vector Index Name"
 }
