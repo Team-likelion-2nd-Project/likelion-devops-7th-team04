@@ -38,3 +38,22 @@ variable "vector_index_name" {
   default     = "team04-chatbot-vector-index"
   description = "S3 Vector Index 이름"
 }
+
+# --- DEV-126 추가 변수 ---
+variable "vector_dimension" {
+  type        = number
+  default     = 1536
+  description = "Embedding model vector dimension (e.g., 1536 for OpenAI text-embedding-3-small / Titan)"
+}
+
+variable "vector_data_type" {
+  type        = string
+  default     = "float32"
+  description = "Vector data type (e.g., float32)"
+}
+
+variable "vector_distance_metric" {
+  type        = string
+  default     = "cosine"
+  description = "Distance metric for vector search (e.g., cosine, euclidean)"
+}
