@@ -38,6 +38,12 @@ export function setAuth(token: string, nextUser: UserInfo): void {
   notify()
 }
 
+// 내 정보 수정 성공 시, 토큰은 그대로 두고 유저 정보(이름/전화번호 등)만 갱신할 때 사용
+export function setUser(nextUser: UserInfo): void {
+  user = nextUser
+  notify()
+}
+
 export function clearAccessToken(): void {
   accessToken = null
   user = null

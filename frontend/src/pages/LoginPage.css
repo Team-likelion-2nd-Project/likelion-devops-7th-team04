@@ -70,6 +70,12 @@
   color: #e5484d;
 }
 
+.login-info {
+  margin: 0 0 20px;
+  font-size: 14px;
+  color: var(--accent);
+}
+
 .login-submit {
   margin-top: 8px;
   padding: 12px 20px;
