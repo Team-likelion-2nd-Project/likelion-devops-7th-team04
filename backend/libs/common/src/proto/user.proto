@@ -25,6 +25,22 @@ service UserService {
   rpc DeleteUser (DeleteUserRequest) returns (DeleteUserResponse);
 }
 
+// 관리자 계정(admins 테이블)은 고객(users)과 완전히 다른 테이블로 관리합니다.
+// user-service가 같은 서비스 안에서 별도 도메인(admin/ 모듈)으로 소유합니다.
+service AdminService {
+  // 관리자 계정을 생성합니다. (이메일 중복 시 에러)
+  rpc CreateAdmin (CreateAdminRequest) returns (Admin);
+
+  // auth-service가 관리자 로그인 시 이메일로 조회합니다. (미등록 이메일이면 에러)
+  rpc GetAdminByEmail (GetAdminByEmailRequest) returns (Admin);
+
+  // 관리자 전체 목록을 조회합니다.
+  rpc GetAdmins (Empty) returns (AdminListResponse);
+
+  // 관리자 단건을 조회합니다. (없으면 에러)
+  rpc GetAdminById (GetAdminByIdRequest) returns (Admin);
+}
+
 message Empty {}
 
 message HelloResponse {
@@ -70,4 +86,31 @@ message User {
   string phoneNumber = 4;
   string role = 5;
   string status = 6;
+}
+
+message CreateAdminRequest {
+  string email = 1;
+  string name = 2;
+  string department = 3;
+  string position = 4;
+}
+
+message GetAdminByEmailRequest {
+  string email = 1;
+}
+
+message GetAdminByIdRequest {
+  int32 id = 1;
+}
+
+message AdminListResponse {
+  repeated Admin admins = 1;
+}
+
+message Admin {
+  int32 id = 1;
+  string email = 2;
+  string name = 3;
+  string department = 4;
+  string position = 5;
 }
