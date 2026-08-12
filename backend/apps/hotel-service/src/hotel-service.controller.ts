@@ -53,6 +53,18 @@ export class HotelServiceController {
     return this.roomService.createRoom(data);
   }
 
+  // proto의 HotelService / UpdateRoom 메서드와 매핑: 기존 객실 정보 수정 (관리자 전용, api-gateway에서 권한 검증)
+  @GrpcMethod('HotelService', 'UpdateRoom')
+  async updateRoom(data: {
+    hotelId: number;
+    roomId: number;
+    name: string;
+    capacity: number;
+    description: string;
+  }) {
+    return this.roomService.updateRoom(data.hotelId, data.roomId, data);
+  }
+
   // DB 연결 확인 엔드포인트 (GET /db-check)
   @Get('db-check')
   async checkDb() {

@@ -130,4 +130,55 @@ describe('HotelServiceController', () => {
       ).rejects.toThrow(RpcException);
     });
   });
+
+  describe('updateRoom', () => {
+    it('should update and save the room when it exists', async () => {
+      const existingRoom = { ...room };
+      roomRepository.findOne.mockResolvedValue(existingRoom);
+      roomRepository.save.mockImplementation((r) => Promise.resolve(r));
+
+      const result = await hotelServiceController.updateRoom({
+        hotelId: 1,
+        roomId: 1,
+        name: '스탠다드 트윈룸',
+        capacity: 3,
+        description: '수정된 설명입니다.',
+      });
+
+      expect(roomRepository.findOne).toHaveBeenCalledWith({
+        where: { hotelId: 1, roomId: 1 },
+      });
+      expect(roomRepository.save).toHaveBeenCalledWith(
+        expect.objectContaining({
+          roomId: 1,
+          hotelId: 1,
+          name: '스탠다드 트윈룸',
+          capacity: 3,
+          description: '수정된 설명입니다.',
+        }),
+      );
+      expect(result).toEqual({
+        roomId: 1,
+        hotelId: 1,
+        name: '스탠다드 트윈룸',
+        capacity: 3,
+        description: '수정된 설명입니다.',
+      });
+    });
+
+    it('should throw RpcException when the room does not exist', async () => {
+      roomRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        hotelServiceController.updateRoom({
+          hotelId: 1,
+          roomId: 999,
+          name: '스탠다드 트윈룸',
+          capacity: 3,
+          description: '수정된 설명입니다.',
+        }),
+      ).rejects.toThrow(RpcException);
+      expect(roomRepository.save).not.toHaveBeenCalled();
+    });
+  });
 });

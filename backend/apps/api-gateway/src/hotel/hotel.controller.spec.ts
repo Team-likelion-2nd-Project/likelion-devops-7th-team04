@@ -11,6 +11,7 @@ describe('HotelController', () => {
   const getRoomsMock = jest.fn();
   const getRoomMock = jest.fn();
   const createRoomMock = jest.fn();
+  const updateRoomMock = jest.fn();
 
   const hotel = {
     hotelId: 1,
@@ -34,6 +35,7 @@ describe('HotelController', () => {
     getRoomsMock.mockReturnValue(of({ rooms: [room] }));
     getRoomMock.mockReturnValue(of(room));
     createRoomMock.mockReturnValue(of(room));
+    updateRoomMock.mockReturnValue(of(room));
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [HotelController],
@@ -48,6 +50,7 @@ describe('HotelController', () => {
               getRooms: getRoomsMock,
               getRoom: getRoomMock,
               createRoom: createRoomMock,
+              updateRoom: updateRoomMock,
             }),
           },
         },
@@ -149,6 +152,36 @@ describe('HotelController', () => {
       const dto = { name: '디럭스 더블룸', capacity: 2 };
 
       await expect(controller.createRoom(999, dto)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('updateRoom', () => {
+    it('should update an existing room under the hotel', async () => {
+      const dto = {
+        name: '디럭스 더블룸',
+        capacity: 2,
+        description: '시티뷰를 갖춘 넓은 더블룸입니다.',
+      };
+
+      const result = await controller.updateRoom(1, 1, dto);
+
+      expect(updateRoomMock).toHaveBeenCalledWith({
+        hotelId: 1,
+        roomId: 1,
+        ...dto,
+      });
+      expect(result).toEqual(room);
+    });
+
+    it('should throw NotFoundException when the room does not exist', async () => {
+      updateRoomMock.mockReturnValue(
+        throwError(() => ({ message: '존재하지 않는 객실입니다.' })),
+      );
+      const dto = { name: '디럭스 더블룸', capacity: 2 };
+
+      await expect(controller.updateRoom(1, 999, dto)).rejects.toThrow(
         NotFoundException,
       );
     });
