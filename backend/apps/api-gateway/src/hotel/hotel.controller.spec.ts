@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { of, throwError } from 'rxjs';
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { HotelController } from './hotel.controller';
 
 describe('HotelController', () => {
@@ -12,6 +12,7 @@ describe('HotelController', () => {
   const getRoomMock = jest.fn();
   const createRoomMock = jest.fn();
   const updateRoomMock = jest.fn();
+  const getRoomAvailabilityMock = jest.fn();
 
   const hotel = {
     hotelId: 1,
@@ -27,6 +28,17 @@ describe('HotelController', () => {
     capacity: 2,
     description: '시티뷰를 갖춘 넓은 더블룸입니다.',
   };
+  const availability = {
+    hotelId: 1,
+    roomId: 1,
+    startDate: '2026-08-20',
+    endDate: '2026-08-21',
+    isAvailable: true,
+    availabilities: [
+      { date: '2026-08-20', isAvailable: true, price: 100000 },
+      { date: '2026-08-21', isAvailable: true, price: 100000 },
+    ],
+  };
 
   beforeEach(async () => {
     getHelloMock.mockReturnValue(of({ message: 'Hotel Hello World!' }));
@@ -36,6 +48,7 @@ describe('HotelController', () => {
     getRoomMock.mockReturnValue(of(room));
     createRoomMock.mockReturnValue(of(room));
     updateRoomMock.mockReturnValue(of(room));
+    getRoomAvailabilityMock.mockReturnValue(of(availability));
 
     const module: TestingModule = await Test.createTestingModule({
       controllers: [HotelController],
@@ -51,6 +64,7 @@ describe('HotelController', () => {
               getRoom: getRoomMock,
               createRoom: createRoomMock,
               updateRoom: updateRoomMock,
+              getRoomAvailability: getRoomAvailabilityMock,
             }),
           },
         },
@@ -184,6 +198,42 @@ describe('HotelController', () => {
       await expect(controller.updateRoom(1, 999, dto)).rejects.toThrow(
         NotFoundException,
       );
+    });
+  });
+
+  describe('getRoomAvailability', () => {
+    it('should look up availability for the hotelId/roomId path params and date range', async () => {
+      const query = { startDate: '2026-08-20', endDate: '2026-08-21' };
+
+      const result = await controller.getRoomAvailability(1, 1, query);
+
+      expect(getRoomAvailabilityMock).toHaveBeenCalledWith({
+        hotelId: 1,
+        roomId: 1,
+        ...query,
+      });
+      expect(result).toEqual(availability);
+    });
+
+    it('should throw NotFoundException when the room does not exist', async () => {
+      getRoomAvailabilityMock.mockReturnValue(
+        throwError(() => ({ message: '존재하지 않는 객실입니다.' })),
+      );
+      const query = { startDate: '2026-08-20', endDate: '2026-08-21' };
+
+      await expect(
+        controller.getRoomAvailability(1, 999, query),
+      ).rejects.toThrow(NotFoundException);
+    });
+
+    it('should throw BadRequestException when startDate is after endDate without calling gRPC', async () => {
+      const query = { startDate: '2026-08-21', endDate: '2026-08-20' };
+      getRoomAvailabilityMock.mockClear();
+
+      await expect(controller.getRoomAvailability(1, 1, query)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(getRoomAvailabilityMock).not.toHaveBeenCalled();
     });
   });
 });

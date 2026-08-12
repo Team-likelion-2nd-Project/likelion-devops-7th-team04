@@ -17,6 +17,9 @@ service HotelService {
 
   // 관리자 전용: 특정 호텔의 기존 객실 정보를 수정합니다. (hotelId/roomId 조합이 존재하지 않으면 에러)
   rpc UpdateRoom (UpdateRoomRequest) returns (Room);
+
+  // 특정 객실의 지정 기간 예약 가능 여부를 조회합니다. (hotelId/roomId 조합이 존재하지 않으면 에러)
+  rpc GetRoomAvailability (GetRoomAvailabilityRequest) returns (RoomAvailabilityResponse);
 }
 
 message Empty {}
@@ -75,4 +78,26 @@ message UpdateRoomRequest {
   string name = 3;
   int32 capacity = 4;
   string description = 5;
+}
+
+message GetRoomAvailabilityRequest {
+  int32 hotelId = 1;
+  int32 roomId = 2;
+  string startDate = 3;
+  string endDate = 4;
+}
+
+message RoomAvailabilityDay {
+  string date = 1;
+  bool isAvailable = 2;
+  int32 price = 3;
+}
+
+message RoomAvailabilityResponse {
+  int32 hotelId = 1;
+  int32 roomId = 2;
+  string startDate = 3;
+  string endDate = 4;
+  bool isAvailable = 5;
+  repeated RoomAvailabilityDay availabilities = 6;
 }

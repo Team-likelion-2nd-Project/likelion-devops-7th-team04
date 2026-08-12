@@ -7,6 +7,7 @@ import { HotelServiceService } from './hotel-service.service';
 import { RoomService } from './room.service';
 import { Hotel } from './entities/hotel.entity';
 import { Room } from './entities/room.entity';
+import { RoomAvailability } from './entities/room-availability.entity';
 
 describe('HotelServiceController', () => {
   let hotelServiceController: HotelServiceController;
@@ -17,6 +18,7 @@ describe('HotelServiceController', () => {
     save: jest.Mock;
     create: jest.Mock;
   };
+  let roomAvailabilityRepository: { find: jest.Mock };
 
   const hotel = {
     hotelId: 1,
@@ -41,6 +43,7 @@ describe('HotelServiceController', () => {
       save: jest.fn(),
       create: jest.fn(),
     };
+    roomAvailabilityRepository = { find: jest.fn() };
 
     const app: TestingModule = await Test.createTestingModule({
       controllers: [HotelServiceController],
@@ -50,6 +53,10 @@ describe('HotelServiceController', () => {
         { provide: DataSource, useValue: {} },
         { provide: getRepositoryToken(Hotel), useValue: hotelRepository },
         { provide: getRepositoryToken(Room), useValue: roomRepository },
+        {
+          provide: getRepositoryToken(RoomAvailability),
+          useValue: roomAvailabilityRepository,
+        },
       ],
     }).compile();
 
@@ -179,6 +186,70 @@ describe('HotelServiceController', () => {
         }),
       ).rejects.toThrow(RpcException);
       expect(roomRepository.save).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getRoomAvailability', () => {
+    it('should report overall availability true when every day in range is available', async () => {
+      roomRepository.findOne.mockResolvedValue(room);
+      roomAvailabilityRepository.find.mockResolvedValue([
+        { roomId: 1, date: '2026-08-20', price: 100000, isAvailable: true },
+        { roomId: 1, date: '2026-08-21', price: 100000, isAvailable: true },
+      ]);
+
+      const result = await hotelServiceController.getRoomAvailability({
+        hotelId: 1,
+        roomId: 1,
+        startDate: '2026-08-20',
+        endDate: '2026-08-21',
+      });
+
+      expect(roomRepository.findOne).toHaveBeenCalledWith({
+        where: { hotelId: 1, roomId: 1 },
+      });
+      expect(roomAvailabilityRepository.find).toHaveBeenCalledTimes(1);
+      expect(result).toEqual({
+        hotelId: 1,
+        roomId: 1,
+        startDate: '2026-08-20',
+        endDate: '2026-08-21',
+        isAvailable: true,
+        availabilities: [
+          { date: '2026-08-20', isAvailable: true, price: 100000 },
+          { date: '2026-08-21', isAvailable: true, price: 100000 },
+        ],
+      });
+    });
+
+    it('should report overall availability false when a day is missing or unavailable', async () => {
+      roomRepository.findOne.mockResolvedValue(room);
+      // 2026-08-21 하루가 비어있어 구간(20~21) 전체가 아님 -> false
+      roomAvailabilityRepository.find.mockResolvedValue([
+        { roomId: 1, date: '2026-08-20', price: 100000, isAvailable: true },
+      ]);
+
+      const result = await hotelServiceController.getRoomAvailability({
+        hotelId: 1,
+        roomId: 1,
+        startDate: '2026-08-20',
+        endDate: '2026-08-21',
+      });
+
+      expect(result.isAvailable).toBe(false);
+    });
+
+    it('should throw RpcException when the room does not exist', async () => {
+      roomRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        hotelServiceController.getRoomAvailability({
+          hotelId: 1,
+          roomId: 999,
+          startDate: '2026-08-20',
+          endDate: '2026-08-21',
+        }),
+      ).rejects.toThrow(RpcException);
+      expect(roomAvailabilityRepository.find).not.toHaveBeenCalled();
     });
   });
 });
