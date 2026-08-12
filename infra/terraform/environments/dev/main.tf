@@ -87,3 +87,14 @@ module "ai_data" {
   project_name = "team04"
   environment  = "dev"
 }
+
+# DEV-53 CloudWatch Monitoring Module
+module "cloudwatch" {
+  source = "../../modules/cloudwatch"
+
+  environment = "dev"
+  alarm_email = "kimjhn4188@gmail.com" # 실제 알림받으실 이메일 주소 입력
+
+  # 기존 database 모듈이 있다면 EC2 ID 연결 (없다면 생략 가능)
+  # ec2_instance_id = module.database.db_instance_id
+}
