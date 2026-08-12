@@ -46,7 +46,9 @@ export interface AuthResponse {
 async function parseAuthResponse(res: Response): Promise<AuthResponse> {
   if (!res.ok) {
     const body = await res.json().catch(() => null)
-    throw new Error(body?.message ?? `${res.status} ${res.statusText}`)
+    // ValidationPipe(class-validator) 에러는 message가 문자열 배열로 내려온다 (필드별 검증 메시지 여러 개).
+    const message = Array.isArray(body?.message) ? body.message.join(' ') : body?.message
+    throw new Error(message ?? `${res.status} ${res.statusText}`)
   }
 
   const data: AuthResponse = await res.json()
@@ -63,6 +65,25 @@ async function parseAuthResponse(res: Response): Promise<AuthResponse> {
 // credentials: 'include'가 있어야 서버가 Set-Cookie로 내려주는 httpOnly 리프레시 토큰을 브라우저가 저장한다.
 export async function login(payload: LoginRequest): Promise<AuthResponse> {
   const res = await fetch(`${BASE_URL}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  })
+
+  return parseAuthResponse(res)
+}
+
+export interface RegisterRequest {
+  email: string
+  password: string
+  name: string
+  phoneNumber: string
+}
+
+// api-gateway(/api/auth/register) -> auth-service(gRPC)로 회원가입을 요청하고, 성공 시 로그인과 동일하게 토큰을 발급받는다.
+export async function register(payload: RegisterRequest): Promise<AuthResponse> {
+  const res = await fetch(`${BASE_URL}/api/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     credentials: 'include',
