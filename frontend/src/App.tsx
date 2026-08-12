@@ -2,10 +2,14 @@ import { useEffect } from 'react'
 import { Route, Routes } from 'react-router-dom'
 import ScrollToTop from './components/ScrollToTop'
 import RootLayout from './layouts/RootLayout'
+import HotelLayout from './layouts/HotelLayout'
 import MainPage from './pages/MainPage'
 import PhilosophyPage from './pages/PhilosophyPage'
 import HotelsPage from './pages/HotelsPage'
 import HotelDetailPage from './pages/HotelDetailPage'
+import HotelStayPage from './pages/HotelStayPage'
+import RoomDetailPage from './pages/RoomDetailPage'
+import HotelWatersPage from './pages/HotelWatersPage'
 import NoticesPage from './pages/NoticesPage'
 import ReservationPage from './pages/ReservationPage'
 import MyPage from './pages/MyPage'
@@ -28,7 +32,12 @@ function App() {
           <Route index element={<MainPage />} />
           <Route path="philosophy/:slug" element={<PhilosophyPage />} />
           <Route path="hotels" element={<HotelsPage />} />
-          <Route path="hotels/:hotelId" element={<HotelDetailPage />} />
+          <Route path="hotels/:hotelId" element={<HotelLayout />}>
+            <Route index element={<HotelDetailPage />} />
+            <Route path="stay" element={<HotelStayPage />} />
+            <Route path="rooms/:roomId" element={<RoomDetailPage />} />
+            <Route path="waters" element={<HotelWatersPage />} />
+          </Route>
           <Route path="notices" element={<NoticesPage />} />
           <Route path="reservation" element={<ReservationPage />} />
           <Route path="mypage" element={<MyPage />} />
