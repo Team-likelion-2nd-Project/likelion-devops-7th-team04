@@ -29,6 +29,19 @@ export class HotelServiceController {
     return this.hotelServiceService.getHotel(data.hotelId);
   }
 
+  // proto의 HotelService / GetRooms 메서드와 매핑: 특정 호텔의 전체 객실 목록 조회
+  @GrpcMethod('HotelService', 'GetRooms')
+  async getRooms(data: { hotelId: number }) {
+    const rooms = await this.roomService.getRoomsByHotel(data.hotelId);
+    return { rooms };
+  }
+
+  // proto의 HotelService / GetRoom 메서드와 매핑: 단건 객실 조회
+  @GrpcMethod('HotelService', 'GetRoom')
+  async getRoom(data: { hotelId: number; roomId: number }) {
+    return this.roomService.getRoomById(data.hotelId, data.roomId);
+  }
+
   // proto의 HotelService / CreateRoom 메서드와 매핑: 신규 객실 등록 (관리자 전용, api-gateway에서 권한 검증)
   @GrpcMethod('HotelService', 'CreateRoom')
   async createRoom(data: {

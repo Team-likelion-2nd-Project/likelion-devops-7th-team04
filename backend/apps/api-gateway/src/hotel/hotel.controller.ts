@@ -46,6 +46,8 @@ interface HotelService {
   getHello(data: {}): Observable<{ message: string }>;
   getHotels(data: {}): Observable<{ hotels: HotelDto[] }>;
   getHotel(data: { hotelId: number }): Observable<HotelDto>;
+  getRooms(data: { hotelId: number }): Observable<{ rooms: RoomDto[] }>;
+  getRoom(data: { hotelId: number; roomId: number }): Observable<RoomDto>;
   createRoom(data: {
     hotelId: number;
     name: string;
@@ -121,6 +123,73 @@ export class HotelController implements OnModuleInit {
         err?.details || err?.message || '존재하지 않는 호텔입니다.',
       );
     });
+  }
+
+  /**
+   * GET http://localhost:3000/api/hotels/{hotelId}/rooms
+   * 브라우저/프론트엔드 HTTP 요청 수신 -> hotel-service gRPC 호출 -> 특정 호텔의 전체 객실 목록 조회
+   */
+  @Get(':hotelId/rooms')
+  @ApiOperation({
+    summary: '특정 호텔의 전체 객실 조회',
+    description:
+      '호텔 PK ID를 바탕으로 gRPC를 통해 hotel-service에서 해당 호텔에 등록된 모든 객실 목록을 조회합니다.',
+  })
+  @ApiParam({
+    name: 'hotelId',
+    description: '호텔 PK ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({ status: 200, description: '객실 목록 조회 성공' })
+  @ApiResponse({ status: 404, description: '존재하지 않는 호텔' })
+  async getRooms(
+    @Param('hotelId', ParseIntPipe) hotelId: number,
+  ): Promise<{ rooms: RoomDto[] }> {
+    return firstValueFrom(this.hotelService.getRooms({ hotelId })).catch(
+      (err) => {
+        throw new NotFoundException(
+          err?.details || err?.message || '존재하지 않는 호텔입니다.',
+        );
+      },
+    );
+  }
+
+  /**
+   * GET http://localhost:3000/api/hotels/{hotelId}/rooms/{roomId}
+   * 브라우저/프론트엔드 HTTP 요청 수신 -> hotel-service gRPC 호출 -> 단건 객실 조회
+   */
+  @Get(':hotelId/rooms/:roomId')
+  @ApiOperation({
+    summary: '특정 객실 조회',
+    description:
+      '호텔 PK ID와 객실 PK ID를 바탕으로 gRPC를 통해 hotel-service에서 객실 상세 정보를 조회합니다.',
+  })
+  @ApiParam({
+    name: 'hotelId',
+    description: '호텔 PK ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiParam({
+    name: 'roomId',
+    description: '객실 PK ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({ status: 200, description: '객실 조회 성공' })
+  @ApiResponse({ status: 404, description: '존재하지 않는 객실' })
+  async getRoom(
+    @Param('hotelId', ParseIntPipe) hotelId: number,
+    @Param('roomId', ParseIntPipe) roomId: number,
+  ): Promise<RoomDto> {
+    return firstValueFrom(this.hotelService.getRoom({ hotelId, roomId })).catch(
+      (err) => {
+        throw new NotFoundException(
+          err?.details || err?.message || '존재하지 않는 객실입니다.',
+        );
+      },
+    );
   }
 
   /**

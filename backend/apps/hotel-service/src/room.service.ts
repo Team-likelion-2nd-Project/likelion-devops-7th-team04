@@ -46,6 +46,33 @@ export class RoomService {
     return this.toGrpcResponse(saved);
   }
 
+  // 특정 호텔의 전체 객실 목록 조회. hotelId가 존재하지 않으면 RpcException.
+  async getRoomsByHotel(hotelId: number): Promise<RoomGrpcResponse[]> {
+    const hotel = await this.hotelRepository.findOne({
+      where: { hotelId },
+    });
+    if (!hotel) {
+      throw new RpcException('존재하지 않는 호텔입니다.');
+    }
+
+    const rooms = await this.roomRepository.find({ where: { hotelId } });
+    return rooms.map((room) => this.toGrpcResponse(room));
+  }
+
+  // 단건 객실 조회. hotelId/roomId 조합이 존재하지 않으면 RpcException.
+  async getRoomById(
+    hotelId: number,
+    roomId: number,
+  ): Promise<RoomGrpcResponse> {
+    const room = await this.roomRepository.findOne({
+      where: { hotelId, roomId },
+    });
+    if (!room) {
+      throw new RpcException('존재하지 않는 객실입니다.');
+    }
+    return this.toGrpcResponse(room);
+  }
+
   private toGrpcResponse(room: Room): RoomGrpcResponse {
     return {
       roomId: room.roomId,
