@@ -1,7 +1,7 @@
 import { Controller, Get } from '@nestjs/common';
 import { GrpcMethod } from '@nestjs/microservices';
 import { HotelServiceService } from './hotel-service.service';
-import { RoomService } from './room.service';
+import { RoomImageInput, RoomService } from './room.service';
 
 @Controller()
 export class HotelServiceController {
@@ -61,6 +61,7 @@ export class HotelServiceController {
     name: string;
     capacity: number;
     description: string;
+    images?: RoomImageInput[];
   }) {
     return this.roomService.createRoom(data);
   }
@@ -73,6 +74,7 @@ export class HotelServiceController {
     name: string;
     capacity: number;
     description: string;
+    images?: RoomImageInput[];
   }) {
     return this.roomService.updateRoom(data.hotelId, data.roomId, data);
   }

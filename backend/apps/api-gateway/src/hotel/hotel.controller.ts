@@ -38,6 +38,14 @@ interface HotelDto {
   description: string;
 }
 
+// proto의 RoomImage 메시지와 1:1 대응되는 응답 형태
+interface RoomImageDto {
+  imageId: number;
+  mimeType: string;
+  imageBase64: string;
+  sortOrder: number;
+}
+
 // proto의 Room 메시지와 1:1 대응되는 응답 형태
 interface RoomDto {
   roomId: number;
@@ -45,6 +53,7 @@ interface RoomDto {
   name: string;
   capacity: number;
   description: string;
+  images: RoomImageDto[];
 }
 
 // proto의 RoomAvailabilityDay 메시지와 1:1 대응되는 응답 형태
@@ -83,6 +92,7 @@ interface HotelService {
     name: string;
     capacity: number;
     description?: string;
+    images?: { mimeType: string; imageBase64: string }[];
   }): Observable<RoomDto>;
   updateRoom(data: {
     hotelId: number;
@@ -90,6 +100,7 @@ interface HotelService {
     name: string;
     capacity: number;
     description?: string;
+    images?: { mimeType: string; imageBase64: string }[];
   }): Observable<RoomDto>;
   getRoomAvailability(data: {
     hotelId: number;
@@ -371,7 +382,8 @@ export class HotelController implements OnModuleInit {
   @ApiOperation({
     summary: '객실 정보 수정 (관리자 전용)',
     description:
-      '관리자 권한을 가진 사용자만 호출할 수 있습니다. gRPC를 통해 hotel-service의 기존 객실 정보를 수정합니다.',
+      '관리자 권한을 가진 사용자만 호출할 수 있습니다. gRPC를 통해 hotel-service의 기존 객실 정보를 수정합니다. ' +
+      'images는 항상 전체 교체됩니다 — 기존 이미지를 유지하려면 요청 바디에 기존 이미지를 그대로 포함해서 함께 보내야 합니다.',
   })
   @ApiResponse({ status: 200, description: '객실 수정 성공' })
   @ApiResponse({ status: 403, description: '관리자 권한이 없음' })

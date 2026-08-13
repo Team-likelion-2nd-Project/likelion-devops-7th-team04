@@ -28,6 +28,7 @@ describe('HotelController', () => {
     name: '디럭스 더블룸',
     capacity: 2,
     description: '시티뷰를 갖춘 넓은 더블룸입니다.',
+    images: [],
   };
   const availability = {
     hotelId: 1,
@@ -203,6 +204,19 @@ describe('HotelController', () => {
         NotFoundException,
       );
     });
+
+    it('should pass images through to hotel-service', async () => {
+      const dto = {
+        name: '디럭스 더블룸',
+        capacity: 2,
+        description: '시티뷰를 갖춘 넓은 더블룸입니다.',
+        images: [{ mimeType: 'image/jpeg', imageBase64: 'AAA' }],
+      };
+
+      await controller.createRoom(1, dto);
+
+      expect(createRoomMock).toHaveBeenCalledWith({ hotelId: 1, ...dto });
+    });
   });
 
   describe('updateRoom', () => {
@@ -232,6 +246,23 @@ describe('HotelController', () => {
       await expect(controller.updateRoom(1, 999, dto)).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it('should pass images through to hotel-service (full replace)', async () => {
+      const dto = {
+        name: '디럭스 더블룸',
+        capacity: 2,
+        description: '시티뷰를 갖춘 넓은 더블룸입니다.',
+        images: [{ mimeType: 'image/jpeg', imageBase64: 'AAA' }],
+      };
+
+      await controller.updateRoom(1, 1, dto);
+
+      expect(updateRoomMock).toHaveBeenCalledWith({
+        hotelId: 1,
+        roomId: 1,
+        ...dto,
+      });
     });
   });
 
