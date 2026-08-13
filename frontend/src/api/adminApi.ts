@@ -1,5 +1,5 @@
-import { clearAccessToken, getAccessToken } from './tokenStore'
-import { refreshAccessToken } from './gateway'
+import { adminAuth } from './tokenStore'
+import { refreshAdminAccessToken } from './gateway'
 
 const BASE_URL = import.meta.env.VITE_API_URL
 
@@ -69,20 +69,20 @@ function withAuthHeaders(init: RequestInit | undefined, token: string | null): R
 }
 
 async function authedFetch(path: string, init?: RequestInit): Promise<Response> {
-  const res = await fetch(`${BASE_URL}${path}`, withAuthHeaders(init, getAccessToken()))
+  const res = await fetch(`${BASE_URL}${path}`, withAuthHeaders(init, adminAuth.getAccessToken()))
 
   if (res.status !== 401) {
     return res
   }
 
   try {
-    await refreshAccessToken()
+    await refreshAdminAccessToken()
   } catch {
-    clearAccessToken()
+    adminAuth.clearAccessToken()
     throw new Error('로그인이 만료되었습니다. 다시 로그인해주세요.')
   }
 
-  return fetch(`${BASE_URL}${path}`, withAuthHeaders(init, getAccessToken()))
+  return fetch(`${BASE_URL}${path}`, withAuthHeaders(init, adminAuth.getAccessToken()))
 }
 
 // POST/PUT 등 JSON body를 실어 보내는 관리자 API 공용 헬퍼.
