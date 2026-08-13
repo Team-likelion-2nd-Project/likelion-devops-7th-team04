@@ -50,3 +50,450 @@ jobs:
         with:
           issue: ${{ steps.extract_key.outputs.jira_key }}
           transition: "완료" # 지라 보드의 컬럼명이 영문이면 "Done"으로 수정
+          
+  # ==================================================
+  # 2. Meeting Wiki 동기화
+  # ==================================================
+  meeting-wiki:
+    runs-on: ubuntu-latest
+
+    # meeting 라벨이 붙은 Issue만 실행
+    if: contains(github.event.issue.labels.*.name, 'meeting')
+
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      WIKI_PAT: ${{ secrets.WIKI_PAT }}
+
+      # 테스트 Repository에서 실제 Wiki를 대상으로 함
+      REPOSITORY: ${{ github.repository }}
+
+      ISSUE_NUMBER: ${{ github.event.issue.number }}
+      ISSUE_TITLE: ${{ github.event.issue.title }}
+      ISSUE_BODY: ${{ github.event.issue.body }}
+      ISSUE_AUTHOR: ${{ github.event.issue.user.login }}
+      CREATED_AT: ${{ github.event.issue.created_at }}
+      CLOSED_AT: ${{ github.event.issue.closed_at }}
+
+    steps:
+
+      # --------------------------------------------------
+      # 2-1. Wiki Clone
+      # --------------------------------------------------
+      - name: Clone Wiki
+        run: |
+          git clone \
+            "https://x-access-token:${WIKI_PAT}@github.com/${REPOSITORY}.wiki.git" \
+            wiki
+
+
+      # --------------------------------------------------
+      # 2-2. Meeting Category 추출
+      # --------------------------------------------------
+      - name: Extract Meeting Category
+        id: category
+        run: |
+          python3 <<'PY'
+          import os
+          import re
+
+          title = os.environ["ISSUE_TITLE"].strip()
+
+          match = re.match(r"^\[([^\]]+)\]", title)
+
+          if not match:
+              print("::error::Meeting Issue 제목에 [CATEGORY] 형식이 없습니다.")
+              exit(1)
+
+          category = match.group(1).strip().upper()
+
+          category_map = {
+              "SCRUM MEETING": {
+                  "file": "Scrum-Meetings.md",
+                  "title": "Scrum Meetings"
+              },
+              "TECHNICAL MEETING": {
+                  "file": "Technical-Meetings.md",
+                  "title": "Technical Meetings"
+              },
+              "PLANNING MEETING": {
+                  "file": "Planning-Meetings.md",
+                  "title": "Planning Meetings"
+              },
+              "RETRO MEETING": {
+                  "file": "Retro-Meetings.md",
+                  "title": "Retro Meetings"
+              }
+          }
+
+          if category not in category_map:
+              print(f"::error::지원하지 않는 Meeting Category입니다: {category}")
+              print(
+                  "지원되는 Category: "
+                  + ", ".join(category_map.keys())
+              )
+              exit(1)
+
+          index_file = category_map[category]["file"]
+          index_title = category_map[category]["title"]
+
+          print(f"Meeting Category: {category}")
+          print(f"Category Index: {index_file}")
+
+          with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as output:
+              output.write(f"category={category}\n")
+              output.write(f"index_file={index_file}\n")
+              output.write(f"index_title={index_title}\n")
+          PY
+
+
+      # --------------------------------------------------
+      # 2-3. Issue Comments 수집
+      # --------------------------------------------------
+      - name: Collect Issue Comments
+        run: |
+          gh api \
+            --paginate \
+            "repos/${REPOSITORY}/issues/${ISSUE_NUMBER}/comments" \
+            --jq '.[] | @json' \
+            > comments.jsonl
+
+          echo "Collected comments:"
+          wc -l comments.jsonl
+
+
+      # --------------------------------------------------
+      # 2-4. Meeting Note 생성
+      # --------------------------------------------------
+      - name: Create Meeting Note
+        env:
+          CATEGORY: ${{ steps.category.outputs.category }}
+        working-directory: wiki
+        run: |
+          python3 <<'PY'
+          import os
+          import re
+          import json
+          from pathlib import Path
+
+          issue_number = int(os.environ["ISSUE_NUMBER"])
+          issue_title = os.environ["ISSUE_TITLE"].strip()
+          issue_body = os.environ.get("ISSUE_BODY") or ""
+          issue_author = os.environ["ISSUE_AUTHOR"]
+          created_at = os.environ["CREATED_AT"]
+          closed_at = os.environ["CLOSED_AT"]
+          category = os.environ["CATEGORY"]
+
+          # --------------------------------------------------
+          # 파일명 생성
+          # --------------------------------------------------
+          def slugify(text):
+              text = text.strip()
+
+              # 파일명에 사용할 수 없는 문자 제거
+              text = re.sub(r'[\\/:*?"<>|]', '', text)
+
+              # 대괄호 제거
+              text = text.replace("[", "")
+              text = text.replace("]", "")
+
+              # 공백 → -
+              text = re.sub(r'\s+', '-', text)
+
+              # 연속된 - 정리
+              text = re.sub(r'-+', '-', text)
+
+              return text.strip('-')
+
+          filename = f"{slugify(issue_title)}.md"
+
+          # --------------------------------------------------
+          # Wiki 루트에 회의록 생성
+          # --------------------------------------------------
+          file_path = Path(filename)
+
+          # --------------------------------------------------
+          # Comments 읽기
+          # --------------------------------------------------
+          comments_path = Path("../comments.jsonl")
+
+          comments = []
+
+          if comments_path.exists():
+              with comments_path.open("r", encoding="utf-8") as file:
+                  for line in file:
+                      line = line.strip()
+
+                      if not line:
+                          continue
+
+                      comment = json.loads(line)
+
+                      comments.append({
+                          "author": comment["user"]["login"],
+                          "body": comment["body"],
+                          "created_at": comment["created_at"]
+                      })
+
+          # --------------------------------------------------
+          # Meeting Note 작성
+          # --------------------------------------------------
+          with file_path.open("w", encoding="utf-8") as file:
+
+              file.write(f"# {issue_title}\n\n")
+
+              file.write("## Meeting Information\n\n")
+              file.write(f"- **Issue:** #{issue_number}\n")
+              file.write(f"- **Category:** {category}\n")
+              file.write(f"- **Author:** @{issue_author}\n")
+              file.write(f"- **Created:** {created_at}\n")
+              file.write(f"- **Closed:** {closed_at}\n\n")
+
+              file.write("---\n\n")
+
+              file.write("## Meeting Notes\n\n")
+
+              if issue_body.strip():
+                  file.write(issue_body.strip())
+                  file.write("\n\n")
+              else:
+                  file.write("_No meeting notes._\n\n")
+
+              # --------------------------------------------------
+              # Comments
+              # --------------------------------------------------
+              file.write("## Comments\n\n")
+
+              if comments:
+                  for comment in comments:
+                      file.write(
+                          f"### @{comment['author']}\n\n"
+                      )
+
+                      file.write(
+                          comment["body"].strip()
+                      )
+
+                      file.write("\n\n")
+
+                      file.write(
+                          f"> Commented at: {comment['created_at']}\n\n"
+                      )
+              else:
+                  file.write("_No comments._\n")
+
+          print(f"Created meeting note: {file_path}")
+
+          # 다음 Step에서 사용할 파일명 저장
+          with open("../meeting_filename.txt", "w", encoding="utf-8") as output:
+              output.write(filename)
+          PY
+
+
+      # --------------------------------------------------
+      # 2-5. 전체 Meeting Notes Index 업데이트
+      # --------------------------------------------------
+      - name: Update Meeting Notes Index
+        working-directory: wiki
+        run: |
+          python3 <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          issue_title = os.environ["ISSUE_TITLE"].strip()
+
+          filename = Path("../meeting_filename.txt").read_text(
+              encoding="utf-8"
+          ).strip()
+
+          index_path = Path("Meeting-Notes.md")
+
+          if index_path.exists():
+              content = index_path.read_text(encoding="utf-8")
+          else:
+              content = "# Meeting Notes\n"
+
+          # --------------------------------------------------
+          # Wiki 루트에 있는 회의록으로 직접 연결
+          # --------------------------------------------------
+          new_link = (
+              f"- [{issue_title}]"
+              f"({filename[:-3]})"
+          )
+
+          # 기존 회의록 링크 추출
+          meeting_pattern = re.compile(
+              r"^- \[(.*?)\]\((.*?)\)$",
+              re.MULTILINE
+          )
+
+          meetings = {}
+
+          for match in meeting_pattern.finditer(content):
+              title = match.group(1)
+
+              if title.startswith("["):
+                  meetings[title] = match.group(0)
+
+          meetings[issue_title] = new_link
+
+          meeting_lines = list(meetings.values())
+
+          meetings_section = (
+              "## Meetings\n\n"
+              + "\n".join(meeting_lines)
+              + "\n"
+          )
+
+          section_pattern = re.compile(
+              r"## Meetings\s*\n.*?(?=\n## |\Z)",
+              re.DOTALL
+          )
+
+          if section_pattern.search(content):
+              content = section_pattern.sub(
+                  meetings_section.rstrip(),
+                  content
+              )
+          else:
+              content = (
+                  content.rstrip()
+                  + "\n\n"
+                  + meetings_section
+              )
+
+          index_path.write_text(
+              content,
+              encoding="utf-8"
+          )
+
+          print("Meeting Notes index updated.")
+          print(new_link)
+          PY
+
+
+      # --------------------------------------------------
+      # 2-6. Category Meeting Index 업데이트
+      # --------------------------------------------------
+      - name: Update Category Meeting Index
+        env:
+          CATEGORY: ${{ steps.category.outputs.category }}
+          INDEX_FILE: ${{ steps.category.outputs.index_file }}
+          INDEX_TITLE: ${{ steps.category.outputs.index_title }}
+        working-directory: wiki
+        run: |
+          python3 <<'PY'
+          import os
+          import re
+          from pathlib import Path
+
+          issue_title = os.environ["ISSUE_TITLE"].strip()
+          category = os.environ["CATEGORY"]
+          index_file = os.environ["INDEX_FILE"]
+          index_title = os.environ["INDEX_TITLE"]
+
+          filename = Path("../meeting_filename.txt").read_text(
+              encoding="utf-8"
+          ).strip()
+
+          print(f"Category: {category}")
+          print(f"Index file: {index_file}")
+          print(f"Index title: {index_title}")
+          print(f"Meeting filename: {filename}")
+          print(f"Issue title: {issue_title}")
+
+          index_path = Path(index_file)
+
+          if index_path.exists():
+              content = index_path.read_text(encoding="utf-8")
+          else:
+              content = f"# {index_title}\n"
+
+          # --------------------------------------------------
+          # Wiki 루트에 있는 회의록으로 직접 연결
+          # --------------------------------------------------
+          new_link = (
+              f"- [{issue_title}]"
+              f"({filename[:-3]})"
+          )
+
+          # 기존 회의록 링크 추출
+          meeting_pattern = re.compile(
+              r"^- \[(.*?)\]\((.*?)\)$",
+              re.MULTILINE
+          )
+
+          meetings = {}
+
+          for match in meeting_pattern.finditer(content):
+              title = match.group(1)
+
+              if title.startswith("["):
+                  meetings[title] = match.group(0)
+
+          meetings[issue_title] = new_link
+
+          meeting_lines = list(meetings.values())
+
+          meetings_section = (
+              "## Meetings\n\n"
+              + "\n".join(meeting_lines)
+              + "\n"
+          )
+
+          section_pattern = re.compile(
+              r"## Meetings\s*\n.*?(?=\n## |\Z)",
+              re.DOTALL
+          )
+
+          if section_pattern.search(content):
+              content = section_pattern.sub(
+                  meetings_section.rstrip(),
+                  content
+              )
+          else:
+              content = (
+                  content.rstrip()
+                  + "\n\n"
+                  + meetings_section
+              )
+
+          index_path.write_text(
+              content,
+              encoding="utf-8"
+          )
+
+          print(f"Updated: {index_file}")
+          print("New link:")
+          print(new_link)
+          PY
+
+
+      # --------------------------------------------------
+      # 2-7. Wiki Commit & Push
+      # --------------------------------------------------
+      - name: Commit and Push Wiki
+        working-directory: wiki
+        env:
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add \
+            Meeting-Notes.md \
+            Scrum-Meetings.md \
+            Technical-Meetings.md \
+            Planning-Meetings.md \
+            Retro-Meetings.md \
+            '*.md'
+
+          if git diff --cached --quiet; then
+            echo "No changes to commit."
+            exit 0
+          fi
+
+          git commit \
+            -m "docs: add meeting notes for issue #${ISSUE_NUMBER}"
+
+          git push

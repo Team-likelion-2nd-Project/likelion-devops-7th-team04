@@ -1,120 +1,64 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import { Suspense, lazy, useEffect } from 'react'
+import { Route, Routes } from 'react-router-dom'
+import ScrollToTop from './components/ScrollToTop'
+import RootLayout from './layouts/RootLayout'
+import HotelLayout from './layouts/HotelLayout'
+import MainPage from './pages/MainPage'
+import PhilosophyPage from './pages/PhilosophyPage'
+import HotelsPage from './pages/HotelsPage'
+import HotelDetailPage from './pages/HotelDetailPage'
+import HotelStayPage from './pages/HotelStayPage'
+import RoomDetailPage from './pages/RoomDetailPage'
+import HotelWatersPage from './pages/HotelWatersPage'
+import NoticesPage from './pages/NoticesPage'
+import ReservationPage from './pages/ReservationPage'
+import MyPage from './pages/MyPage'
+import LoginPage from './pages/LoginPage'
+import SignupPage from './pages/SignupPage'
+import { refreshAccessToken } from './api/gateway'
+
+// 고객 프론트와 완전히 독립된 관리자 화면. 별도 청크로 code splitting되도록 lazy import한다.
+const AdminApp = lazy(() => import('./admin/AdminApp'))
 
 function App() {
-  const [count, setCount] = useState(0)
+  useEffect(() => {
+    // 액세스 토큰은 메모리에만 두므로 새로고침하면 사라진다. httpOnly 리프레시 토큰 쿠키가
+    // 남아있다면 앱 부팅 시 조용히 재발급받아 로그인 상태를 복구한다 (없거나 만료됐으면 그냥 비로그인 상태).
+    refreshAccessToken().catch(() => {})
+  }, [])
 
   return (
     <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.tsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+      <ScrollToTop />
+      <Routes>
+        <Route element={<RootLayout />}>
+          <Route index element={<MainPage />} />
+          <Route path="philosophy/:slug" element={<PhilosophyPage />} />
+          <Route path="hotels" element={<HotelsPage />} />
+          <Route path="hotels/:hotelId" element={<HotelLayout />}>
+            <Route index element={<HotelDetailPage />} />
+            <Route path="stay" element={<HotelStayPage />} />
+            <Route path="rooms/:roomId" element={<RoomDetailPage />} />
+            <Route path="waters" element={<HotelWatersPage />} />
+          </Route>
+          <Route path="notices" element={<NoticesPage />} />
+          <Route path="reservation" element={<ReservationPage />} />
+          <Route path="mypage" element={<MyPage />} />
+          <Route path="login" element={<LoginPage />} />
+          <Route path="signup" element={<SignupPage />} />
+        </Route>
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
-
-      <div className="ticks"></div>
-      <section id="spacer"></section>
+        {/* RootLayout 바깥의 형제 라우트: 고객용 Header/Footer/MobileDock을 렌더링하지 않는
+            완전히 독립된 레이아웃 + 별도 라우트 네임스페이스(/admin/*)를 갖는다. */}
+        <Route
+          path="/admin/*"
+          element={
+            <Suspense fallback={null}>
+              <AdminApp />
+            </Suspense>
+          }
+        />
+      </Routes>
     </>
   )
 }
