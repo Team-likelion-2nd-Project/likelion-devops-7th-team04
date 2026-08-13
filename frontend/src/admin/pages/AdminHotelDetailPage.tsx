@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import type { FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { fetchAdminHotelById, fetchAdminHotelRooms } from '../../api/adminApi'
+import { createAdminRoom, fetchAdminHotelById, fetchAdminHotelRooms } from '../../api/adminApi'
 import type { AdminHotel, AdminRoom } from '../../api/adminApi'
 import './AdminPages.css'
 
@@ -12,6 +13,13 @@ function AdminHotelDetailPage() {
   const [rooms, setRooms] = useState<AdminRoom[] | null>(null)
   const [error, setError] = useState('')
 
+  const [isAdding, setIsAdding] = useState(false)
+  const [name, setName] = useState('')
+  const [capacity, setCapacity] = useState('')
+  const [description, setDescription] = useState('')
+  const [isSaving, setIsSaving] = useState(false)
+  const [formError, setFormError] = useState('')
+
   // hotelId가 바뀌면(다른 호텔 상세로 이동) 렌더링 중에 바로 이전 데이터를 비워
   // 새 호텔의 데이터가 도착하기 전까지 이전 호텔 정보가 잠깐 보이지 않게 한다.
   if (loadedFor !== hotelId) {
@@ -19,6 +27,7 @@ function AdminHotelDetailPage() {
     setHotel(null)
     setRooms(null)
     setError('')
+    setIsAdding(false)
   }
 
   useEffect(() => {
@@ -39,6 +48,41 @@ function AdminHotelDetailPage() {
       ignore = true
     }
   }, [hotelId])
+
+  const openAddForm = () => {
+    setName('')
+    setCapacity('')
+    setDescription('')
+    setFormError('')
+    setIsAdding(true)
+  }
+
+  const handleAddRoom = async (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault()
+    if (!hotelId) return
+
+    const capacityNum = Number(capacity)
+    if (!name.trim() || !Number.isInteger(capacityNum) || capacityNum < 1) {
+      setFormError('이름과 정원(1 이상의 정수)을 올바르게 입력해주세요.')
+      return
+    }
+
+    setIsSaving(true)
+    setFormError('')
+    try {
+      const created = await createAdminRoom(hotelId, {
+        name: name.trim(),
+        capacity: capacityNum,
+        description: description.trim() || undefined,
+      })
+      setRooms((prev) => [...(prev ?? []), created])
+      setIsAdding(false)
+    } catch (err) {
+      setFormError(err instanceof Error ? err.message : '객실을 등록하지 못했습니다.')
+    } finally {
+      setIsSaving(false)
+    }
+  }
 
   return (
     <section>
@@ -72,7 +116,52 @@ function AdminHotelDetailPage() {
 
       {!error && rooms && (
         <div className="admin-card">
-          <h2 style={{ margin: '0 0 12px', fontSize: 15 }}>객실 목록</h2>
+          <div className="admin-card-header">
+            <h2>객실 목록</h2>
+            {!isAdding && (
+              <button type="button" className="admin-btn is-primary" onClick={openAddForm}>
+                객실 추가
+              </button>
+            )}
+          </div>
+          <p className="admin-stat-note" style={{ marginBottom: 12 }}>
+            객실을 누르면 상세 정보와 예약 가능 날짜 달력을 볼 수 있습니다.
+          </p>
+
+          {isAdding && (
+            <form className="admin-form" onSubmit={handleAddRoom} noValidate>
+              <label className="admin-form-row">
+                <span>이름</span>
+                <input value={name} onChange={(e) => setName(e.target.value)} maxLength={100} required />
+              </label>
+              <label className="admin-form-row">
+                <span>정원</span>
+                <input
+                  type="number"
+                  min={1}
+                  value={capacity}
+                  onChange={(e) => setCapacity(e.target.value)}
+                  required
+                />
+              </label>
+              <label className="admin-form-row">
+                <span>설명</span>
+                <textarea value={description} onChange={(e) => setDescription(e.target.value)} />
+              </label>
+
+              {formError && <p className="admin-form-error">{formError}</p>}
+
+              <div className="admin-form-actions">
+                <button type="submit" className="admin-btn is-primary" disabled={isSaving}>
+                  {isSaving ? '등록 중...' : '등록'}
+                </button>
+                <button type="button" className="admin-btn" onClick={() => setIsAdding(false)} disabled={isSaving}>
+                  취소
+                </button>
+              </div>
+            </form>
+          )}
+
           {rooms.length === 0 ? (
             <p className="admin-state">등록된 객실이 없습니다.</p>
           ) : (
@@ -88,7 +177,10 @@ function AdminHotelDetailPage() {
                 </thead>
                 <tbody>
                   {rooms.map((room) => (
-                    <tr key={room.roomId} style={{ cursor: 'default' }}>
+                    <tr
+                      key={room.roomId}
+                      onClick={() => navigate(`/admin/hotels/${hotelId}/rooms/${room.roomId}`)}
+                    >
                       <td>{room.roomId}</td>
                       <td>{room.name}</td>
                       <td>{room.capacity}</td>

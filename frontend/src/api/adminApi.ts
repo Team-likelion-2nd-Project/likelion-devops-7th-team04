@@ -31,6 +31,23 @@ export interface AdminRoom {
   description: string
 }
 
+// api-gateway의 /api/hotels/:hotelId/rooms/:roomId/availability 응답(RoomAvailabilityDayDto)과 1:1 대응
+export interface AdminRoomAvailabilityDay {
+  date: string
+  isAvailable: boolean
+  price: number
+}
+
+// api-gateway의 /api/hotels/:hotelId/rooms/:roomId/availability 응답(RoomAvailabilityDto)과 1:1 대응
+export interface AdminRoomAvailability {
+  hotelId: number
+  roomId: number
+  startDate: string
+  endDate: string
+  isAvailable: boolean
+  availabilities: AdminRoomAvailabilityDay[]
+}
+
 async function parseJson<T>(res: Response): Promise<T> {
   if (!res.ok) {
     const body = await res.json().catch(() => null)
@@ -43,12 +60,16 @@ async function parseJson<T>(res: Response): Promise<T> {
 // 액세스 토큰을 Authorization 헤더에 실어 관리자 전용 API를 호출한다.
 // 토큰이 만료되어 401이 오면 리프레시 토큰(쿠키)으로 한 번만 재발급을 시도한 뒤 재요청하고,
 // 그마저 실패하면 로그인 세션을 정리하고 에러를 던진다 (AdminGuard가 로그인 페이지로 돌려보낸다).
-async function authedFetch(path: string): Promise<Response> {
-  const token = getAccessToken()
-  const res = await fetch(`${BASE_URL}${path}`, {
-    headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+function withAuthHeaders(init: RequestInit | undefined, token: string | null): RequestInit {
+  return {
+    ...init,
+    headers: { ...init?.headers, ...(token ? { Authorization: `Bearer ${token}` } : {}) },
     credentials: 'include',
-  })
+  }
+}
+
+async function authedFetch(path: string, init?: RequestInit): Promise<Response> {
+  const res = await fetch(`${BASE_URL}${path}`, withAuthHeaders(init, getAccessToken()))
 
   if (res.status !== 401) {
     return res
@@ -61,10 +82,15 @@ async function authedFetch(path: string): Promise<Response> {
     throw new Error('로그인이 만료되었습니다. 다시 로그인해주세요.')
   }
 
-  const retryToken = getAccessToken()
-  return fetch(`${BASE_URL}${path}`, {
-    headers: retryToken ? { Authorization: `Bearer ${retryToken}` } : undefined,
-    credentials: 'include',
+  return fetch(`${BASE_URL}${path}`, withAuthHeaders(init, getAccessToken()))
+}
+
+// POST/PUT 등 JSON body를 실어 보내는 관리자 API 공용 헬퍼.
+function authedJsonFetch(path: string, method: 'POST' | 'PUT', body: unknown): Promise<Response> {
+  return authedFetch(path, {
+    method,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
   })
 }
 
@@ -72,7 +98,8 @@ async function authedFetch(path: string): Promise<Response> {
 export async function fetchAdminUsers(): Promise<AdminUser[]> {
   const res = await authedFetch('/api/users')
   const data = await parseJson<{ users: AdminUser[] }>(res)
-  return data.users
+  // 목록이 비어있으면 gRPC 응답의 repeated 필드가 undefined로 내려올 수 있어 방어적으로 처리한다.
+  return data.users ?? []
 }
 
 // GET /api/users/:userId (관리자 전용) - 유저 상세
@@ -85,7 +112,7 @@ export async function fetchAdminUserById(userId: string | number): Promise<Admin
 export async function fetchAdminHotels(): Promise<AdminHotel[]> {
   const res = await authedFetch('/api/hotels')
   const data = await parseJson<{ hotels: AdminHotel[] }>(res)
-  return data.hotels
+  return data.hotels ?? []
 }
 
 // GET /api/hotels/:hotelId - 호텔 상세
@@ -98,5 +125,52 @@ export async function fetchAdminHotelById(hotelId: string | number): Promise<Adm
 export async function fetchAdminHotelRooms(hotelId: string | number): Promise<AdminRoom[]> {
   const res = await authedFetch(`/api/hotels/${hotelId}/rooms`)
   const data = await parseJson<{ rooms: AdminRoom[] }>(res)
-  return data.rooms
+  return data.rooms ?? []
+}
+
+// GET /api/hotels/:hotelId/rooms/:roomId - 객실 상세
+export async function fetchAdminRoomById(
+  hotelId: string | number,
+  roomId: string | number,
+): Promise<AdminRoom> {
+  const res = await authedFetch(`/api/hotels/${hotelId}/rooms/${roomId}`)
+  return parseJson<AdminRoom>(res)
+}
+
+// GET /api/hotels/:hotelId/rooms/:roomId/availability - 특정 기간 객실 예약 가능 여부(날짜별 가격 포함) 조회
+export async function fetchAdminRoomAvailability(
+  hotelId: string | number,
+  roomId: string | number,
+  startDate: string,
+  endDate: string,
+): Promise<AdminRoomAvailability> {
+  const query = new URLSearchParams({ startDate, endDate })
+  const res = await authedFetch(`/api/hotels/${hotelId}/rooms/${roomId}/availability?${query}`)
+  return parseJson<AdminRoomAvailability>(res)
+}
+
+// api-gateway의 CreateRoomDto/UpdateRoomDto와 1:1 대응되는 요청 바디
+export interface AdminRoomInput {
+  name: string
+  capacity: number
+  description?: string
+}
+
+// POST /api/hotels/:hotelId/rooms (관리자 전용) - 신규 객실 등록
+export async function createAdminRoom(
+  hotelId: string | number,
+  input: AdminRoomInput,
+): Promise<AdminRoom> {
+  const res = await authedJsonFetch(`/api/hotels/${hotelId}/rooms`, 'POST', input)
+  return parseJson<AdminRoom>(res)
+}
+
+// PUT /api/hotels/:hotelId/rooms/:roomId (관리자 전용) - 기존 객실 정보 수정
+export async function updateAdminRoom(
+  hotelId: string | number,
+  roomId: string | number,
+  input: AdminRoomInput,
+): Promise<AdminRoom> {
+  const res = await authedJsonFetch(`/api/hotels/${hotelId}/rooms/${roomId}`, 'PUT', input)
+  return parseJson<AdminRoom>(res)
 }
