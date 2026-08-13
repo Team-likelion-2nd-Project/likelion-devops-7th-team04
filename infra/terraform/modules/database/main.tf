@@ -20,6 +20,7 @@ resource "aws_instance" "mariadb" {
   instance_type          = var.instance_type
   subnet_id              = var.private_data_subnet_ids[0]
   vpc_security_group_ids = [var.db_security_group_id]
+  iam_instance_profile   = var.iam_instance_profile_name
 
   # Root EBS Volume 설정 (성능/용량 세팅)
   root_block_device {
