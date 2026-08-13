@@ -8,7 +8,6 @@ import {
 
 export enum UserRole {
   USER = 'USER',
-  ADMIN = 'ADMIN',
 }
 
 export enum UserStatus {
@@ -33,8 +32,8 @@ export class User {
   @Column({ name: 'phone_number' })
   phoneNumber!: string;
 
-  // 관리자가 별도 테이블(Admin)로 분리된 이후에도, 과거 데이터 호환 및 "일반/우수회원" 같은
-  // 향후 세분화를 고려해 role 컬럼은 유지합니다. 다만 신규 관리자 계정은 더 이상 이 테이블에 만들지 않습니다.
+  // 관리자는 별도 테이블(Admin)로 완전히 분리되어 ADMIN 값은 제거했습니다.
+  // role 컬럼 자체는 "일반/우수회원" 같은 향후 회원 등급 세분화를 위해 USER만 남겨 유지합니다.
   @Column({ type: 'enum', enum: UserRole, default: UserRole.USER })
   role!: UserRole;
 
