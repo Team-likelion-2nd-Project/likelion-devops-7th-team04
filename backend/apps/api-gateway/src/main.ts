@@ -1,13 +1,25 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
+import cookieParser from 'cookie-parser';
+import { json, urlencoded } from 'express';
 import { ApiGatewayModule } from './api-gateway.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(ApiGatewayModule);
 
+  // Express 기본 body 파서 용량 제한(100kb)을 상향합니다.
+  // Base64로 인코딩한 객실 이미지처럼 큰 JSON 바디를 받을 때 413(Payload Too Large)이 나는 것을 방지합니다.
+  app.use(json({ limit: '20mb' }));
+  app.use(urlencoded({ extended: true, limit: '20mb' }));
+
+  // 로그인 시 발급되는 httpOnly 쿠키(refreshToken)를 req.cookies로 파싱합니다.
+  app.use(cookieParser());
+
   app.enableCors({
     origin: 'http://localhost:5173',
+    // 프론트가 fetch(..., { credentials: 'include' })로 보내는 httpOnly 쿠키를 주고받으려면 필수
+    credentials: true,
   });
 
   // DTO(class-validator)로 정의한 유효성 검사 규칙을 전역 적용 (회원가입 등)
@@ -23,7 +35,7 @@ async function bootstrap() {
     .setTitle('RAG 기반 챗봇 호텔 예약 웹서비스 API')
     .setDescription('API Gateway Swagger 문서입니다.')
     .setVersion('1.0')
-    //.addBearerAuth() // JWT 토큰 인증 기능 (선택)
+    .addBearerAuth() // JWT 토큰 인증 (로그아웃 등 @ApiBearerAuth() 라우트에서 Swagger의 Authorize 버튼 사용)
     .build();
 
   const document = SwaggerModule.createDocument(app, config);

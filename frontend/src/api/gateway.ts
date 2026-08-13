@@ -1,4 +1,6 @@
-const BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:3000'
+import { clearAccessToken, getAccessToken, setAuth } from './tokenStore'
+
+const BASE_URL = import.meta.env.VITE_API_URL
 
 export interface HelloResponse {
   message: string
@@ -25,4 +27,111 @@ export async function fetchHello(path: string): Promise<HelloResponse> {
     throw new Error(`${res.status} ${res.statusText}`)
   }
   return res.json()
+}
+
+export interface LoginRequest {
+  email: string
+  password: string
+}
+
+// 서버가 리프레시 토큰은 httpOnly 쿠키로 내려주고, 응답 바디에는 액세스 토큰 + 유저 정보만 담아준다.
+export interface AuthResponse {
+  accessToken: string
+  userId: number
+  email: string
+  name: string
+  role: string
+}
+
+async function parseAuthResponse(res: Response): Promise<AuthResponse> {
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    // ValidationPipe(class-validator) 에러는 message가 문자열 배열로 내려온다 (필드별 검증 메시지 여러 개).
+    const message = Array.isArray(body?.message) ? body.message.join(' ') : body?.message
+    throw new Error(message ?? `${res.status} ${res.statusText}`)
+  }
+
+  const data: AuthResponse = await res.json()
+  setAuth(data.accessToken, {
+    userId: data.userId,
+    email: data.email,
+    name: data.name,
+    role: data.role,
+  })
+  return data
+}
+
+// api-gateway(/api/auth/login) -> auth-service(gRPC)로 이메일/비밀번호를 검증하고 토큰을 발급받는다.
+// credentials: 'include'가 있어야 서버가 Set-Cookie로 내려주는 httpOnly 리프레시 토큰을 브라우저가 저장한다.
+export async function login(payload: LoginRequest): Promise<AuthResponse> {
+  const res = await fetch(`${BASE_URL}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  })
+
+  return parseAuthResponse(res)
+}
+
+export interface RegisterRequest {
+  email: string
+  password: string
+  name: string
+  phoneNumber: string
+}
+
+// api-gateway(/api/auth/register) -> auth-service(gRPC)로 회원가입을 요청하고, 성공 시 로그인과 동일하게 토큰을 발급받는다.
+export async function register(payload: RegisterRequest): Promise<AuthResponse> {
+  const res = await fetch(`${BASE_URL}/api/auth/register`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  })
+
+  return parseAuthResponse(res)
+}
+
+// api-gateway(/api/auth/admin/login) -> auth-service(gRPC)로 이메일/비밀번호를 검증하고 토큰을 발급받는다.
+// 고객 로그인(login)과 엔드포인트가 완전히 분리되어 있으며, admins 테이블에 등록된 계정만 성공한다
+// (customers 계정으로는 애초에 이메일 조회 단계에서 실패하므로 role을 별도로 검증할 필요가 없다).
+export async function adminLogin(payload: LoginRequest): Promise<AuthResponse> {
+  const res = await fetch(`${BASE_URL}/api/auth/admin/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    credentials: 'include',
+    body: JSON.stringify(payload),
+  })
+
+  return parseAuthResponse(res)
+}
+
+// httpOnly 리프레시 토큰 쿠키로 액세스 토큰을 재발급받는다. 새로고침 등으로 메모리의 액세스 토큰이
+// 사라졌을 때 세션을 복구하는 용도 (쿠키가 없거나 만료됐으면 401 -> 비로그인 상태로 처리).
+export async function refreshAccessToken(): Promise<AuthResponse> {
+  const res = await fetch(`${BASE_URL}/api/auth/refresh`, {
+    method: 'POST',
+    credentials: 'include',
+  })
+
+  return parseAuthResponse(res)
+}
+
+// 서버에 로그아웃을 알려 리프레시 토큰(쿠키)을 무효화하고, 메모리의 액세스 토큰도 즉시 버린다.
+// 서버 호출이 실패해도(네트워크 오류 등) 클라이언트 쪽 로그인 상태는 반드시 해제한다.
+export async function logout(): Promise<void> {
+  const token = getAccessToken()
+
+  try {
+    if (token) {
+      await fetch(`${BASE_URL}/api/auth/logout`, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { Authorization: `Bearer ${token}` },
+      })
+    }
+  } finally {
+    clearAccessToken()
+  }
 }

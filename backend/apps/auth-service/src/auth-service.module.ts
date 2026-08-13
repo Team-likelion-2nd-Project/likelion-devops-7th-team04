@@ -3,10 +3,11 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { ClientsModule } from '@nestjs/microservices';
 import { JwtModule } from '@nestjs/jwt';
-import { getGrpcOptions } from '@app/common';
+import { getGrpcOptions, RedisModule } from '@app/common';
 import { AuthServiceController } from './auth-service.controller';
 import { AuthServiceService } from './auth-service.service';
 import { Credential } from './entities/credential.entity';
+import { AdminCredential } from './entities/admin-credential.entity';
 
 @Module({
   imports: [
@@ -29,14 +30,15 @@ import { Credential } from './entities/credential.entity';
         database: configService.get<string>('DB_DATABASE'),
         // 🟢 nest-cli.json이 webpack: true로 번들링하므로, dist에는 개별 *.entity.js 파일이
         //    존재하지 않아 글롭(glob) 경로로는 엔티티를 찾지 못합니다. 클래스를 직접 등록합니다.
-        entities: [Credential],
+        // Credential은 고객 자격증명, AdminCredential은 관리자 자격증명 (완전히 분리된 테이블)
+        entities: [Credential, AdminCredential],
         synchronize: true, // ⚠️ 개발 환경(Dev)에서만 true 사용
-        logging: true,     // SQL 실행 쿼리 로깅
+        logging: true, // SQL 실행 쿼리 로깅
       }),
     }),
 
-    // 3. Credential 엔티티 리포지토리 등록
-    TypeOrmModule.forFeature([Credential]),
+    // 3. Credential/AdminCredential 엔티티 리포지토리 등록
+    TypeOrmModule.forFeature([Credential, AdminCredential]),
 
     // 4. JwtModule은 옵션 없이 등록하고, sign() 호출 시마다 access/refresh용 secret과
     //    expiresIn을 각각 지정합니다 (AuthServiceService 참고).
@@ -53,6 +55,9 @@ import { Credential } from './entities/credential.entity';
         ),
       },
     ]),
+
+    // 6. 리프레시 토큰 저장소 (로컬: docker-compose의 redis 컨테이너, 운영: AWS ElastiCache)
+    RedisModule,
   ],
   controllers: [AuthServiceController],
   providers: [AuthServiceService],

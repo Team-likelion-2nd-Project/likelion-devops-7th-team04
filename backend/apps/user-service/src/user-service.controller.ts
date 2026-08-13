@@ -2,6 +2,8 @@ import { Controller, Get } from '@nestjs/common';
 import { GrpcMethod } from '@nestjs/microservices';
 import { UserServiceService } from './user-service.service';
 
+// 도메인 로직이 없는 헬스체크 전용 컨트롤러입니다. 고객/관리자 도메인 로직은 각각
+// ./user/user.controller.ts, ./admin/admin.controller.ts를 참고하세요.
 @Controller()
 export class UserServiceController {
   constructor(private readonly userServiceService: UserServiceService) {}
@@ -10,12 +12,6 @@ export class UserServiceController {
   @GrpcMethod('UserService', 'GetHello')
   getHello(): { message: string } {
     return { message: this.userServiceService.getHello() };
-  }
-
-  // auth-service가 회원가입 시 호출: 프로필 생성 (이메일 중복 시 에러)
-  @GrpcMethod('UserService', 'CreateUser')
-  async createUser(data: { email: string; name: string; phoneNumber: string }) {
-    return this.userServiceService.createUser(data);
   }
 
   // DB 연결 확인 엔드포인트 (GET /db-check)
