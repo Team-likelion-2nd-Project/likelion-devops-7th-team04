@@ -23,6 +23,8 @@
 .room-card-image {
   aspect-ratio: 4 / 3;
   width: 100%;
+  display: block;
+  object-fit: cover;
   background: var(--accent-bg);
 }
 
@@ -37,19 +39,8 @@
 }
 
 .room-card-capacity {
-  margin: 0 0 8px;
+  margin: 0;
   font-size: 13px;
   letter-spacing: 0.04em;
   color: var(--accent);
-}
-
-.room-card-description {
-  font-size: 14px;
-  line-height: 145%;
-  color: var(--text);
-  /* 목록 카드에서는 설명이 길 수 있으니 3줄로 잘라 요약만 보여준다 */
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
 }

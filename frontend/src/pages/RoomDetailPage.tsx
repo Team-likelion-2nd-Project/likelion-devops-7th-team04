@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useOutletContext, useParams } from 'react-router-dom'
 import type { HotelOutletContext } from '../layouts/HotelLayout'
-import { fetchRoom } from '../api/hotels'
+import { fetchRoom, toImageDataUrl } from '../api/hotels'
 import type { Room } from '../api/hotels'
 import PlaceholderPage from '../components/PlaceholderPage'
 import './RoomDetailPage.css'
@@ -64,10 +64,22 @@ function RoomDetailPage() {
       )}
       {!isNotFound && status === 'success' && room && (
         <article className="room-detail">
-          {/* TODO: 실제 객실 사진으로 교체 */}
-          <div className="room-detail-image" aria-hidden="true" />
+          <h1 className="room-detail-title">{room.name}</h1>
+          {room.images.length > 0 ? (
+            <div className="room-detail-gallery">
+              {room.images.map((image, index) => (
+                <img
+                  key={image.imageId}
+                  className="room-detail-gallery-item"
+                  src={toImageDataUrl(image)}
+                  alt={`${room.name} 사진 ${index + 1}`}
+                />
+              ))}
+            </div>
+          ) : (
+            <div className="room-detail-image" aria-hidden="true" />
+          )}
           <div className="room-detail-body">
-            <h1>{room.name}</h1>
             <p className="room-detail-capacity">기준 인원 {room.capacity}명</p>
             {/* description은 반드시 백엔드(GET /api/hotels/:hotelId/rooms/:roomId)에서 받아온 값을 그대로 표시한다 */}
             <p className="room-detail-description">{room.description}</p>
