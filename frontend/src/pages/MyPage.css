@@ -1,47 +1,20 @@
 .mypage-page {
-  display: flex;
-  justify-content: center;
-  padding: 80px 24px;
-
-  @media (max-width: 767px) {
-    padding: 48px 20px;
-  }
+  width: 100%;
 }
 
-.mypage-card {
+.mypage-content {
+  /* account-content(사이드바 옆 남은 공간)를 오른쪽 끝까지 그대로 채운다. */
   width: 100%;
-  max-width: 480px;
-  padding: 40px;
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  background: var(--bg);
-  text-align: center;
-
-  @media (max-width: 767px) {
-    padding: 28px 24px;
-  }
 }
 
 .mypage-title {
-  font-size: 28px;
-  margin: 0 0 8px;
-}
-
-.mypage-description {
-  font-size: 14px;
-  color: var(--text);
-  margin-bottom: 32px;
+  font-size: 32px;
+  margin: 0 0 70px;
 }
 
 .mypage-status {
   font-size: 14px;
   color: var(--text);
-}
-
-.mypage-divider {
-  height: 1px;
-  margin: 32px 0;
-  background: var(--border);
 }
 
 .mypage-section {
@@ -53,36 +26,52 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 16px;
+  /* h1(.mypage-title)이 flex item이라 자기 margin-bottom이 이 컨테이너의
+     margin-bottom과 합쳐지지(collapse) 않고 더해진다. 그래서 간격은
+     여기 margin-bottom 하나로만 주고, 안의 title margin은 0으로 죽여서
+     다른 페이지(제목이 header로 감싸이지 않은 ChangePasswordPage 등)의
+     .mypage-title 기본 여백(32px)과 값이 맞도록 한다. */
+  margin-bottom: 70px;
 
   h2 {
+    margin: 0;
+    font-size: 18px;
+  }
+
+  .mypage-title {
     margin: 0;
   }
 }
 
 .mypage-info-list {
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
 }
 
 .mypage-info-row {
   display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 12px;
+  flex-direction: column;
+  gap: 4px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
   font-size: 15px;
 
+  &:first-child {
+    padding-top: 0;
+  }
+
+  &:last-child {
+    border-bottom: none;
+    padding-bottom: 0;
+  }
+
   dt {
-    color: var(--text);
+    color: var(--text-h);
+    font-weight: 500;
   }
 
   dd {
     margin: 0;
-    color: var(--text-h);
-    font-weight: 500;
-    text-align: right;
+    color: var(--text);
   }
 }
 

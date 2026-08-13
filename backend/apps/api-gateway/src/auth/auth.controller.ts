@@ -22,7 +22,12 @@ import {
 import type { Request, Response } from 'express';
 import ms from 'ms';
 import { ApiCommonResponses } from '@app/common/decorators/api-response.decorator';
-import { JwtAuthGuard, CurrentUser, AuthenticatedUser } from '@app/common';
+import {
+  JwtAuthGuard,
+  CurrentUser,
+  AuthenticatedUser,
+  PrincipalType,
+} from '@app/common';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshDto } from './dto/refresh.dto';
@@ -60,7 +65,15 @@ interface AuthService {
 
 // 리프레시 토큰 쿠키는 브라우저 JS가 절대 읽을 수 없도록 httpOnly로 발급합니다 (XSS로 인한 탈취 방지).
 // 개발(HTTP)/운영(HTTPS)을 함께 지원하기 위해 secure는 NODE_ENV 기준으로 분기합니다.
-const REFRESH_COOKIE_NAME = 'refreshToken';
+//
+// 고객(refreshToken)과 관리자(adminRefreshToken)는 이름이 다른 쿠키를 씁니다. 이름이 같으면
+// 브라우저에는 (domain, path, name) 조합당 쿠키가 1개만 존재할 수 있어서, 관리자로 로그인한 뒤
+// 고객으로(또는 그 반대로) 로그인하면 먼저 발급된 쿠키가 나중 로그인으로 덮어써져 버립니다.
+// 이름을 분리하면 두 세션의 리프레시 토큰이 브라우저에 동시에 공존하며 서로 간섭하지 않습니다.
+const REFRESH_COOKIE_NAME: Record<PrincipalType, string> = {
+  USER: 'refreshToken',
+  ADMIN: 'adminRefreshToken',
+};
 const COOKIE_BASE_OPTIONS = {
   httpOnly: true,
   secure: process.env.NODE_ENV === 'production',
@@ -82,7 +95,12 @@ export class AuthController implements OnModuleInit {
   }
 
   // 리프레시 토큰만 httpOnly 쿠키에 담아, 만료 시간을 auth-service의 JWT_REFRESH_EXPIRES_IN 설정과 일치시킵니다.
-  private setRefreshCookie(res: Response, refreshToken: string) {
+  // type(USER/ADMIN)에 따라 서로 다른 이름의 쿠키에 저장합니다.
+  private setRefreshCookie(
+    res: Response,
+    type: PrincipalType,
+    refreshToken: string,
+  ) {
     // env 값은 런타임 string이라 ms.StringValue로 좁혀지지 않으므로 캐스팅합니다.
     // 형식이 잘못되면(오탈자 등) ms()가 NaN을 반환하므로 즉시 실패하도록 검증합니다.
     const maxAge = ms(
@@ -92,7 +110,7 @@ export class AuthController implements OnModuleInit {
       throw new Error('JWT_REFRESH_EXPIRES_IN 형식이 올바르지 않습니다.');
     }
 
-    res.cookie(REFRESH_COOKIE_NAME, refreshToken, {
+    res.cookie(REFRESH_COOKIE_NAME[type], refreshToken, {
       ...COOKIE_BASE_OPTIONS,
       maxAge,
     });
@@ -133,7 +151,7 @@ export class AuthController implements OnModuleInit {
         );
       },
     );
-    this.setRefreshCookie(res, tokens.refreshToken);
+    this.setRefreshCookie(res, 'USER', tokens.refreshToken);
     return this.toClientResponse(tokens);
   }
 
@@ -169,7 +187,7 @@ export class AuthController implements OnModuleInit {
         );
       },
     );
-    this.setRefreshCookie(res, tokens.refreshToken);
+    this.setRefreshCookie(res, 'USER', tokens.refreshToken);
     return this.toClientResponse(tokens);
   }
 
@@ -207,20 +225,43 @@ export class AuthController implements OnModuleInit {
         );
       },
     );
-    this.setRefreshCookie(res, tokens.refreshToken);
+    this.setRefreshCookie(res, 'ADMIN', tokens.refreshToken);
+    return this.toClientResponse(tokens);
+  }
+
+  // refresh()/adminRefresh()가 공유하는 실제 재발급 로직. type에 따라 어느 쿠키를 읽고 어느 쿠키에
+  // 다시 써야 하는지만 다르고, 나머지(gRPC 호출, 응답 형태)는 고객/관리자가 완전히 동일합니다.
+  private async doRefresh(
+    type: PrincipalType,
+    req: Request,
+    res: Response,
+  ) {
+    const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME[type]];
+    if (!refreshToken) {
+      throw new UnauthorizedException('리프레시 토큰이 없습니다.');
+    }
+
+    const tokens = await firstValueFrom(
+      this.authService.refresh({ refreshToken }),
+    ).catch((err) => {
+      throw new UnauthorizedException(
+        err?.details || err?.message || '토큰 재발급에 실패했습니다.',
+      );
+    });
+    this.setRefreshCookie(res, type, tokens.refreshToken);
     return this.toClientResponse(tokens);
   }
 
   /**
    * POST http://localhost:3000/api/auth/refresh
    * 브라우저/프론트엔드 HTTP 요청 수신 -> auth-service gRPC 호출 -> Redis에 저장된 리프레시 토큰과 대조 후 재발급
-   * 리프레시 토큰은 요청 바디가 아닌 httpOnly 쿠키에서 읽습니다 (JS로 접근 불가능하므로 body에 담을 수 없음).
+   * 리프레시 토큰은 요청 바디가 아닌 httpOnly 쿠키(refreshToken, 고객 전용)에서 읽습니다.
    */
   @Post('refresh')
   @ApiOperation({
-    summary: '토큰 재발급',
+    summary: '토큰 재발급 (고객)',
     description:
-      'httpOnly 쿠키의 리프레시 토큰으로 auth-service에 재발급을 요청합니다. auth-service는 서명을 검증하고 ' +
+      'httpOnly 쿠키(refreshToken)의 리프레시 토큰으로 auth-service에 재발급을 요청합니다. auth-service는 서명을 검증하고 ' +
       'Redis에 저장된 값과 대조한 뒤 액세스/리프레시 토큰을 새로 발급합니다(로테이션). 로그아웃되었거나 만료된 ' +
       '리프레시 토큰은 거부됩니다.',
   })
@@ -237,20 +278,36 @@ export class AuthController implements OnModuleInit {
     @Req() req: Request,
     @Res({ passthrough: true }) res: Response,
   ) {
-    const refreshToken = req.cookies?.[REFRESH_COOKIE_NAME];
-    if (!refreshToken) {
-      throw new UnauthorizedException('리프레시 토큰이 없습니다.');
-    }
+    return this.doRefresh('USER', req, res);
+  }
 
-    const tokens = await firstValueFrom(
-      this.authService.refresh({ refreshToken }),
-    ).catch((err) => {
-      throw new UnauthorizedException(
-        err?.details || err?.message || '토큰 재발급에 실패했습니다.',
-      );
-    });
-    this.setRefreshCookie(res, tokens.refreshToken);
-    return this.toClientResponse(tokens);
+  /**
+   * POST http://localhost:3000/api/auth/admin/refresh
+   * 관리자 전용 재발급. 고객(/api/auth/refresh)과 별도의 쿠키(adminRefreshToken)만 읽고 씁니다.
+   * 두 쿠키는 이름이 달라 브라우저에 동시에 존재할 수 있으므로, 같은 브라우저에서 관리자로 로그인한 뒤
+   * 고객 페이지에서 로그인(또는 그 반대)해도 서로의 세션을 덮어쓰지 않습니다.
+   */
+  @Post('admin/refresh')
+  @ApiOperation({
+    summary: '토큰 재발급 (관리자)',
+    description:
+      'httpOnly 쿠키(adminRefreshToken)의 리프레시 토큰으로 auth-service에 재발급을 요청합니다. ' +
+      '동작은 고객용 재발급과 동일하나, 읽고 쓰는 쿠키가 분리되어 있습니다.',
+  })
+  @ApiResponse({
+    status: 200,
+    description:
+      '재발급 성공 (새 액세스 토큰은 응답 바디, 리프레시 토큰은 httpOnly 쿠키로 갱신)',
+  })
+  @ApiResponse({
+    status: 401,
+    description: '유효하지 않거나 만료된, 혹은 로그아웃된 리프레시 토큰',
+  })
+  async adminRefresh(
+    @Req() req: Request,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    return this.doRefresh('ADMIN', req, res);
   }
 
   /**
@@ -289,7 +346,9 @@ export class AuthController implements OnModuleInit {
         err?.details || err?.message || '로그아웃에 실패했습니다.',
       );
     });
-    res.clearCookie(REFRESH_COOKIE_NAME, COOKIE_BASE_OPTIONS);
+    // 액세스 토큰(Authorization 헤더)으로 이미 principal 타입을 알고 있으므로, 그 타입에 해당하는
+    // 쿠키만 지웁니다. 예를 들어 관리자로 로그아웃해도 같은 브라우저의 고객 세션(refreshToken)은 유지됩니다.
+    res.clearCookie(REFRESH_COOKIE_NAME[user.type], COOKIE_BASE_OPTIONS);
     return { message: '로그아웃되었습니다.' };
   }
 
