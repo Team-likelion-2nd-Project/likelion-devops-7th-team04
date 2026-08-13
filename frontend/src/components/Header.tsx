@@ -126,12 +126,7 @@ function Header() {
               <ul className="nav-dropdown profile-dropdown">
                 <li>
                   <NavLink to="/mypage" onClick={closeMenu}>
-                    내 정보 수정
-                  </NavLink>
-                </li>
-                <li>
-                  <NavLink to="/reservation" onClick={closeMenu}>
-                    예약 내역
+                    마이페이지
                   </NavLink>
                 </li>
                 <li>
