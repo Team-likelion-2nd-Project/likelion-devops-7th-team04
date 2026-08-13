@@ -50,7 +50,10 @@ variable "secondary_region" {
   type    = string
   default = "us-east-2"
 }
-
+variable "alarm_email" {
+  description = "Email address for CloudWatch SNS alarm notifications"
+  type        = string
+}
 # =========================
 # DEV-41 Network Module
 # =========================
@@ -140,7 +143,7 @@ module "cloudwatch" {
   source = "../../modules/cloudwatch"
 
   environment = "dev"
-  alarm_email = "kimjhn4188@gmail.com"
+  alarm_email = var.alarm_email
 
   # 실제 EC2 모니터링 연동 시 사용
   # ec2_instance_id = module.database.db_instance_id
