@@ -321,3 +321,38 @@ resource "aws_iam_role_policy_attachment" "cicd_policy" {
   role       = aws_iam_role.cicd.name
   policy_arn = aws_iam_policy.cicd.arn
 }
+# =========================
+# VPC CNI Role
+# =========================
+
+resource "aws_iam_role" "vpc_cni" {
+  name = "${var.project_name}-vpc-cni-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Principal = {
+          Service = "pods.eks.amazonaws.com"
+        }
+
+        Action = [
+          "sts:AssumeRole",
+          "sts:TagSession"
+        ]
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.project_name}-vpc-cni-role"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "vpc_cni" {
+  role       = aws_iam_role.vpc_cni.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
+}

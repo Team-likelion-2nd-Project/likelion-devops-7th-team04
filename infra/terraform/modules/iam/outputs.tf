@@ -37,3 +37,7 @@ output "cicd_role_arn" {
   description = "ARN of the CI/CD IAM role"
   value       = aws_iam_role.cicd.arn
 }
+output "vpc_cni_role_arn" {
+  description = "IAM role ARN for the Amazon VPC CNI add-on"
+  value       = aws_iam_role.vpc_cni.arn
+}
