@@ -154,6 +154,28 @@ export class RoomService {
     return this.toGrpcResponse(saved, images);
   }
 
+  // 객실 삭제. hotelId/roomId 조합이 존재하지 않으면 RpcException.
+  // rooms/room_images/room_availabilities는 DB 레벨 FK/CASCADE가 없으므로(서비스 간 DB 분리 원칙과
+  // 동일하게 이 서비스 내부에서도 관계를 걸지 않음), replaceRoomImages와 동일하게 자식 테이블을
+  // 먼저 지운 뒤 부모(rooms) row를 지운다.
+  async deleteRoom(
+    hotelId: number,
+    roomId: number,
+  ): Promise<{ success: boolean }> {
+    const room = await this.roomRepository.findOne({
+      where: { hotelId, roomId },
+    });
+    if (!room) {
+      throw new RpcException('존재하지 않는 객실입니다.');
+    }
+
+    await this.roomImageRepository.delete({ roomId });
+    await this.roomAvailabilityRepository.delete({ roomId });
+    await this.roomRepository.delete({ hotelId, roomId });
+
+    return { success: true };
+  }
+
   // roomId에 연결된 이미지를 전달받은 목록으로 완전히 교체한다 (기존 삭제 후 재삽입).
   private async replaceRoomImages(
     roomId: number,

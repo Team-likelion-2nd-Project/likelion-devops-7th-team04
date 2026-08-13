@@ -21,6 +21,10 @@ service HotelService {
   // 관리자 전용: 특정 호텔의 기존 객실 정보를 수정합니다. (hotelId/roomId 조합이 존재하지 않으면 에러)
   rpc UpdateRoom (UpdateRoomRequest) returns (Room);
 
+  // 관리자 전용: 특정 호텔의 객실을 삭제합니다(연관된 이미지/예약 가능일도 함께 삭제).
+  // (hotelId/roomId 조합이 존재하지 않으면 에러)
+  rpc DeleteRoom (DeleteRoomRequest) returns (DeleteRoomResponse);
+
   // 특정 객실의 지정 기간 예약 가능 여부를 조회합니다. (hotelId/roomId 조합이 존재하지 않으면 에러)
   rpc GetRoomAvailability (GetRoomAvailabilityRequest) returns (RoomAvailabilityResponse);
 }
@@ -108,6 +112,15 @@ message UpdateRoomRequest {
   string description = 5;
   // PUT은 이미지 전체를 교체한다 — 기존 이미지를 유지하려면 그대로 포함해서 다시 보내야 한다.
   repeated RoomImageInput images = 6;
+}
+
+message DeleteRoomRequest {
+  int32 hotelId = 1;
+  int32 roomId = 2;
+}
+
+message DeleteRoomResponse {
+  bool success = 1;
 }
 
 message GetRoomAvailabilityRequest {
