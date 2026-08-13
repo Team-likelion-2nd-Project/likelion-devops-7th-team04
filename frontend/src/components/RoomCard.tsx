@@ -27,7 +27,6 @@ function RoomCard({ room, hotelSlug }: RoomCardProps) {
       <div className="room-card-body">
         <h3 className="room-card-name">{room.name}</h3>
         <p className="room-card-capacity">기준 인원 {room.capacity}명</p>
-        <p className="room-card-description">{room.description}</p>
       </div>
     </Link>
   )
