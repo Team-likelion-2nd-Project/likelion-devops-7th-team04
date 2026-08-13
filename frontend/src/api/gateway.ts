@@ -173,7 +173,8 @@ export async function changePassword(payload: ChangePasswordRequest): Promise<{ 
     body: JSON.stringify(payload),
   })
   return parseJsonResponse<{ message: string }>(res)
-  
+}
+
 // api-gateway(/api/auth/admin/login) -> auth-service(gRPC)로 이메일/비밀번호를 검증하고 토큰을 발급받는다.
 // 고객 로그인(login)과 엔드포인트가 완전히 분리되어 있으며, admins 테이블에 등록된 계정만 성공한다
 // (customers 계정으로는 애초에 이메일 조회 단계에서 실패하므로 role을 별도로 검증할 필요가 없다).
