@@ -1,0 +1,187 @@
+/* 관리자 콘솔 내부 페이지(대시보드/유저/호텔)들이 공유하는 기본 스타일 */
+.admin-page-header {
+  margin: 0 0 20px;
+}
+
+.admin-page-header h1 {
+  font-size: 20px;
+  font-weight: 700;
+  margin: 0 0 4px;
+}
+
+.admin-page-header p {
+  margin: 0;
+  color: var(--admin-text-muted, #6b7280);
+  font-size: 14px;
+}
+
+.admin-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  align-items: stretch;
+  gap: 16px;
+  margin-bottom: 8px;
+}
+
+/* .admin-card + .admin-card 규칙(상세 페이지의 세로 카드 간격용)이 그리드 안의 형제 카드에도
+   적용되어 버리므로, 그보다 명시도가 높은 선택자로 다시 무효화한다. */
+.admin-stat-grid .admin-card + .admin-card {
+  margin-top: 0;
+}
+
+.admin-stat-tile {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-sizing: border-box;
+}
+
+.admin-stat-label {
+  font-size: 13px;
+  color: var(--admin-text-muted, #6b7280);
+}
+
+.admin-stat-value {
+  font-size: 26px;
+  font-weight: 600;
+}
+
+.admin-stat-note {
+  margin: 0 0 24px;
+  font-size: 12px;
+  color: var(--admin-text-muted, #6b7280);
+}
+
+.admin-state {
+  color: var(--admin-text-muted, #6b7280);
+  font-size: 14px;
+  padding: 16px 0;
+}
+
+.admin-state.is-error {
+  color: #d92d20;
+}
+
+.admin-card {
+  background: var(--admin-surface, #fff);
+  border: 1px solid var(--admin-border, #e2e5ea);
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.admin-card + .admin-card {
+  margin-top: 16px;
+}
+
+.admin-table-wrap {
+  background: var(--admin-surface, #fff);
+  border: 1px solid var(--admin-border, #e2e5ea);
+  border-radius: 10px;
+  overflow: auto;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+.admin-table th,
+.admin-table td {
+  text-align: left;
+  padding: 10px 16px;
+  border-bottom: 1px solid var(--admin-border, #e2e5ea);
+  white-space: nowrap;
+}
+
+.admin-table thead th {
+  color: var(--admin-text-muted, #6b7280);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.admin-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-table tbody tr {
+  cursor: pointer;
+}
+
+.admin-table tbody tr:hover {
+  background: var(--admin-bg, #f4f5f7);
+}
+
+.admin-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  background: var(--admin-bg, #f4f5f7);
+  color: var(--admin-text, #1f2430);
+}
+
+.admin-back-link {
+  display: inline-block;
+  margin-bottom: 16px;
+  color: var(--admin-primary, #3b5bfd);
+  font-size: 14px;
+  text-decoration: none;
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.admin-back-link:hover {
+  text-decoration: underline;
+}
+
+.admin-detail-grid {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  row-gap: 12px;
+  font-size: 14px;
+}
+
+.admin-detail-grid dt {
+  color: var(--admin-text-muted, #6b7280);
+}
+
+.admin-detail-grid dd {
+  margin: 0;
+}
+
+.admin-dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  align-items: stretch;
+  gap: 16px;
+}
+
+/* .admin-card + .admin-card 규칙(상세 페이지의 세로 카드 간격용, 클래스 2개짜리라 명시도가 더 높다)이
+   그리드 안의 형제 카드에도 그대로 적용되어 버려서, 그보다 명시도가 높은 선택자로 다시 무효화한다. */
+.admin-dashboard-grid .admin-card + .admin-card {
+  margin-top: 0;
+}
+
+.admin-dashboard-card {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  box-sizing: border-box;
+  text-decoration: none;
+  color: inherit;
+}
+
+.admin-dashboard-card h2 {
+  margin: 0 0 6px;
+  font-size: 15px;
+}
+
+.admin-dashboard-card p {
+  margin: 0;
+  font-size: 13px;
+  color: var(--admin-text-muted, #6b7280);
+}
