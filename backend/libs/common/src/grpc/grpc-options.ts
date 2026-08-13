@@ -14,12 +14,15 @@ export function getGrpcOptions(
       package: packageName,
       protoPath: join(process.cwd(), 'dist/libs/common/proto', protoFile),
       url: url,
-      // defaults: true가 없으면 @grpc/proto-loader가 비어있는 repeated 필드(예: 빈 배열)를
-      // 아예 생략해버려서, 수신 측 JS 객체에서 해당 필드가 []가 아니라 undefined로 나타난다
-      // (예: 예약 가능 여부 데이터가 하나도 없는 달을 조회하면 availabilities가 undefined).
       loader: {
+        // proto-loader 기본값(false)이면 빈 배열/0/빈 문자열 같은 proto3 "기본값" 필드가
+        // 디코딩된 객체에서 통째로 생략된다 (예: 객실이 0개인 호텔의 GetRooms 응답에 rooms 키 자체가 없어짐).
         defaults: true,
       },
+      // Base64로 인코딩한 이미지처럼 큰 페이로드(객실 이미지 등)를 gRPC로 주고받을 수 있도록
+      // grpc-js 기본 4MB 제한을 넉넉하게 상향한다.
+      maxSendMessageLength: 20 * 1024 * 1024,
+      maxReceiveMessageLength: 20 * 1024 * 1024,
     },
   };
 }
