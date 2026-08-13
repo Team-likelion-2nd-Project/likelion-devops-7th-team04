@@ -75,6 +75,31 @@ export class HotelServiceService implements OnModuleInit {
     return this.toGrpcResponse(hotel);
   }
 
+  // 기존 호텔 정보 수정. hotelId가 존재하지 않으면 RpcException.
+  async updateHotel(
+    id: number,
+    data: {
+      name: string;
+      address: string;
+      phoneNumber: string;
+      description?: string;
+    },
+  ): Promise<HotelGrpcResponse> {
+    const hotel = await this.hotelRepository.findOne({
+      where: { hotelId: id },
+    });
+    if (!hotel) {
+      throw new RpcException('존재하지 않는 호텔입니다.');
+    }
+
+    hotel.name = data.name;
+    hotel.address = data.address;
+    hotel.phoneNumber = data.phoneNumber;
+    hotel.description = data.description;
+    const saved = await this.hotelRepository.save(hotel);
+    return this.toGrpcResponse(saved);
+  }
+
   private toGrpcResponse(hotel: Hotel): HotelGrpcResponse {
     return {
       hotelId: hotel.hotelId,

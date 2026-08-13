@@ -1,11 +1,17 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe } from '@nestjs/common';
 import cookieParser from 'cookie-parser';
+import { json, urlencoded } from 'express';
 import { ApiGatewayModule } from './api-gateway.module';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(ApiGatewayModule);
+
+  // Express 기본 body 파서 용량 제한(100kb)을 상향합니다.
+  // Base64로 인코딩한 객실 이미지처럼 큰 JSON 바디를 받을 때 413(Payload Too Large)이 나는 것을 방지합니다.
+  app.use(json({ limit: '20mb' }));
+  app.use(urlencoded({ extended: true, limit: '20mb' }));
 
   // 로그인 시 발급되는 httpOnly 쿠키(refreshToken)를 req.cookies로 파싱합니다.
   app.use(cookieParser());

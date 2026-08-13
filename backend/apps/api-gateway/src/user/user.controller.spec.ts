@@ -69,7 +69,7 @@ describe('UserController', () => {
 
   describe('getMe', () => {
     it('should look up the current user by the id from the JWT payload', async () => {
-      const user = { userId: 1, email: 'user@example.com', role: 'USER' };
+      const user = { userId: 1, email: 'user@example.com', role: 'USER', type: 'USER' as const };
 
       const result = await controller.getMe(user);
 
@@ -86,7 +86,7 @@ describe('UserController', () => {
 
     it('should throw NotFoundException when the profile is missing', async () => {
       getUserByIdMock.mockReturnValue(throwError(() => ({ message: '존재하지 않는 유저입니다.' })));
-      const user = { userId: 999, email: 'ghost@example.com', role: 'USER' };
+      const user = { userId: 999, email: 'ghost@example.com', role: 'USER', type: 'USER' as const };
 
       await expect(controller.getMe(user)).rejects.toThrow(NotFoundException);
     });
@@ -94,7 +94,7 @@ describe('UserController', () => {
 
   describe('updateMe', () => {
     it('should update the current user by the id from the JWT payload', async () => {
-      const user = { userId: 1, email: 'user@example.com', role: 'USER' };
+      const user = { userId: 1, email: 'user@example.com', role: 'USER', type: 'USER' as const };
       const dto = { name: '김철수', phoneNumber: '010-9999-9999' };
       updateUserMock.mockReturnValue(
         of({ id: 1, email: 'user@example.com', name: '김철수', phoneNumber: '010-9999-9999', role: 'USER', status: 'ACTIVE' }),
@@ -115,7 +115,7 @@ describe('UserController', () => {
 
     it('should throw NotFoundException when the profile is missing', async () => {
       updateUserMock.mockReturnValue(throwError(() => ({ message: '존재하지 않는 유저입니다.' })));
-      const user = { userId: 999, email: 'ghost@example.com', role: 'USER' };
+      const user = { userId: 999, email: 'ghost@example.com', role: 'USER', type: 'USER' as const };
       const dto = { name: '김철수', phoneNumber: '010-9999-9999' };
 
       await expect(controller.updateMe(user, dto)).rejects.toThrow(NotFoundException);
@@ -124,7 +124,7 @@ describe('UserController', () => {
 
   describe('deleteMe', () => {
     it('should withdraw the current user by the id from the JWT payload', async () => {
-      const user = { userId: 1, email: 'user@example.com', role: 'USER' };
+      const user = { userId: 1, email: 'user@example.com', role: 'USER', type: 'USER' as const };
 
       const result = await controller.deleteMe(user);
 
@@ -134,7 +134,7 @@ describe('UserController', () => {
 
     it('should throw NotFoundException when the profile is missing', async () => {
       withdrawMock.mockReturnValue(throwError(() => ({ message: '존재하지 않는 유저입니다.' })));
-      const user = { userId: 999, email: 'ghost@example.com', role: 'USER' };
+      const user = { userId: 999, email: 'ghost@example.com', role: 'USER', type: 'USER' as const };
 
       await expect(controller.deleteMe(user)).rejects.toThrow(NotFoundException);
     });

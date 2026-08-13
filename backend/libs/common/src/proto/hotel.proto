@@ -7,6 +7,9 @@ service HotelService {
   rpc GetHotels (Empty) returns (HotelListResponse);
   rpc GetHotel (GetHotelRequest) returns (Hotel);
 
+  // 관리자 전용: 특정 호텔의 기존 정보를 수정합니다. (hotelId가 존재하지 않으면 에러)
+  rpc UpdateHotel (UpdateHotelRequest) returns (Hotel);
+
   // 특정 호텔에 등록된 전체 객실 목록을 조회합니다. (hotelId가 존재하지 않으면 에러)
   rpc GetRooms (GetRoomsRequest) returns (RoomListResponse);
   // 특정 호텔의 단건 객실 상세 정보를 조회합니다. (hotelId/roomId 조합이 존재하지 않으면 에러)
@@ -44,6 +47,14 @@ message HotelListResponse {
   repeated Hotel hotels = 1;
 }
 
+message UpdateHotelRequest {
+  int32 hotelId = 1;
+  string name = 2;
+  string address = 3;
+  string phoneNumber = 4;
+  string description = 5;
+}
+
 message GetRoomsRequest {
   int32 hotelId = 1;
 }
@@ -62,6 +73,22 @@ message CreateRoomRequest {
   string name = 2;
   int32 capacity = 3;
   string description = 4;
+  // 객실 이미지 목록 (배열 순서대로 sortOrder가 매겨짐, 0번째가 대표 이미지)
+  repeated RoomImageInput images = 5;
+}
+
+// 객실 이미지. Base64로 인코딩된 이미지 데이터를 DB 컬럼에 직접 저장한다.
+message RoomImage {
+  int32 imageId = 1;
+  string mimeType = 2;
+  string imageBase64 = 3;
+  int32 sortOrder = 4;
+}
+
+// 객실 이미지 등록/수정 입력용 (imageId/sortOrder는 서버가 채운다)
+message RoomImageInput {
+  string mimeType = 1;
+  string imageBase64 = 2;
 }
 
 message Room {
@@ -70,6 +97,7 @@ message Room {
   string name = 3;
   int32 capacity = 4;
   string description = 5;
+  repeated RoomImage images = 6;
 }
 
 message UpdateRoomRequest {
@@ -78,6 +106,8 @@ message UpdateRoomRequest {
   string name = 3;
   int32 capacity = 4;
   string description = 5;
+  // PUT은 이미지 전체를 교체한다 — 기존 이미지를 유지하려면 그대로 포함해서 다시 보내야 한다.
+  repeated RoomImageInput images = 6;
 }
 
 message GetRoomAvailabilityRequest {

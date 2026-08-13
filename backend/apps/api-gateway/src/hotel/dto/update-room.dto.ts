@@ -1,11 +1,15 @@
+import { Type } from 'class-transformer';
 import {
+  IsArray,
   IsInt,
   IsOptional,
   IsString,
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
+import { RoomImageDto } from './room-image.dto';
 
 export class UpdateRoomDto {
   /**
@@ -32,4 +36,14 @@ export class UpdateRoomDto {
   @IsOptional()
   @IsString()
   description?: string;
+
+  /**
+   * 객실 이미지 목록 (배열 순서 = 노출 순서, 0번째가 대표 이미지). 항상 전체 교체되므로
+   * 기존 이미지를 유지하려면 그대로 포함해서 다시 보내야 한다.
+   */
+  @IsOptional()
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => RoomImageDto)
+  images?: RoomImageDto[];
 }

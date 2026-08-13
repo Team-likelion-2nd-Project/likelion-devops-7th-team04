@@ -28,6 +28,11 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     if (!payload?.sub) {
       throw new UnauthorizedException('유효하지 않은 토큰입니다.');
     }
-    return { userId: payload.sub, email: payload.email, role: payload.role };
+    return {
+      userId: payload.sub,
+      email: payload.email,
+      role: payload.role,
+      type: payload.type,
+    };
   }
 }

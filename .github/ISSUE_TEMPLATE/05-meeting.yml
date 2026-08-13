@@ -1,5 +1,5 @@
 name: 회의록
-description: 정기 회의 / 스프린트 회고 기록을 남깁니다.
+description: 정기 회의 기록을 남깁니다 (SCRUM, PLANNING, TECHNICAL, RETRO)
 title: "[MEETING] YYYY-MM-DD "
 labels: ["meeting"]
 body:

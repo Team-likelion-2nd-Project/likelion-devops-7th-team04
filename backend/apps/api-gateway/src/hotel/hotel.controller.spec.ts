@@ -8,6 +8,7 @@ describe('HotelController', () => {
   const getHelloMock = jest.fn();
   const getHotelsMock = jest.fn();
   const getHotelMock = jest.fn();
+  const updateHotelMock = jest.fn();
   const getRoomsMock = jest.fn();
   const getRoomMock = jest.fn();
   const createRoomMock = jest.fn();
@@ -27,6 +28,7 @@ describe('HotelController', () => {
     name: '디럭스 더블룸',
     capacity: 2,
     description: '시티뷰를 갖춘 넓은 더블룸입니다.',
+    images: [],
   };
   const availability = {
     hotelId: 1,
@@ -44,6 +46,7 @@ describe('HotelController', () => {
     getHelloMock.mockReturnValue(of({ message: 'Hotel Hello World!' }));
     getHotelsMock.mockReturnValue(of({ hotels: [hotel] }));
     getHotelMock.mockReturnValue(of(hotel));
+    updateHotelMock.mockReturnValue(of(hotel));
     getRoomsMock.mockReturnValue(of({ rooms: [room] }));
     getRoomMock.mockReturnValue(of(room));
     createRoomMock.mockReturnValue(of(room));
@@ -60,6 +63,7 @@ describe('HotelController', () => {
               getHello: getHelloMock,
               getHotels: getHotelsMock,
               getHotel: getHotelMock,
+              updateHotel: updateHotelMock,
               getRooms: getRoomsMock,
               getRoom: getRoomMock,
               createRoom: createRoomMock,
@@ -104,6 +108,37 @@ describe('HotelController', () => {
       );
 
       await expect(controller.getHotel('999')).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+  });
+
+  describe('updateHotel', () => {
+    it('should update the hotel by the hotelId path param', async () => {
+      const dto = {
+        name: '신라 스테이 서울',
+        address: '서울시 중구',
+        phoneNumber: '02-9876-5432',
+        description: '수정된 설명입니다.',
+      };
+
+      const result = await controller.updateHotel(1, dto);
+
+      expect(updateHotelMock).toHaveBeenCalledWith({ hotelId: 1, ...dto });
+      expect(result).toEqual(hotel);
+    });
+
+    it('should throw NotFoundException when the hotel does not exist', async () => {
+      updateHotelMock.mockReturnValue(
+        throwError(() => ({ message: '존재하지 않는 호텔입니다.' })),
+      );
+      const dto = {
+        name: '신라 스테이 서울',
+        address: '서울시 중구',
+        phoneNumber: '02-9876-5432',
+      };
+
+      await expect(controller.updateHotel(999, dto)).rejects.toThrow(
         NotFoundException,
       );
     });
@@ -169,6 +204,19 @@ describe('HotelController', () => {
         NotFoundException,
       );
     });
+
+    it('should pass images through to hotel-service', async () => {
+      const dto = {
+        name: '디럭스 더블룸',
+        capacity: 2,
+        description: '시티뷰를 갖춘 넓은 더블룸입니다.',
+        images: [{ mimeType: 'image/jpeg', imageBase64: 'AAA' }],
+      };
+
+      await controller.createRoom(1, dto);
+
+      expect(createRoomMock).toHaveBeenCalledWith({ hotelId: 1, ...dto });
+    });
   });
 
   describe('updateRoom', () => {
@@ -198,6 +246,23 @@ describe('HotelController', () => {
       await expect(controller.updateRoom(1, 999, dto)).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it('should pass images through to hotel-service (full replace)', async () => {
+      const dto = {
+        name: '디럭스 더블룸',
+        capacity: 2,
+        description: '시티뷰를 갖춘 넓은 더블룸입니다.',
+        images: [{ mimeType: 'image/jpeg', imageBase64: 'AAA' }],
+      };
+
+      await controller.updateRoom(1, 1, dto);
+
+      expect(updateRoomMock).toHaveBeenCalledWith({
+        hotelId: 1,
+        roomId: 1,
+        ...dto,
+      });
     });
   });
 
