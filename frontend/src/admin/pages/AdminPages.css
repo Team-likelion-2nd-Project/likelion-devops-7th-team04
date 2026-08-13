@@ -210,6 +210,11 @@
   font-size: 15px;
 }
 
+.admin-card-header-actions {
+  display: flex;
+  gap: 8px;
+}
+
 .admin-btn {
   padding: 8px 14px;
   border-radius: 8px;
@@ -239,6 +244,17 @@
 .admin-btn.is-primary:hover {
   opacity: 0.9;
   background: var(--admin-primary, #3b5bfd);
+}
+
+.admin-btn.is-danger {
+  background: #e5484d;
+  border-color: #e5484d;
+  color: #fff;
+}
+
+.admin-btn.is-danger:hover {
+  opacity: 0.9;
+  background: #e5484d;
 }
 
 /* 객실 등록/수정 폼 (AdminHotelDetailPage, AdminRoomDetailPage 공용) */

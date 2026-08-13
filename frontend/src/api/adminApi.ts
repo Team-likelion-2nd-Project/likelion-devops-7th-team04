@@ -210,3 +210,14 @@ export async function updateAdminRoom(
   const res = await authedJsonFetch(`/api/hotels/${hotelId}/rooms/${roomId}`, 'PUT', input)
   return parseJson<AdminRoom>(res)
 }
+
+// DELETE /api/hotels/:hotelId/rooms/:roomId (관리자 전용) - 객실 삭제
+// TODO: 백엔드 삭제 API가 아직 구현되어 있지 않음. 구현되는 대로 응답 스펙에 맞춰 확인 필요.
+export async function deleteAdminRoom(hotelId: string | number, roomId: string | number): Promise<void> {
+  const res = await authedFetch(`/api/hotels/${hotelId}/rooms/${roomId}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    const message = Array.isArray(body?.message) ? body.message.join(' ') : body?.message
+    throw new Error(message ?? `${res.status} ${res.statusText}`)
+  }
+}

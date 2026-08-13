@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import type { ChangeEvent, FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
+  deleteAdminRoom,
   fetchAdminRoomAvailability,
   fetchAdminRoomById,
   readImageFileAsInput,
@@ -96,6 +97,8 @@ function AdminRoomDetailPage() {
   const [imageError, setImageError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [formError, setFormError] = useState('')
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   // 객실이 바뀌면(다른 객실 상세로 이동) 렌더링 중에 바로 이전 정보를 비우고 달력도 이번 달로 되돌린다.
   if (loadedRoomKey !== roomKey) {
@@ -206,6 +209,21 @@ function AdminRoomDetailPage() {
     }
   }
 
+  const handleDeleteRoom = async () => {
+    if (!hotelId || !roomId) return
+    if (!window.confirm('이 객실을 삭제하시겠습니까? 삭제한 객실은 복구할 수 없습니다.')) return
+
+    setIsDeleting(true)
+    setDeleteError('')
+    try {
+      await deleteAdminRoom(hotelId, roomId)
+      navigate(`/admin/hotels/${hotelId}`)
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : '객실을 삭제하지 못했습니다.')
+      setIsDeleting(false)
+    }
+  }
+
   useEffect(() => {
     if (!hotelId || !roomId) return
     let ignore = false
@@ -278,11 +296,17 @@ function AdminRoomDetailPage() {
           <div className="admin-card-header">
             <h2>객실 정보</h2>
             {!isEditing && (
-              <button type="button" className="admin-btn is-primary" onClick={openEditForm}>
-                수정
-              </button>
+              <div className="admin-card-header-actions">
+                <button type="button" className="admin-btn is-primary" onClick={openEditForm}>
+                  수정
+                </button>
+                <button type="button" className="admin-btn is-danger" onClick={handleDeleteRoom} disabled={isDeleting}>
+                  {isDeleting ? '삭제 중...' : '삭제'}
+                </button>
+              </div>
             )}
           </div>
+          {deleteError && <p className="admin-form-error">{deleteError}</p>}
 
           {isEditing ? (
             <form className="admin-form" onSubmit={handleUpdateRoom} noValidate>
