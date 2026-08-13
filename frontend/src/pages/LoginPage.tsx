@@ -1,11 +1,18 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, useLocation, useNavigate } from 'react-router-dom'
 import { login } from '../api/gateway'
 import './LoginPage.css'
 
+interface LoginLocationState {
+  message?: string
+}
+
 function LoginPage() {
   const navigate = useNavigate()
+  const location = useLocation()
+  // 비밀번호 변경 후 로그아웃 -> 재로그인 유도처럼, 다른 페이지에서 안내 메시지를 들고 넘어올 수 있다.
+  const infoMessage = (location.state as LoginLocationState | null)?.message
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -35,6 +42,8 @@ function LoginPage() {
       <div className="login-card">
         <h1 className="login-title">로그인</h1>
         <p className="login-description">다시 오신 것을 환영합니다. 계정 정보를 입력해주세요.</p>
+
+        {infoMessage && <p className="login-info">{infoMessage}</p>}
 
         <form className="login-form" onSubmit={handleSubmit} noValidate>
           <label className="login-field">
