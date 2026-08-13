@@ -1,9 +1,19 @@
 import { useEffect, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { createAdminRoom, fetchAdminHotelById, fetchAdminHotelRooms } from '../../api/adminApi'
-import type { AdminHotel, AdminRoom } from '../../api/adminApi'
+import {
+  createAdminRoom,
+  fetchAdminHotelById,
+  fetchAdminHotelRooms,
+  readImageFileAsInput,
+  toAdminImageDataUrl,
+} from '../../api/adminApi'
+import type { AdminHotel, AdminRoom, AdminRoomImageInput } from '../../api/adminApi'
 import './AdminPages.css'
+
+// 이미지 하나당 허용하는 최대 용량. 오브젝트 스토리지 없이 DB에 Base64로 직접 저장하는 구조라
+// 너무 큰 파일이 들어가지 않도록 클라이언트에서 먼저 막는다.
+const MAX_IMAGE_SIZE_MB = 5
 
 function AdminHotelDetailPage() {
   const { hotelId } = useParams<{ hotelId: string }>()
@@ -17,6 +27,8 @@ function AdminHotelDetailPage() {
   const [name, setName] = useState('')
   const [capacity, setCapacity] = useState('')
   const [description, setDescription] = useState('')
+  const [images, setImages] = useState<AdminRoomImageInput[]>([])
+  const [imageError, setImageError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [formError, setFormError] = useState('')
 
@@ -53,8 +65,35 @@ function AdminHotelDetailPage() {
     setName('')
     setCapacity('')
     setDescription('')
+    setImages([])
+    setImageError('')
     setFormError('')
     setIsAdding(true)
+  }
+
+  // 선택한 이미지 파일들을 즉시 Base64로 변환해 미리보기 목록에 추가한다. 배열 순서 = 노출 순서(첫 번째가 대표 이미지).
+  const handleImageFilesSelected = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = '' // 같은 파일을 다시 선택해도 onChange가 발생하도록 초기화
+    if (files.length === 0) return
+
+    const oversized = files.find((file) => file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024)
+    if (oversized) {
+      setImageError(`${oversized.name}의 용량이 너무 큽니다. (최대 ${MAX_IMAGE_SIZE_MB}MB)`)
+      return
+    }
+
+    try {
+      const converted = await Promise.all(files.map(readImageFileAsInput))
+      setImages((prev) => [...prev, ...converted])
+      setImageError('')
+    } catch {
+      setImageError('이미지를 불러오지 못했습니다.')
+    }
+  }
+
+  const removeImage = (index: number) => {
+    setImages((prev) => prev.filter((_, i) => i !== index))
   }
 
   const handleAddRoom = async (e: FormEvent<HTMLFormElement>) => {
@@ -74,6 +113,7 @@ function AdminHotelDetailPage() {
         name: name.trim(),
         capacity: capacityNum,
         description: description.trim() || undefined,
+        images: images.length > 0 ? images : undefined,
       })
       setRooms((prev) => [...(prev ?? []), created])
       setIsAdding(false)
@@ -148,6 +188,30 @@ function AdminHotelDetailPage() {
                 <span>설명</span>
                 <textarea value={description} onChange={(e) => setDescription(e.target.value)} />
               </label>
+              <label className="admin-form-row">
+                <span>이미지</span>
+                <input type="file" accept="image/*" multiple onChange={handleImageFilesSelected} />
+              </label>
+
+              {images.length > 0 && (
+                <div className="admin-image-preview-grid">
+                  {images.map((image, index) => (
+                    <div className="admin-image-preview" key={index}>
+                      <img src={toAdminImageDataUrl(image)} alt={`객실 이미지 ${index + 1}`} />
+                      {index === 0 && <span className="admin-image-preview-badge">대표</span>}
+                      <button
+                        type="button"
+                        className="admin-image-preview-remove"
+                        onClick={() => removeImage(index)}
+                        aria-label="이미지 삭제"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {imageError && <p className="admin-form-error">{imageError}</p>}
 
               {formError && <p className="admin-form-error">{formError}</p>}
 
@@ -170,6 +234,7 @@ function AdminHotelDetailPage() {
                 <thead>
                   <tr>
                     <th>ID</th>
+                    <th>이미지</th>
                     <th>이름</th>
                     <th>정원</th>
                     <th>설명</th>
@@ -182,6 +247,17 @@ function AdminHotelDetailPage() {
                       onClick={() => navigate(`/admin/hotels/${hotelId}/rooms/${room.roomId}`)}
                     >
                       <td>{room.roomId}</td>
+                      <td>
+                        {room.images && room.images.length > 0 ? (
+                          <img
+                            className="admin-table-thumb"
+                            src={toAdminImageDataUrl(room.images[0])}
+                            alt={room.name}
+                          />
+                        ) : (
+                          '-'
+                        )}
+                      </td>
                       <td>{room.name}</td>
                       <td>{room.capacity}</td>
                       <td>{room.description || '-'}</td>
