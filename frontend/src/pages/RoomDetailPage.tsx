@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { Link, useOutletContext, useParams } from 'react-router-dom'
 import type { HotelOutletContext } from '../layouts/HotelLayout'
-import { fetchRoom } from '../api/hotels'
+import { fetchRoom, toImageDataUrl } from '../api/hotels'
 import type { Room } from '../api/hotels'
 import PlaceholderPage from '../components/PlaceholderPage'
 import './RoomDetailPage.css'
@@ -17,6 +17,8 @@ function RoomDetailPage() {
   const [status, setStatus] = useState<Status>('loading')
   const [room, setRoom] = useState<Room | null>(null)
   const [error, setError] = useState('')
+  // 갤러리에서 현재 크게 보여줄 이미지의 인덱스 (썸네일 클릭으로 전환)
+  const [activeImageIndex, setActiveImageIndex] = useState(0)
 
   useEffect(() => {
     if (!isValidRoomId) return
@@ -27,6 +29,7 @@ function RoomDetailPage() {
       .then((data) => {
         if (cancelled) return
         setRoom(data)
+        setActiveImageIndex(0)
         setStatus('success')
       })
       .catch((err) => {
@@ -64,8 +67,37 @@ function RoomDetailPage() {
       )}
       {!isNotFound && status === 'success' && room && (
         <article className="room-detail">
-          {/* TODO: 실제 객실 사진으로 교체 */}
-          <div className="room-detail-image" aria-hidden="true" />
+          {room.images.length > 0 ? (
+            <div className="room-detail-gallery">
+              <img
+                className="room-detail-image"
+                src={toImageDataUrl(room.images[activeImageIndex] ?? room.images[0])}
+                alt={room.name}
+              />
+              {room.images.length > 1 && (
+                <div className="room-detail-thumbnails">
+                  {room.images.map((image, index) => (
+                    <button
+                      key={image.imageId}
+                      type="button"
+                      className={
+                        index === activeImageIndex
+                          ? 'room-detail-thumbnail active'
+                          : 'room-detail-thumbnail'
+                      }
+                      onClick={() => setActiveImageIndex(index)}
+                      aria-label={`${room.name} 사진 ${index + 1}`}
+                      aria-current={index === activeImageIndex}
+                    >
+                      <img src={toImageDataUrl(image)} alt="" />
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="room-detail-image" aria-hidden="true" />
+          )}
           <div className="room-detail-body">
             <h1>{room.name}</h1>
             <p className="room-detail-capacity">기준 인원 {room.capacity}명</p>

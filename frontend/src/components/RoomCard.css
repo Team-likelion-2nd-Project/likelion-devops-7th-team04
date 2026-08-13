@@ -23,6 +23,8 @@
 .room-card-image {
   aspect-ratio: 4 / 3;
   width: 100%;
+  display: block;
+  object-fit: cover;
   background: var(--accent-bg);
 }
 

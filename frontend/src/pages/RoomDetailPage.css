@@ -26,8 +26,45 @@
 .room-detail-image {
   aspect-ratio: 16 / 9;
   width: 100%;
+  display: block;
   border-radius: 12px;
+  object-fit: cover;
   background: var(--accent-bg);
+}
+
+.room-detail-gallery {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.room-detail-thumbnails {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+}
+
+.room-detail-thumbnail {
+  flex: 0 0 auto;
+  width: 88px;
+  aspect-ratio: 4 / 3;
+  padding: 0;
+  border: 2px solid transparent;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--accent-bg);
+  cursor: pointer;
+
+  &.active {
+    border-color: var(--accent);
+  }
+
+  img {
+    width: 100%;
+    height: 100%;
+    display: block;
+    object-fit: cover;
+  }
 }
 
 .room-detail-body {
