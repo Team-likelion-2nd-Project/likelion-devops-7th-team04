@@ -17,8 +17,13 @@ on:
     paths:
       - 'frontend/**'
 
-  # 2. 수동 CD 트리거: GitHub Actions 웹 UI에서 버튼 클릭 시 배포 실행 (개발팀 요청사항)
+  # 2. 수동 CD 트리거: MFA 토큰 입력받기
   workflow_dispatch:
+    inputs:
+      mfa_code:
+        description: 'AWS MFA 6-digit Code (관리자 인증)'
+        required: true
+        type: string
 
 permissions:
   id-token: write  # AWS OIDC 인증 권한
@@ -45,7 +50,7 @@ jobs:
           npm ci
           npm run build
 
-  # [수동 CD] Actions 탭에서 Run workflow(workflow_dispatch) 클릭 시에만 AWS 배포 수행
+  # [수동 CD] Actions 탭에서 MFA 코드 입력 후 Run workflow 클릭 시 실행
   deploy:
     needs: build-and-test
     if: github.event_name == 'workflow_dispatch'  # 수동 트리거일 때만 작동
@@ -68,16 +73,41 @@ jobs:
           npm ci
           npm run build
 
+      # 1. AWS OIDC 1차 기본 인증
       - name: Configure AWS Credentials via OIDC
         uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ secrets.AWS_CICD_ROLE_ARN }}
           aws-region: us-east-1
 
+      # 2. MFA 코드로 AWS STS 임시 세션 토큰(Session Token) 발급
+      - name: Get AWS STS Session Token using MFA
+        id: mfa_session
+        run: |
+          # MFA 입력값 받기
+          MFA_CODE="${{ inputs.mfa_code }}"
+          MFA_ARN="${{ secrets.AWS_MFA_DEVICE_ARN }}"
+
+          echo "Requesting STS Session Token with MFA..."
+          
+          # STS get-session-token 호출
+          CREDENTIALS=$(aws sts get-session-token \
+            --serial-number "$MFA_ARN" \
+            --token-code "$MFA_CODE" \
+            --duration-seconds 900 \
+            --output json)
+
+          # 발급받은 임시 자격 증명을 파이프라인 자격 증명으로 설정
+          echo "AWS_ACCESS_KEY_ID=$(echo $CREDENTIALS | jq -r '.Credentials.AccessKeyId')" >> $GITHUB_ENV
+          echo "AWS_SECRET_ACCESS_KEY=$(echo $CREDENTIALS | jq -r '.Credentials.SecretAccessKey')" >> $GITHUB_ENV
+          echo "AWS_SESSION_TOKEN=$(echo $CREDENTIALS | jq -r '.Credentials.SessionToken')" >> $GITHUB_ENV
+
+      # 3. MFA 세션 토큰으로 S3 배포 수행
       - name: Deploy to S3 (Vite dist folder)
         run: |
           aws s3 sync frontend/dist s3://${{ secrets.FRONTEND_S3_BUCKET_NAME }} --delete
 
+      # 4. MFA 세션 토큰으로 CloudFront 캐시 무효화
       - name: Invalidate CloudFront Cache
         run: |
           aws cloudfront create-invalidation --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"
