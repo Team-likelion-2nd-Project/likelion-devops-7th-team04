@@ -1,11 +1,22 @@
 import { useEffect, useState } from 'react'
-import type { FormEvent } from 'react'
+import type { ChangeEvent, FormEvent } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { fetchAdminRoomAvailability, fetchAdminRoomById, updateAdminRoom } from '../../api/adminApi'
-import type { AdminRoom, AdminRoomAvailabilityDay } from '../../api/adminApi'
+import {
+  deleteAdminRoom,
+  fetchAdminRoomAvailability,
+  fetchAdminRoomById,
+  readImageFileAsInput,
+  toAdminImageDataUrl,
+  updateAdminRoom,
+} from '../../api/adminApi'
+import type { AdminRoom, AdminRoomAvailabilityDay, AdminRoomImage, AdminRoomImageInput } from '../../api/adminApi'
 import './AdminPages.css'
 
 const WEEKDAY_LABELS = ['일', '월', '화', '수', '목', '금', '토']
+
+// 이미지 하나당 허용하는 최대 용량. 오브젝트 스토리지 없이 DB에 Base64로 직접 저장하는 구조라
+// 너무 큰 파일이 들어가지 않도록 클라이언트에서 먼저 막는다.
+const MAX_IMAGE_SIZE_MB = 5
 
 // toISOString()은 UTC로 변환하므로 UTC보다 앞선 시간대(KST 등)에서는 자정 근처 날짜가
 // 하루 밀려 나온다. 달력에 쓸 날짜는 반드시 로컬 기준 연/월/일 그대로 문자열로 만든다.
@@ -78,8 +89,16 @@ function AdminRoomDetailPage() {
   const [name, setName] = useState('')
   const [capacity, setCapacity] = useState('')
   const [description, setDescription] = useState('')
+  // 기존에 등록돼 있던 이미지(유지/삭제 대상)와 새로 추가한 이미지를 구분해서 관리한다.
+  // 서버 PUT은 images를 항상 전체 교체하므로, 저장 시 이 둘을 합쳐서 그대로 다시 보내야
+  // 이름/정원만 고쳐도 기존 이미지가 사라지지 않는다.
+  const [existingImages, setExistingImages] = useState<AdminRoomImage[]>([])
+  const [newImages, setNewImages] = useState<AdminRoomImageInput[]>([])
+  const [imageError, setImageError] = useState('')
   const [isSaving, setIsSaving] = useState(false)
   const [formError, setFormError] = useState('')
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState('')
 
   // 객실이 바뀌면(다른 객실 상세로 이동) 렌더링 중에 바로 이전 정보를 비우고 달력도 이번 달로 되돌린다.
   if (loadedRoomKey !== roomKey) {
@@ -120,8 +139,40 @@ function AdminRoomDetailPage() {
     setName(room.name)
     setCapacity(String(room.capacity))
     setDescription(room.description ?? '')
+    setExistingImages(room.images ?? [])
+    setNewImages([])
+    setImageError('')
     setFormError('')
     setIsEditing(true)
+  }
+
+  // 선택한 이미지 파일들을 즉시 Base64로 변환해 "새로 추가한 이미지" 목록에 더한다.
+  const handleImageFilesSelected = async (e: ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files ?? [])
+    e.target.value = '' // 같은 파일을 다시 선택해도 onChange가 발생하도록 초기화
+    if (files.length === 0) return
+
+    const oversized = files.find((file) => file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024)
+    if (oversized) {
+      setImageError(`${oversized.name}의 용량이 너무 큽니다. (최대 ${MAX_IMAGE_SIZE_MB}MB)`)
+      return
+    }
+
+    try {
+      const converted = await Promise.all(files.map(readImageFileAsInput))
+      setNewImages((prev) => [...prev, ...converted])
+      setImageError('')
+    } catch {
+      setImageError('이미지를 불러오지 못했습니다.')
+    }
+  }
+
+  const removeExistingImage = (index: number) => {
+    setExistingImages((prev) => prev.filter((_, i) => i !== index))
+  }
+
+  const removeNewImage = (index: number) => {
+    setNewImages((prev) => prev.filter((_, i) => i !== index))
   }
 
   const handleUpdateRoom = async (e: FormEvent<HTMLFormElement>) => {
@@ -134,6 +185,12 @@ function AdminRoomDetailPage() {
       return
     }
 
+    // 기존 유지 이미지 + 새로 추가한 이미지를 순서대로 합쳐서 보낸다 (첫 번째가 대표 이미지).
+    const combinedImages: AdminRoomImageInput[] = [
+      ...existingImages.map(({ mimeType, imageBase64 }) => ({ mimeType, imageBase64 })),
+      ...newImages,
+    ]
+
     setIsSaving(true)
     setFormError('')
     try {
@@ -141,6 +198,7 @@ function AdminRoomDetailPage() {
         name: name.trim(),
         capacity: capacityNum,
         description: description.trim() || undefined,
+        images: combinedImages.length > 0 ? combinedImages : undefined,
       })
       setRoom(updated)
       setIsEditing(false)
@@ -148,6 +206,21 @@ function AdminRoomDetailPage() {
       setFormError(err instanceof Error ? err.message : '객실 정보를 수정하지 못했습니다.')
     } finally {
       setIsSaving(false)
+    }
+  }
+
+  const handleDeleteRoom = async () => {
+    if (!hotelId || !roomId) return
+    if (!window.confirm('이 객실을 삭제하시겠습니까? 삭제한 객실은 복구할 수 없습니다.')) return
+
+    setIsDeleting(true)
+    setDeleteError('')
+    try {
+      await deleteAdminRoom(hotelId, roomId)
+      navigate(`/admin/hotels/${hotelId}`)
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : '객실을 삭제하지 못했습니다.')
+      setIsDeleting(false)
     }
   }
 
@@ -223,11 +296,17 @@ function AdminRoomDetailPage() {
           <div className="admin-card-header">
             <h2>객실 정보</h2>
             {!isEditing && (
-              <button type="button" className="admin-btn is-primary" onClick={openEditForm}>
-                수정
-              </button>
+              <div className="admin-card-header-actions">
+                <button type="button" className="admin-btn is-primary" onClick={openEditForm}>
+                  수정
+                </button>
+                <button type="button" className="admin-btn is-danger" onClick={handleDeleteRoom} disabled={isDeleting}>
+                  {isDeleting ? '삭제 중...' : '삭제'}
+                </button>
+              </div>
             )}
           </div>
+          {deleteError && <p className="admin-form-error">{deleteError}</p>}
 
           {isEditing ? (
             <form className="admin-form" onSubmit={handleUpdateRoom} noValidate>
@@ -249,6 +328,46 @@ function AdminRoomDetailPage() {
                 <span>설명</span>
                 <textarea value={description} onChange={(e) => setDescription(e.target.value)} />
               </label>
+              <label className="admin-form-row">
+                <span>이미지</span>
+                <input type="file" accept="image/*" multiple onChange={handleImageFilesSelected} />
+              </label>
+
+              {(existingImages.length > 0 || newImages.length > 0) && (
+                <div className="admin-image-preview-grid">
+                  {existingImages.map((image, index) => (
+                    <div className="admin-image-preview" key={`existing-${image.imageId}`}>
+                      <img src={toAdminImageDataUrl(image)} alt={`기존 이미지 ${index + 1}`} />
+                      {index === 0 && <span className="admin-image-preview-badge">대표</span>}
+                      <button
+                        type="button"
+                        className="admin-image-preview-remove"
+                        onClick={() => removeExistingImage(index)}
+                        aria-label="이미지 삭제"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                  {newImages.map((image, index) => (
+                    <div className="admin-image-preview" key={`new-${index}`}>
+                      <img src={toAdminImageDataUrl(image)} alt={`새 이미지 ${index + 1}`} />
+                      {existingImages.length === 0 && index === 0 && (
+                        <span className="admin-image-preview-badge">대표</span>
+                      )}
+                      <button
+                        type="button"
+                        className="admin-image-preview-remove"
+                        onClick={() => removeNewImage(index)}
+                        aria-label="이미지 삭제"
+                      >
+                        ×
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {imageError && <p className="admin-form-error">{imageError}</p>}
 
               {formError && <p className="admin-form-error">{formError}</p>}
 
@@ -262,16 +381,29 @@ function AdminRoomDetailPage() {
               </div>
             </form>
           ) : (
-            <dl className="admin-detail-grid">
-              <dt>ID</dt>
-              <dd>{room.roomId}</dd>
-              <dt>이름</dt>
-              <dd>{room.name}</dd>
-              <dt>정원</dt>
-              <dd>{room.capacity}명</dd>
-              <dt>설명</dt>
-              <dd>{room.description || '-'}</dd>
-            </dl>
+            <>
+              <dl className="admin-detail-grid">
+                <dt>ID</dt>
+                <dd>{room.roomId}</dd>
+                <dt>이름</dt>
+                <dd>{room.name}</dd>
+                <dt>정원</dt>
+                <dd>{room.capacity}명</dd>
+                <dt>설명</dt>
+                <dd>{room.description || '-'}</dd>
+              </dl>
+
+              {room.images && room.images.length > 0 && (
+                <div className="admin-image-preview-grid" style={{ marginTop: 16 }}>
+                  {room.images.map((image, index) => (
+                    <div className="admin-image-preview" key={image.imageId}>
+                      <img src={toAdminImageDataUrl(image)} alt={`${room.name} 이미지 ${index + 1}`} />
+                      {index === 0 && <span className="admin-image-preview-badge">대표</span>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
       )}

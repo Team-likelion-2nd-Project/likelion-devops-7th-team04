@@ -79,6 +79,12 @@ export class HotelServiceController {
     return this.roomService.updateRoom(data.hotelId, data.roomId, data);
   }
 
+  // proto의 HotelService / DeleteRoom 메서드와 매핑: 객실 삭제 (관리자 전용, api-gateway에서 권한 검증)
+  @GrpcMethod('HotelService', 'DeleteRoom')
+  async deleteRoom(data: { hotelId: number; roomId: number }) {
+    return this.roomService.deleteRoom(data.hotelId, data.roomId);
+  }
+
   // proto의 HotelService / GetRoomAvailability 메서드와 매핑: 특정 기간 객실 예약 가능 여부 조회
   @GrpcMethod('HotelService', 'GetRoomAvailability')
   async getRoomAvailability(data: {

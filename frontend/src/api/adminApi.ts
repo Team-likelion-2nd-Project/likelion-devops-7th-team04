@@ -1,5 +1,5 @@
-import { clearAccessToken, getAccessToken } from './tokenStore'
-import { refreshAccessToken } from './gateway'
+import { adminAuth } from './tokenStore'
+import { refreshAdminAccessToken } from './gateway'
 
 const BASE_URL = import.meta.env.VITE_API_URL
 
@@ -22,6 +22,18 @@ export interface AdminHotel {
   description: string
 }
 
+// api-gateway의 RoomImageDto(요청 바디)와 1:1 대응. imageBase64는 data: 접두사를 뺀 순수 Base64.
+export interface AdminRoomImageInput {
+  mimeType: string
+  imageBase64: string
+}
+
+// proto의 RoomImage / RoomDto.images 응답과 1:1 대응
+export interface AdminRoomImage extends AdminRoomImageInput {
+  imageId: number
+  sortOrder: number
+}
+
 // api-gateway의 /api/hotels/:hotelId/rooms 응답(RoomDto)과 1:1 대응
 export interface AdminRoom {
   roomId: number
@@ -29,6 +41,27 @@ export interface AdminRoom {
   name: string
   capacity: number
   description: string
+  images: AdminRoomImage[]
+}
+
+// DB에는 Base64 원문만 저장되어 있어, <img src>에 바로 쓸 수 있는 data URL로 변환한다.
+export function toAdminImageDataUrl(image: AdminRoomImageInput): string {
+  return `data:${image.mimeType};base64,${image.imageBase64}`
+}
+
+// <input type="file">로 선택한 이미지를 서버에 보낼 {mimeType, imageBase64} 형태로 변환한다.
+export function readImageFileAsInput(file: File): Promise<AdminRoomImageInput> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result as string
+      // readAsDataURL 결과는 "data:image/png;base64,AAAA..." 형태라 콤마 뒤 순수 Base64만 잘라 쓴다.
+      const base64 = result.slice(result.indexOf(',') + 1)
+      resolve({ mimeType: file.type || 'application/octet-stream', imageBase64: base64 })
+    }
+    reader.onerror = () => reject(reader.error ?? new Error('이미지를 읽지 못했습니다.'))
+    reader.readAsDataURL(file)
+  })
 }
 
 // api-gateway의 /api/hotels/:hotelId/rooms/:roomId/availability 응답(RoomAvailabilityDayDto)과 1:1 대응
@@ -69,20 +102,20 @@ function withAuthHeaders(init: RequestInit | undefined, token: string | null): R
 }
 
 async function authedFetch(path: string, init?: RequestInit): Promise<Response> {
-  const res = await fetch(`${BASE_URL}${path}`, withAuthHeaders(init, getAccessToken()))
+  const res = await fetch(`${BASE_URL}${path}`, withAuthHeaders(init, adminAuth.getAccessToken()))
 
   if (res.status !== 401) {
     return res
   }
 
   try {
-    await refreshAccessToken()
+    await refreshAdminAccessToken()
   } catch {
-    clearAccessToken()
+    adminAuth.clearAccessToken()
     throw new Error('로그인이 만료되었습니다. 다시 로그인해주세요.')
   }
 
-  return fetch(`${BASE_URL}${path}`, withAuthHeaders(init, getAccessToken()))
+  return fetch(`${BASE_URL}${path}`, withAuthHeaders(init, adminAuth.getAccessToken()))
 }
 
 // POST/PUT 등 JSON body를 실어 보내는 관리자 API 공용 헬퍼.
@@ -150,10 +183,13 @@ export async function fetchAdminRoomAvailability(
 }
 
 // api-gateway의 CreateRoomDto/UpdateRoomDto와 1:1 대응되는 요청 바디
+// 주의: images는 항상 전체 교체(PUT 시맨틱)이므로, 수정 시 기존 이미지를 유지하려면
+// 그대로 다시 포함해서 보내야 한다 (비우면 서버가 기존 이미지를 전부 삭제한다).
 export interface AdminRoomInput {
   name: string
   capacity: number
   description?: string
+  images?: AdminRoomImageInput[]
 }
 
 // POST /api/hotels/:hotelId/rooms (관리자 전용) - 신규 객실 등록
@@ -173,4 +209,15 @@ export async function updateAdminRoom(
 ): Promise<AdminRoom> {
   const res = await authedJsonFetch(`/api/hotels/${hotelId}/rooms/${roomId}`, 'PUT', input)
   return parseJson<AdminRoom>(res)
+}
+
+// DELETE /api/hotels/:hotelId/rooms/:roomId (관리자 전용) - 객실 삭제
+// TODO: 백엔드 삭제 API가 아직 구현되어 있지 않음. 구현되는 대로 응답 스펙에 맞춰 확인 필요.
+export async function deleteAdminRoom(hotelId: string | number, roomId: string | number): Promise<void> {
+  const res = await authedFetch(`/api/hotels/${hotelId}/rooms/${roomId}`, { method: 'DELETE' })
+  if (!res.ok) {
+    const body = await res.json().catch(() => null)
+    const message = Array.isArray(body?.message) ? body.message.join(' ') : body?.message
+    throw new Error(message ?? `${res.status} ${res.statusText}`)
+  }
 }

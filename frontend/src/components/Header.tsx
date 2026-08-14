@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, NavLink, useNavigate } from 'react-router-dom'
 import { HOTELS } from '../data/hotels'
 import { logout } from '../api/gateway'
-import { useAccessToken, useUser } from '../api/tokenStore'
+import { customerAuth } from '../api/tokenStore'
 import './Header.css'
 
 const PHILOSOPHY_ITEMS = [
@@ -16,8 +16,8 @@ type MenuKey = 'philosophy' | 'hotels' | 'profile' | null
 
 function Header() {
   const [openMenu, setOpenMenu] = useState<MenuKey>(null)
-  const accessToken = useAccessToken()
-  const user = useUser()
+  const accessToken = customerAuth.useAccessToken()
+  const user = customerAuth.useUser()
   const navigate = useNavigate()
 
   const closeMenu = () => setOpenMenu(null)
@@ -126,12 +126,7 @@ function Header() {
               <ul className="nav-dropdown profile-dropdown">
                 <li>
                   <NavLink to="/mypage" onClick={closeMenu}>
-                    내 정보 수정
-                  </NavLink>
-                </li>
-                <li>
-                  <NavLink to="/reservation" onClick={closeMenu}>
-                    예약 내역
+                    마이페이지
                   </NavLink>
                 </li>
                 <li>

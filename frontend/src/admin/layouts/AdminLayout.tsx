@@ -1,6 +1,6 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { logout } from '../../api/gateway'
-import { useUser } from '../../api/tokenStore'
+import { adminLogout } from '../../api/gateway'
+import { adminAuth } from '../../api/tokenStore'
 import './AdminLayout.css'
 
 const NAV_ITEMS = [
@@ -11,11 +11,11 @@ const NAV_ITEMS = [
 
 // 고객 프론트(RootLayout: Header/Footer/MobileDock)와는 완전히 분리된 관리자 전용 레이아웃.
 function AdminLayout() {
-  const user = useUser()
+  const user = adminAuth.useUser()
   const navigate = useNavigate()
 
   const handleLogout = async () => {
-    await logout()
+    await adminLogout()
     navigate('/admin/login')
   }
 

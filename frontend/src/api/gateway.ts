@@ -1,4 +1,5 @@
-import { clearAccessToken, getAccessToken, setAuth } from './tokenStore'
+import { customerAuth, adminAuth } from './tokenStore'
+import type { AuthStore } from './tokenStore'
 
 const BASE_URL = import.meta.env.VITE_API_URL
 
@@ -43,7 +44,8 @@ export interface AuthResponse {
   role: string
 }
 
-async function parseAuthResponse(res: Response): Promise<AuthResponse> {
+// store 인자로 고객(customerAuth)/관리자(adminAuth) 중 어느 메모리 저장소에 반영할지 정한다.
+async function parseAuthResponse(res: Response, store: AuthStore): Promise<AuthResponse> {
   if (!res.ok) {
     const body = await res.json().catch(() => null)
     // ValidationPipe(class-validator) 에러는 message가 문자열 배열로 내려온다 (필드별 검증 메시지 여러 개).
@@ -52,7 +54,7 @@ async function parseAuthResponse(res: Response): Promise<AuthResponse> {
   }
 
   const data: AuthResponse = await res.json()
-  setAuth(data.accessToken, {
+  store.setAuth(data.accessToken, {
     userId: data.userId,
     email: data.email,
     name: data.name,
@@ -71,7 +73,7 @@ export async function login(payload: LoginRequest): Promise<AuthResponse> {
     body: JSON.stringify(payload),
   })
 
-  return parseAuthResponse(res)
+  return parseAuthResponse(res, customerAuth)
 }
 
 export interface RegisterRequest {
@@ -90,7 +92,89 @@ export async function register(payload: RegisterRequest): Promise<AuthResponse> 
     body: JSON.stringify(payload),
   })
 
-  return parseAuthResponse(res)
+  return parseAuthResponse(res, customerAuth)
+}
+
+// 액세스 토큰(메모리)을 Authorization 헤더에 실어 보내는 공통 fetch. 마이페이지 등 로그인 필요한 API에서 사용.
+async function authorizedFetch(path: string, options: RequestInit = {}): Promise<Response> {
+  const token = customerAuth.getAccessToken()
+  return fetch(`${BASE_URL}${path}`, {
+    ...options,
+    credentials: 'include',
+    headers: {
+      ...options.headers,
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  })
+}
+
+async function parseJsonResponse<T>(res: Response): Promise<T> {
+  const body = await res.json().catch(() => null)
+  if (!res.ok) {
+    // ValidationPipe(class-validator) 에러는 message가 문자열 배열로 내려온다 (필드별 검증 메시지 여러 개).
+    const message = Array.isArray(body?.message) ? body.message.join(' ') : body?.message
+    throw new Error(message ?? `${res.status} ${res.statusText}`)
+  }
+  return body as T
+}
+
+// proto의 User 메시지와 1:1 대응되는 응답 형태 (api-gateway UserController의 UserResponse와 동일)
+export interface UserProfile {
+  id: number
+  email: string
+  name: string
+  phoneNumber: string
+  role: string
+  status: string
+}
+
+// api-gateway(GET /api/users/me) -> user-service(gRPC)로 로그인한 사용자 본인의 프로필을 조회한다.
+export async function fetchMe(): Promise<UserProfile> {
+  const res = await authorizedFetch('/api/users/me')
+  return parseJsonResponse<UserProfile>(res)
+}
+
+export interface UpdateMeRequest {
+  name: string
+  phoneNumber: string
+}
+
+// api-gateway(PUT /api/users/me) -> user-service(gRPC)로 이름/전화번호를 수정한다.
+export async function updateMe(payload: UpdateMeRequest): Promise<UserProfile> {
+  const res = await authorizedFetch('/api/users/me', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  const profile = await parseJsonResponse<UserProfile>(res)
+  // 헤더의 "OO님" 표시 등이 즉시 반영되도록 메모리에 캐시된 유저 정보도 함께 갱신한다.
+  customerAuth.setUser({ userId: profile.id, email: profile.email, name: profile.name, role: profile.role })
+  return profile
+}
+
+// api-gateway(DELETE /api/users/me) -> auth-service(gRPC)로 회원 탈퇴를 요청한다.
+// 성공 시 서버의 프로필/자격증명/세션이 모두 정리되므로, 클라이언트도 메모리의 액세스 토큰을 즉시 버린다.
+export async function withdrawMe(): Promise<{ message: string }> {
+  const res = await authorizedFetch('/api/users/me', { method: 'DELETE' })
+  const result = await parseJsonResponse<{ message: string }>(res)
+  customerAuth.clearAccessToken()
+  return result
+}
+
+export interface ChangePasswordRequest {
+  currentPassword: string
+  newPassword: string
+}
+
+// api-gateway(PATCH /api/auth/password) -> auth-service(gRPC)로 비밀번호를 변경한다.
+// 성공 시 서버가 이 계정의 모든 리프레시 토큰(세션)을 무효화하므로, 프론트도 이어서 로그아웃 처리를 해야 한다.
+export async function changePassword(payload: ChangePasswordRequest): Promise<{ message: string }> {
+  const res = await authorizedFetch('/api/auth/password', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  })
+  return parseJsonResponse<{ message: string }>(res)
 }
 
 // api-gateway(/api/auth/admin/login) -> auth-service(gRPC)로 이메일/비밀번호를 검증하고 토큰을 발급받는다.
@@ -104,24 +188,34 @@ export async function adminLogin(payload: LoginRequest): Promise<AuthResponse> {
     body: JSON.stringify(payload),
   })
 
-  return parseAuthResponse(res)
+  return parseAuthResponse(res, adminAuth)
 }
 
-// httpOnly 리프레시 토큰 쿠키로 액세스 토큰을 재발급받는다. 새로고침 등으로 메모리의 액세스 토큰이
-// 사라졌을 때 세션을 복구하는 용도 (쿠키가 없거나 만료됐으면 401 -> 비로그인 상태로 처리).
+// httpOnly 리프레시 토큰 쿠키(refreshToken, 고객 전용)로 액세스 토큰을 재발급받는다. 새로고침 등으로
+// 메모리의 액세스 토큰이 사라졌을 때 세션을 복구하는 용도 (쿠키가 없거나 만료됐으면 401 -> 비로그인 상태로 처리).
 export async function refreshAccessToken(): Promise<AuthResponse> {
   const res = await fetch(`${BASE_URL}/api/auth/refresh`, {
     method: 'POST',
     credentials: 'include',
   })
 
-  return parseAuthResponse(res)
+  return parseAuthResponse(res, customerAuth)
+}
+
+// 관리자 전용 재발급. adminRefreshToken 쿠키를 사용하며, 고객 세션(refreshToken)에는 영향을 주지 않는다.
+export async function refreshAdminAccessToken(): Promise<AuthResponse> {
+  const res = await fetch(`${BASE_URL}/api/auth/admin/refresh`, {
+    method: 'POST',
+    credentials: 'include',
+  })
+
+  return parseAuthResponse(res, adminAuth)
 }
 
 // 서버에 로그아웃을 알려 리프레시 토큰(쿠키)을 무효화하고, 메모리의 액세스 토큰도 즉시 버린다.
 // 서버 호출이 실패해도(네트워크 오류 등) 클라이언트 쪽 로그인 상태는 반드시 해제한다.
-export async function logout(): Promise<void> {
-  const token = getAccessToken()
+async function logoutFrom(store: AuthStore): Promise<void> {
+  const token = store.getAccessToken()
 
   try {
     if (token) {
@@ -132,6 +226,17 @@ export async function logout(): Promise<void> {
       })
     }
   } finally {
-    clearAccessToken()
+    store.clearAccessToken()
   }
+}
+
+// 고객 로그아웃. 서버는 Authorization 헤더의 액세스 토큰으로 principal 타입을 판별해
+// refreshToken 쿠키만 지우므로, 같은 브라우저의 관리자 세션(adminRefreshToken)에는 영향이 없다.
+export function logout(): Promise<void> {
+  return logoutFrom(customerAuth)
+}
+
+// 관리자 로그아웃. adminAuth 스토어와 adminRefreshToken 쿠키만 정리한다.
+export function adminLogout(): Promise<void> {
+  return logoutFrom(adminAuth)
 }
