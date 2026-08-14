@@ -322,6 +322,84 @@ resource "aws_iam_role_policy_attachment" "cicd_policy" {
   policy_arn = aws_iam_policy.cicd.arn
 }
 # =========================
+# Backend CD Role
+# =========================
+
+resource "aws_iam_role" "backend_cd" {
+  name = "${var.project_name}-backend-cd-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Principal = {
+          Federated = data.aws_iam_openid_connect_provider.github.arn
+        }
+
+        Action = "sts:AssumeRoleWithWebIdentity"
+
+        Condition = {
+          StringEquals = {
+            "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
+            "token.actions.githubusercontent.com:sub" = "repo:${var.github_org}/${var.github_repo}:ref:refs/heads/${var.backend_github_branch}"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.project_name}-backend-cd-role"
+  }
+}
+
+# =========================
+# Backend CD ECR Push Policy
+# =========================
+
+resource "aws_iam_policy" "backend_cd_ecr" {
+  name        = "${var.project_name}-backend-cd-ecr-policy"
+  description = "ECR push permissions for Backend CD via GitHub Actions"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Action = [
+          "ecr:GetAuthorizationToken"
+        ]
+
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+
+        Action = [
+          "ecr:BatchCheckLayerAvailability",
+          "ecr:BatchGetImage",
+          "ecr:InitiateLayerUpload",
+          "ecr:UploadLayerPart",
+          "ecr:CompleteLayerUpload",
+          "ecr:PutImage"
+        ]
+
+        Resource = values(var.backend_ecr_repository_arns)
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "backend_cd_ecr" {
+  role       = aws_iam_role.backend_cd.name
+  policy_arn = aws_iam_policy.backend_cd_ecr.arn
+}
+# =========================
 # VPC CNI Role
 # =========================
 
