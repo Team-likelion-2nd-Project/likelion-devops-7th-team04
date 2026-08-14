@@ -6,7 +6,7 @@ import { Repository } from 'typeorm';
 import { Observable, firstValueFrom } from 'rxjs';
 import * as bcrypt from 'bcrypt';
 import Redis from 'ioredis';
-import { REDIS_CLIENT, JwtPayload, PrincipalType } from '@app/common';
+import { REDIS_CLIENT, JwtPayload, PrincipalType, getRequiredEnv } from '@app/common';
 import { Credential } from './entities/credential.entity';
 import { AdminCredential } from './entities/admin-credential.entity';
 
@@ -191,7 +191,7 @@ export class AuthServiceService implements OnModuleInit {
     let payload: JwtPayload;
     try {
       payload = this.jwtService.verify<JwtPayload>(data.refreshToken, {
-        secret: process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret',
+        secret: getRequiredEnv('JWT_REFRESH_SECRET'),
       });
     } catch {
       throw new RpcException(INVALID_REFRESH_TOKEN_MESSAGE);
@@ -284,14 +284,16 @@ export class AuthServiceService implements OnModuleInit {
     };
 
     const accessToken = this.jwtService.sign(payload, {
-      secret: process.env.JWT_ACCESS_SECRET || 'dev-access-secret',
-      expiresIn: (process.env.JWT_ACCESS_EXPIRES_IN ||
-        '15m') as JwtSignOptions['expiresIn'],
+      secret: getRequiredEnv('JWT_ACCESS_SECRET'),
+      expiresIn: getRequiredEnv(
+        'JWT_ACCESS_EXPIRES_IN',
+      ) as JwtSignOptions['expiresIn'],
     });
-    const refreshExpiresIn = process.env.JWT_REFRESH_EXPIRES_IN || '7d';
     const refreshToken = this.jwtService.sign(payload, {
-      secret: process.env.JWT_REFRESH_SECRET || 'dev-refresh-secret',
-      expiresIn: refreshExpiresIn as JwtSignOptions['expiresIn'],
+      secret: getRequiredEnv('JWT_REFRESH_SECRET'),
+      expiresIn: getRequiredEnv(
+        'JWT_REFRESH_EXPIRES_IN',
+      ) as JwtSignOptions['expiresIn'],
     });
 
     // 리프레시 토큰의 TTL을 JWT의 실제 만료 시각(exp)에 맞춰 Redis에 저장합니다

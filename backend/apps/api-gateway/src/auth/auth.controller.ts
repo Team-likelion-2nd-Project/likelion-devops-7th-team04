@@ -27,6 +27,7 @@ import {
   CurrentUser,
   AuthenticatedUser,
   PrincipalType,
+  getRequiredEnv,
 } from '@app/common';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -103,8 +104,10 @@ export class AuthController implements OnModuleInit {
   ) {
     // env 값은 런타임 string이라 ms.StringValue로 좁혀지지 않으므로 캐스팅합니다.
     // 형식이 잘못되면(오탈자 등) ms()가 NaN을 반환하므로 즉시 실패하도록 검증합니다.
+    // 하드코딩된 기본값('7d')은 두지 않습니다 — auth-service가 실제로 서명한 토큰의
+    // 만료시간과 값이 달라지면(둘 중 하나만 env 변경 등) 쿠키 만료가 몰래 어긋나기 때문입니다.
     const maxAge = ms(
-      (process.env.JWT_REFRESH_EXPIRES_IN || '7d') as ms.StringValue,
+      getRequiredEnv('JWT_REFRESH_EXPIRES_IN') as ms.StringValue,
     );
     if (Number.isNaN(maxAge)) {
       throw new Error('JWT_REFRESH_EXPIRES_IN 형식이 올바르지 않습니다.');

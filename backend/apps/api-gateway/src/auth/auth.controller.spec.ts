@@ -30,6 +30,8 @@ describe('AuthController', () => {
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    // setRefreshCookie가 하드코딩된 기본값 없이 getRequiredEnv로 읽으므로 테스트에서 직접 채워줍니다.
+    process.env.JWT_REFRESH_EXPIRES_IN = '7d';
     registerMock.mockReturnValue(of(tokenPayload));
     loginMock.mockReturnValue(of(tokenPayload));
     refreshMock.mockReturnValue(
