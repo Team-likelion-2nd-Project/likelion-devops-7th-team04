@@ -1,4 +1,4 @@
-name: Backend CI/CD
+name: Backend CI
 
 on:
   pull_request:
@@ -6,21 +6,21 @@ on:
       - develop
     paths:
       - "backend/**"
-      - ".github/workflows/backend-ci-cd.yml"
+      - ".github/workflows/backend-ci.yml"
 
   push:
     branches:
       - develop
     paths:
       - "backend/**"
-      - ".github/workflows/backend-ci-cd.yml"
+      - ".github/workflows/backend-ci.yml"
 
 permissions:
   contents: read
 
 jobs:
   backend-ci:
-    name: Backend CI
+    name: Backend Build & Test
     runs-on: ubuntu-latest
 
     defaults:
