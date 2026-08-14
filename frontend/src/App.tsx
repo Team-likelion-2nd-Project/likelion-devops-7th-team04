@@ -3,6 +3,7 @@ import { Route, Routes } from 'react-router-dom'
 import ScrollToTop from './components/ScrollToTop'
 import RootLayout from './layouts/RootLayout'
 import HotelLayout from './layouts/HotelLayout'
+import AccountLayout from './layouts/AccountLayout'
 import MainPage from './pages/MainPage'
 import PhilosophyPage from './pages/PhilosophyPage'
 import HotelsPage from './pages/HotelsPage'
@@ -12,7 +13,12 @@ import RoomDetailPage from './pages/RoomDetailPage'
 import HotelWatersPage from './pages/HotelWatersPage'
 import NoticesPage from './pages/NoticesPage'
 import ReservationPage from './pages/ReservationPage'
+import ReservationHistoryPage from './pages/ReservationHistoryPage'
 import MyPage from './pages/MyPage'
+import ChangePasswordPage from './pages/ChangePasswordPage'
+import WithdrawPage from './pages/WithdrawPage'
+import PaymentsPage from './pages/PaymentsPage'
+import PaymentsPendingPage from './pages/PaymentsPendingPage'
 import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import { refreshAccessToken } from './api/gateway'
@@ -42,8 +48,17 @@ function App() {
             <Route path="waters" element={<HotelWatersPage />} />
           </Route>
           <Route path="notices" element={<NoticesPage />} />
+          {/* 예약하기(신규 예약 플로우)는 사이드바 없는 일반 페이지로 둔다. */}
           <Route path="reservation" element={<ReservationPage />} />
-          <Route path="mypage" element={<MyPage />} />
+          {/* 예약 내역/마이페이지/결제 내역은 서로 사이드바로 바로 이동할 수 있도록 한 그룹으로 묶는다. */}
+          <Route element={<AccountLayout />}>
+            <Route path="reservations" element={<ReservationHistoryPage />} />
+            <Route path="mypage" element={<MyPage />} />
+            <Route path="mypage/password" element={<ChangePasswordPage />} />
+            <Route path="mypage/withdraw" element={<WithdrawPage />} />
+            <Route path="payments" element={<PaymentsPage />} />
+            <Route path="payments/pending" element={<PaymentsPendingPage />} />
+          </Route>
           <Route path="login" element={<LoginPage />} />
           <Route path="signup" element={<SignupPage />} />
         </Route>

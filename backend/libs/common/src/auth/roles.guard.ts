@@ -22,6 +22,15 @@ export class RolesGuard implements CanActivate {
     const request = context
       .switchToHttp()
       .getRequest<{ user?: AuthenticatedUser }>();
-    return requiredRoles.includes(request.user?.role ?? '');
+    const user = request.user;
+    const hasRole = requiredRoles.includes(user?.role ?? '');
+
+    // 레거시 users.role='ADMIN' 데이터로 발급된 토큰(type: 'USER')이 관리자 API를
+    // 통과하지 못하도록, ADMIN 권한이 필요한 라우트는 admins DB를 거쳐 발급된
+    // 토큰(type: 'ADMIN')인지도 함께 검사합니다.
+    const isAdminTypeConsistent =
+      !requiredRoles.includes('ADMIN') || user?.type === 'ADMIN';
+
+    return hasRole && isAdminTypeConsistent;
   }
 }
