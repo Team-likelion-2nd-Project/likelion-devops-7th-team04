@@ -155,8 +155,7 @@ resource "aws_eks_addon" "vpc_cni" {
   }
 
   depends_on = [
-    aws_eks_addon.pod_identity_agent,
-    aws_eks_node_group.cpu
+    aws_eks_addon.pod_identity_agent
   ]
 }
 # =========================
