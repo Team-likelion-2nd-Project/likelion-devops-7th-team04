@@ -13,6 +13,7 @@ describe('HotelController', () => {
   const getRoomMock = jest.fn();
   const createRoomMock = jest.fn();
   const updateRoomMock = jest.fn();
+  const deleteRoomMock = jest.fn();
   const getRoomAvailabilityMock = jest.fn();
 
   const hotel = {
@@ -51,6 +52,7 @@ describe('HotelController', () => {
     getRoomMock.mockReturnValue(of(room));
     createRoomMock.mockReturnValue(of(room));
     updateRoomMock.mockReturnValue(of(room));
+    deleteRoomMock.mockReturnValue(of({ success: true }));
     getRoomAvailabilityMock.mockReturnValue(of(availability));
 
     const module: TestingModule = await Test.createTestingModule({
@@ -68,6 +70,7 @@ describe('HotelController', () => {
               getRoom: getRoomMock,
               createRoom: createRoomMock,
               updateRoom: updateRoomMock,
+              deleteRoom: deleteRoomMock,
               getRoomAvailability: getRoomAvailabilityMock,
             }),
           },
@@ -263,6 +266,25 @@ describe('HotelController', () => {
         roomId: 1,
         ...dto,
       });
+    });
+  });
+
+  describe('deleteRoom', () => {
+    it('should delete the room by the hotelId/roomId path params', async () => {
+      const result = await controller.deleteRoom(1, 1);
+
+      expect(deleteRoomMock).toHaveBeenCalledWith({ hotelId: 1, roomId: 1 });
+      expect(result).toEqual({ message: '객실이 삭제되었습니다.' });
+    });
+
+    it('should throw NotFoundException when the room does not exist', async () => {
+      deleteRoomMock.mockReturnValue(
+        throwError(() => ({ message: '존재하지 않는 객실입니다.' })),
+      );
+
+      await expect(controller.deleteRoom(1, 999)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
