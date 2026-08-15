@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   Inject,
   NotFoundException,
@@ -102,6 +103,10 @@ interface HotelService {
     description?: string;
     images?: { mimeType: string; imageBase64: string }[];
   }): Observable<RoomDto>;
+  deleteRoom(data: {
+    hotelId: number;
+    roomId: number;
+  }): Observable<{ success: boolean }>;
   getRoomAvailability(data: {
     hotelId: number;
     roomId: number;
@@ -400,5 +405,48 @@ export class HotelController implements OnModuleInit {
         err?.details || err?.message || '존재하지 않는 객실입니다.',
       );
     });
+  }
+
+  /**
+   * DELETE http://localhost:3000/api/hotels/{hotelId}/rooms/{roomId}
+   * 관리자 전용. 특정 객실을 삭제합니다(연관된 객실 이미지/예약 가능일도 함께 삭제).
+   */
+  @Delete(':hotelId/rooms/:roomId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiParam({
+    name: 'hotelId',
+    description: '호텔 PK ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiParam({
+    name: 'roomId',
+    description: '객실 PK ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiOperation({
+    summary: '객실 삭제 (관리자 전용)',
+    description:
+      '관리자 권한을 가진 사용자만 호출할 수 있습니다. gRPC를 통해 hotel-service의 객실과 연관된 ' +
+      '이미지·예약 가능일 정보를 함께 삭제합니다.',
+  })
+  @ApiResponse({ status: 200, description: '객실 삭제 성공' })
+  @ApiResponse({ status: 403, description: '관리자 권한이 없음' })
+  @ApiResponse({ status: 404, description: '존재하지 않는 객실' })
+  async deleteRoom(
+    @Param('hotelId', ParseIntPipe) hotelId: number,
+    @Param('roomId', ParseIntPipe) roomId: number,
+  ): Promise<{ message: string }> {
+    await firstValueFrom(
+      this.hotelService.deleteRoom({ hotelId, roomId }),
+    ).catch((err) => {
+      throw new NotFoundException(
+        err?.details || err?.message || '존재하지 않는 객실입니다.',
+      );
+    });
+    return { message: '객실이 삭제되었습니다.' };
   }
 }

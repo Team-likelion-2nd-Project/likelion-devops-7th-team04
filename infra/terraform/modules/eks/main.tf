@@ -55,7 +55,8 @@ resource "aws_eks_node_group" "cpu" {
   }
 
   depends_on = [
-    aws_eks_cluster.main
+    aws_eks_cluster.main,
+    aws_eks_addon.vpc_cni
   ]
 }
 # =========================
@@ -100,7 +101,8 @@ resource "aws_eks_node_group" "gpu" {
   }
 
   depends_on = [
-    aws_eks_cluster.main
+    aws_eks_cluster.main,
+    aws_eks_addon.vpc_cni
   ]
 }
 # =========================
@@ -139,7 +141,7 @@ resource "aws_eks_addon" "pod_identity_agent" {
   resolve_conflicts_on_update = "PRESERVE"
 
   depends_on = [
-    aws_eks_node_group.cpu
+    aws_eks_cluster.main
   ]
 }
 resource "aws_eks_addon" "vpc_cni" {
@@ -155,8 +157,7 @@ resource "aws_eks_addon" "vpc_cni" {
   }
 
   depends_on = [
-    aws_eks_addon.pod_identity_agent,
-    aws_eks_node_group.cpu
+    aws_eks_addon.pod_identity_agent
   ]
 }
 # =========================

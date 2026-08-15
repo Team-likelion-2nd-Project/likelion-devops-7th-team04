@@ -95,5 +95,30 @@ feat: 로그인 API 구현 (#12)
 * `console.log` / `print` 구문은 배포 코드(Commit/PR)에 남기지 않습니다.
 * 모든 예외(Exception)는 무시하지 않고 명시적으로 처리하거나 커스텀 에러로 래핑합니다.
 
+---
+
+## 🏗️ 6. Infra 관련 작업 규칙 (Infra Convention)
+
+Terraform에 변경을 가해야 하는 경우, 아래 절차를 반드시 순서대로 거쳐야 합니다.
+
+1. **이슈 생성 (Infra)**
+   * 새로 이슈를 생성합니다.
+   * 라벨: `infra`
+   * 마일스톤: 현재 작업 중인 이슈의 마일스톤과 동일하게 설정
+2. **브랜치 생성**
+   * Jira에서 위 이슈로 브랜치를 생성합니다.
+   * 이때 `infra` 브랜치로부터 브랜치를 생성해야 합니다.
+3. **Terraform 작업 및 병합**
+   * Terraform 변경 작업을 진행합니다.
+   * 작업이 끝나면 작업 중인 브랜치를 `infra` 브랜치로 push/merge 합니다.
+4. **이슈 생성 (Integration)**
+   * `infra` 브랜치로의 merge가 끝난 이후, 새로 이슈를 생성합니다.
+   * 라벨: `integration`
+   * 마일스톤: 현재 작업 중인 이슈의 마일스톤과 동일하게 설정
+5. **develop 반영**
+   * `infra` 브랜치를 `develop` 브랜치로 push/merge 합니다.
+   * 이때 별도의 브랜치는 생성하지 않고 PR만 생성합니다.
+6. **적용 테스트**
+   * `develop` 브랜치에서 `terraform apply` 테스트를 진행합니다.
 
 ---

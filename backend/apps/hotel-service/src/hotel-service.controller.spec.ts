@@ -18,8 +18,9 @@ describe('HotelServiceController', () => {
     find: jest.Mock;
     save: jest.Mock;
     create: jest.Mock;
+    delete: jest.Mock;
   };
-  let roomAvailabilityRepository: { find: jest.Mock };
+  let roomAvailabilityRepository: { find: jest.Mock; delete: jest.Mock };
   let roomImageRepository: {
     find: jest.Mock;
     delete: jest.Mock;
@@ -49,8 +50,12 @@ describe('HotelServiceController', () => {
       find: jest.fn(),
       save: jest.fn(),
       create: jest.fn(),
+      delete: jest.fn().mockResolvedValue(undefined),
     };
-    roomAvailabilityRepository = { find: jest.fn() };
+    roomAvailabilityRepository = {
+      find: jest.fn(),
+      delete: jest.fn().mockResolvedValue(undefined),
+    };
     roomImageRepository = {
       find: jest.fn().mockResolvedValue([]),
       delete: jest.fn().mockResolvedValue(undefined),
@@ -334,6 +339,41 @@ describe('HotelServiceController', () => {
           sortOrder: 0,
         }),
       ]);
+    });
+  });
+
+  describe('deleteRoom', () => {
+    it('should delete the room and its child rows when it exists', async () => {
+      roomRepository.findOne.mockResolvedValue(room);
+
+      const result = await hotelServiceController.deleteRoom({
+        hotelId: 1,
+        roomId: 1,
+      });
+
+      expect(roomRepository.findOne).toHaveBeenCalledWith({
+        where: { hotelId: 1, roomId: 1 },
+      });
+      expect(roomImageRepository.delete).toHaveBeenCalledWith({ roomId: 1 });
+      expect(roomAvailabilityRepository.delete).toHaveBeenCalledWith({
+        roomId: 1,
+      });
+      expect(roomRepository.delete).toHaveBeenCalledWith({
+        hotelId: 1,
+        roomId: 1,
+      });
+      expect(result).toEqual({ success: true });
+    });
+
+    it('should throw RpcException when the room does not exist', async () => {
+      roomRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        hotelServiceController.deleteRoom({ hotelId: 1, roomId: 999 }),
+      ).rejects.toThrow(RpcException);
+      expect(roomRepository.delete).not.toHaveBeenCalled();
+      expect(roomImageRepository.delete).not.toHaveBeenCalled();
+      expect(roomAvailabilityRepository.delete).not.toHaveBeenCalled();
     });
   });
 
