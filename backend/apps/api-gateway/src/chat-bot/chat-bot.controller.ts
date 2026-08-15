@@ -21,6 +21,7 @@ import {
   AuthenticatedUser,
   CurrentUser,
   JwtAuthGuard,
+  OptionalCurrentUser,
   OptionalJwtAuthGuard,
 } from '@app/common';
 import { SendMessageDto } from './dto/send-message.dto';
@@ -113,7 +114,7 @@ export class ChatBotController implements OnModuleInit {
   })
   async sendMessage(
     @Body() dto: SendMessageDto,
-    @CurrentUser() user: AuthenticatedUser | null,
+    @OptionalCurrentUser() user: AuthenticatedUser | null,
   ): Promise<SendMessageResponseDto> {
     return firstValueFrom(
       this.chatBotService.sendMessage({
