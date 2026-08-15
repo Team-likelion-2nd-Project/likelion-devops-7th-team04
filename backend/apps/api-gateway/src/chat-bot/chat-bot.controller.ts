@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ClientGrpc } from '@nestjs/microservices';
 import { Observable, firstValueFrom } from 'rxjs';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiBearerAuth,
   ApiOperation,
@@ -93,20 +94,30 @@ export class ChatBotController implements OnModuleInit {
    * POST http://localhost:3000/api/chat-bots/messages
    * 로그인 여부와 무관하게 호출 가능. Authorization 헤더가 있으면 대화가 세션에 저장되어
    * 이어지고, 없으면 이번 메시지만 처리하는 1회성 질문으로 취급됩니다(이력 저장 없음).
+   *
+   * OptionalJwtAuthGuard 때문에 토큰 없이도 호출 가능한 라우트라 익명 남용(LLM 비용/부하)
+   * 여지가 있어, 게이트웨이 기본 rate limit(분당 100회)보다 훨씬 타이트하게 IP당 분당 10회로
+   * 제한합니다.
    */
   @Post('messages')
   @UseGuards(OptionalJwtAuthGuard)
+  @Throttle({ default: { limit: 10, ttl: 60_000 } })
   @ApiOperation({
     summary: '챗봇에게 메시지 전송',
     description:
       'n8n AI workflow에 메시지를 위임해 응답을 받습니다. Bearer 토큰을 함께 보내면 대화 ' +
       '이력이 세션에 저장되어 다음 메시지의 context로 이어지고, 토큰 없이 호출하면 ' +
-      '이력을 남기지 않는 1회성 질문으로 처리됩니다(Bearer 토큰은 선택 사항).',
+      '이력을 남기지 않는 1회성 질문으로 처리됩니다(Bearer 토큰은 선택 사항). ' +
+      'IP당 분당 10회로 rate limit이 걸려 있습니다.',
   })
   @ApiResponse({
     status: 201,
     description:
       '챗봇 응답 생성 성공. sessionId는 비로그인 호출인 경우 빈 문자열입니다.',
+  })
+  @ApiResponse({
+    status: 429,
+    description: 'rate limit 초과 (IP당 분당 10회)',
   })
   @ApiResponse({
     status: 503,
