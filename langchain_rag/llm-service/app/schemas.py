@@ -20,6 +20,14 @@ class ChatRequest(BaseModel):
         default_factory=list,
         description="Prior turns, oldest first. Empty for a fresh/anonymous conversation.",
     )
+    context: str | None = Field(
+        default=None,
+        description=(
+            "Retrieved context to ground the reply in, supplied by the caller "
+            "(e.g. n8n's RAG step). When omitted, chain.py falls back to its "
+            "own (currently stub) retrieval hook."
+        ),
+    )
 
 
 class ChatResponse(BaseModel):
