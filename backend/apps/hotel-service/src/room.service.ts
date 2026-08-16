@@ -240,6 +240,23 @@ export class RoomService {
     };
   }
 
+  // 예약 생성/취소 시 예약 가능일을 갱신한다. hotelId 검증 없이 roomId만으로 동작한다
+  // (booking-service의 Reservation은 hotelId를 갖고 있지 않음, 서비스 간 DB 분리 원칙).
+  // 구간(startDate~endDate, 둘 다 포함) 내에 room_availabilities 행이 없는 날짜는 조용히 건너뛴다
+  // (예약 가능일을 채우는 API는 별도 작업 — 지금은 존재하는 행만 갱신).
+  async setRoomAvailability(
+    roomId: number,
+    startDate: string,
+    endDate: string,
+    isAvailable: boolean,
+  ): Promise<{ success: boolean }> {
+    await this.roomAvailabilityRepository.update(
+      { roomId, date: Between(startDate, endDate) },
+      { isAvailable },
+    );
+    return { success: true };
+  }
+
   private toGrpcResponse(room: Room, images: RoomImage[]): RoomGrpcResponse {
     return {
       roomId: room.roomId,

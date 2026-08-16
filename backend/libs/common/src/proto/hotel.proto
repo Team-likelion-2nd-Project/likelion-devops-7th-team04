@@ -27,6 +27,10 @@ service HotelService {
 
   // 특정 객실의 지정 기간 예약 가능 여부를 조회합니다. (hotelId/roomId 조합이 존재하지 않으면 에러)
   rpc GetRoomAvailability (GetRoomAvailabilityRequest) returns (RoomAvailabilityResponse);
+
+  // booking-service가 예약 생성/취소 시 예약 가능일을 갱신하기 위해 호출합니다.
+  // (startDate~endDate 구간, 둘 다 포함) roomId에 해당하는 행이 없는 날짜는 조용히 건너뜁니다.
+  rpc SetRoomAvailability (SetRoomAvailabilityRequest) returns (SetRoomAvailabilityResponse);
 }
 
 message Empty {}
@@ -143,4 +147,15 @@ message RoomAvailabilityResponse {
   string endDate = 4;
   bool isAvailable = 5;
   repeated RoomAvailabilityDay availabilities = 6;
+}
+
+message SetRoomAvailabilityRequest {
+  int32 roomId = 1;
+  string startDate = 2; // 포함
+  string endDate = 3; // 포함
+  bool isAvailable = 4;
+}
+
+message SetRoomAvailabilityResponse {
+  bool success = 1;
 }

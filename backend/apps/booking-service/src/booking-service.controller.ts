@@ -24,4 +24,10 @@ export class BookingServiceController {
     const bookings = await this.bookingServiceService.getBookingsByUserId(data.userId);
     return { bookings };
   }
+
+  // 본인 예약 취소
+  @GrpcMethod('BookingService', 'CancelBooking')
+  async cancelBooking(data: { reservationId: number; userId: number }) {
+    return this.bookingServiceService.cancelBooking(data.reservationId, data.userId);
+  }
 }

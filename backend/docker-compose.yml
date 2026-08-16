@@ -156,6 +156,9 @@ services:
       - .env
     environment:
       - NODE_ENV=development
+      - HOTEL_SERVICE_HOST=hotel-service:3002
+    depends_on:
+      - hotel-service
 
   payment-service:
     build:
