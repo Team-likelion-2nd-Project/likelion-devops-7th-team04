@@ -15,6 +15,10 @@ service BookingService {
   // (reservationId가 없거나 userId가 예약자 본인이 아니면 에러)
   // TODO(환불): payment-service 연동 후 결제 환불 처리를 추가해야 한다 (아직 payment.proto에 없음).
   rpc CancelBooking (CancelBookingRequest) returns (Booking);
+  
+  // 신규 예약 생성. hotel-service의 ReserveRoomAvailability를 호출해 checkInDate~checkOutDate 전날까지
+  // 예약 가능 여부를 검증하고 가격 합계(totalAmount)를 받아온 뒤 예약을 저장한다.
+  rpc CreateBooking (CreateBookingRequest) returns (Booking);
 }
 
 message Empty {}
@@ -32,6 +36,16 @@ message CancelBookingRequest {
   int32 userId = 2; // 본인 확인용 (api-gateway가 JWT에서 추출해 넘긴다)
 }
 
+message CreateBookingRequest {
+  int32 userId = 1;
+  int32 roomId = 2;
+  string checkInDate = 3;
+  string checkOutDate = 4;
+  bool hasIndoorPool = 5;
+  bool hasLounge = 6;
+  int32 guestCount = 7;
+}
+
 message Booking {
   int32 reservationId = 1;
   int32 userId = 2;
@@ -42,6 +56,7 @@ message Booking {
   bool hasLounge = 7;
   int32 totalAmount = 8;
   string status = 9;
+  int32 guestCount = 10;
 }
 
 message BookingListResponse {

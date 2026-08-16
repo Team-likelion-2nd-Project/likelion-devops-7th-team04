@@ -116,6 +116,19 @@ export class HotelServiceController {
       data.isAvailable,
     );
   }
+  // proto의 HotelService / ReserveRoomAvailability 메서드와 매핑: booking-service가 예약 생성 시 호출
+  @GrpcMethod('HotelService', 'ReserveRoomAvailability')
+  async reserveRoomAvailability(data: {
+    roomId: number;
+    startDate: string;
+    endDate: string;
+  }) {
+    return this.roomService.reserveRoomAvailability(
+      data.roomId,
+      data.startDate,
+      data.endDate,
+    );
+  }
 
   // DB 연결 확인 엔드포인트 (GET /db-check)
   @Get('db-check')

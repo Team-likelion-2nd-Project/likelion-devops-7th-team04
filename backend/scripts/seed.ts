@@ -5,6 +5,7 @@ import { Admin } from '../apps/user-service/src/admin/entities/admin.entity';
 import { AdminCredential } from '../apps/auth-service/src/entities/admin-credential.entity';
 import { Hotel } from '../apps/hotel-service/src/entities/hotel.entity';
 import { Room } from '../apps/hotel-service/src/entities/room.entity';
+import { RoomAvailability } from '../apps/hotel-service/src/entities/room-availability.entity';
 
 // docker compose 기동 시(db-seed 서비스, scripts/Dockerfile.seed) 1회 실행되는 시딩 스크립트입니다.
 // NestFactory 대신 TypeORM DataSource를 직접 열어 admins/admin_credentials/hotels/rooms에
@@ -21,6 +22,13 @@ const DB_DATABASE = process.env.DB_DATABASE;
 
 // admin_credentials 해시 방식은 auth-service.service.ts의 SALT_ROUNDS와 동일하게 맞춥니다.
 const SALT_ROUNDS = 10;
+
+// room_availabilities 시딩 시 기본 가격 — hotel-service 스펙 테스트(hotel-service.controller.spec.ts)의
+// 예시 값과 동일하게 맞춥니다.
+const DEFAULT_ROOM_PRICE = 100000;
+
+// room_availabilities에 채워 넣을 기간(오늘부터 며칠간)
+const AVAILABILITY_DAYS = 30;
 
 const SEED_ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL;
 const SEED_ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD;
@@ -87,7 +95,7 @@ async function createDataSourceWithRetry(
     username: DB_USERNAME,
     password: DB_PASSWORD,
     database: DB_DATABASE,
-    entities: [Admin, AdminCredential, Hotel, Room],
+    entities: [Admin, AdminCredential, Hotel, Room, RoomAvailability],
     synchronize: true, // ⚠️ 개발 환경(Dev)에서만 사용 — 기존 서비스 모듈들과 동일한 패턴
   });
 
@@ -166,11 +174,66 @@ async function seedHotelsAndRooms(dataSource: DataSource): Promise<void> {
   }
 }
 
+// 로컬 타임존 기준 YYYY-MM-DD 문자열로 변환 (date 컬럼용).
+// toISOString()은 UTC로 변환하면서 날짜가 하루 밀릴 수 있어 사용하지 않습니다.
+function formatDate(date: Date): string {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+async function seedRoomAvailabilities(dataSource: DataSource): Promise<void> {
+  const roomRepository = dataSource.getRepository(Room);
+  const availabilityRepository = dataSource.getRepository(RoomAvailability);
+
+  const rooms = await roomRepository.find();
+  if (rooms.length === 0) {
+    console.log(
+      '[seed] 객실(rooms) 데이터가 없어 예약 가능 정보 시딩을 건너뜁니다.',
+    );
+    return;
+  }
+
+  const today = new Date();
+  const dates = Array.from({ length: AVAILABILITY_DAYS }, (_, offset) => {
+    const date = new Date(today);
+    date.setDate(date.getDate() + offset);
+    return formatDate(date);
+  });
+
+  for (const room of rooms) {
+    const existingCount = await availabilityRepository.count({
+      where: { roomId: room.roomId },
+    });
+    if (existingCount > 0) {
+      console.log(
+        `[seed] roomId=${room.roomId}의 예약 가능 정보가 이미 존재합니다 — 건너뜁니다.`,
+      );
+      continue;
+    }
+
+    const availabilities = dates.map((date) =>
+      availabilityRepository.create({
+        roomId: room.roomId,
+        date,
+        price: DEFAULT_ROOM_PRICE,
+        isAvailable: true,
+      }),
+    );
+    await availabilityRepository.save(availabilities);
+    console.log(
+      `[seed] roomId=${room.roomId} 예약 가능 정보 ${availabilities.length}건 생성 완료 (${dates[0]} ~ ${dates[dates.length - 1]})`,
+    );
+  }
+}
+
 async function main(): Promise<void> {
   const dataSource = await createDataSourceWithRetry();
   try {
     await seedAdmin(dataSource);
     await seedHotelsAndRooms(dataSource);
+    await seedRoomAvailabilities(dataSource);
     console.log('[seed] 시딩 완료');
   } finally {
     await dataSource.destroy();

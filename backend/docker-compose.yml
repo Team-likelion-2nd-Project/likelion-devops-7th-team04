@@ -20,7 +20,7 @@ services:
     # volumes:
     #   - mariadb_data:/var/lib/mysql
 
-  # 1-1. DB 시딩 (관리자 계정 + 호텔/객실 3개). mariadb가 healthy해지면 1회 실행 후 종료됩니다.
+  # 1-1. DB 시딩 (관리자 계정 + 호텔/객실 3개 + 객실 재고). mariadb가 healthy해지면 1회 실행 후 종료됩니다.
   #      매번 재실행해도 이미 존재하는 데이터는 건너뛰므로(멱등) docker compose up을 반복해도 안전합니다.
   db-seed:
     build:

@@ -1,7 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { RpcException } from '@nestjs/microservices';
-import { Between, In, Repository } from 'typeorm';
+import { Between, DataSource, In, Repository } from 'typeorm';
 import { Room } from './entities/room.entity';
 import { Hotel } from './entities/hotel.entity';
 import { RoomAvailability } from './entities/room-availability.entity';
@@ -51,6 +51,7 @@ export class RoomService {
     private readonly roomAvailabilityRepository: Repository<RoomAvailability>,
     @InjectRepository(RoomImage)
     private readonly roomImageRepository: Repository<RoomImage>,
+    private readonly dataSource: DataSource,
   ) {}
 
   // 신규 객실 등록. hotelId가 존재하지 않으면 RpcException.
@@ -255,6 +256,43 @@ export class RoomService {
       { isAvailable },
     );
     return { success: true };
+  }
+  
+  // booking-service 전용: 예약 생성 시 호출된다. roomId의 지정 기간(startDate~endDate, 둘 다 포함)에
+  // room_availabilities row가 하루도 빠짐없이 존재하고 전부 isAvailable=true인지 확인한 뒤, 같은
+  // 트랜잭션에서 비관적 락(pessimistic_write)으로 잠그고 전부 isAvailable=false로 전환한다.
+  // 동시에 같은 객실을 예약하는 두 요청이 같은 날짜를 동시에 선점하지 못하도록 하기 위함이다.
+  async reserveRoomAvailability(
+    roomId: number,
+    startDate: string,
+    endDate: string,
+  ): Promise<{ totalAmount: number }> {
+    return this.dataSource.transaction(async (manager) => {
+      const rows = await manager.find(RoomAvailability, {
+        where: { roomId, date: Between(startDate, endDate) },
+        order: { date: 'ASC' },
+        lock: { mode: 'pessimistic_write' },
+      });
+
+      const dayMs = 24 * 60 * 60 * 1000;
+      const totalDays =
+        Math.round(
+          (new Date(endDate).getTime() - new Date(startDate).getTime()) /
+            dayMs,
+        ) + 1;
+
+      if (rows.length !== totalDays || rows.some((row) => !row.isAvailable)) {
+        throw new RpcException('예약 불가능한 날짜가 포함되어 있습니다.');
+      }
+
+      const totalAmount = rows.reduce((sum, row) => sum + row.price, 0);
+      for (const row of rows) {
+        row.isAvailable = false;
+      }
+      await manager.save(rows);
+
+      return { totalAmount };
+    });
   }
 
   private toGrpcResponse(room: Room, images: RoomImage[]): RoomGrpcResponse {
