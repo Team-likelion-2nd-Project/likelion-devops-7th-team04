@@ -5,6 +5,10 @@ import { AuthenticatedUser } from './jwt-payload.interface';
 
 // JwtAuthGuard 뒤에 @UseGuards(JwtAuthGuard, RolesGuard) 순서로 붙여서 사용합니다.
 // @Roles()가 없는 라우트는 그대로 통과시킵니다.
+// ⚠️ OptionalJwtAuthGuard와는 절대 함께 쓰지 마세요. user가 null이어도 아래 로직은
+// optional chaining 덕에 크래시 없이 403으로 fail-closed 되긴 하지만, "로그인 여부와
+// 무관하게 열려있어야 하는 라우트"와 "특정 role만 허용" 요구사항은 애초에 양립할 수 없는
+// 서로 다른 라우트입니다 — 하나의 가드 체인으로 묶으려 하지 마세요.
 @Injectable()
 export class RolesGuard implements CanActivate {
   constructor(private readonly reflector: Reflector) {}

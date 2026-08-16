@@ -49,6 +49,34 @@ services:
       timeout: 3s
       retries: 5
 
+  # 2-1. DynamoDB Local (chat-bot-service의 세션/대화 이력 저장용 로컬 개발 대체재.
+  #      운영에서는 실제 AWS DynamoDB를 사용하며, 그때는 chat-bot-service의
+  #      DYNAMODB_ENDPOINT를 비우면 되고 코드 변경은 필요 없습니다.)
+  dynamodb-local:
+    image: amazon/dynamodb-local:latest
+    container_name: dynamodb-local
+    restart: always
+    ports:
+      - "8000:8000"
+    command: ["-jar", "DynamoDBLocal.jar", "-sharedDb", "-inMemory"]
+
+  # 2-2. DynamoDB 테이블 부트스트랩 (ChatSessions/ChatMessages). dynamodb-local은 완전히 빈
+  #      상태로 뜨기 때문에 1회 실행 후 종료됩니다. db-seed와 동일한 이미지(scripts/Dockerfile.seed)를
+  #      재사용하고 command만 다른 스크립트로 덮어씁니다. dynamodb-local에 healthcheck가 없어서
+  #      depends_on은 컨테이너 시작만 기다리고, 실제 연결 재시도는 스크립트 안에서 처리합니다.
+  #      매번 재실행해도 이미 존재하는 테이블은 건너뛰므로(멱등) docker compose up을 반복해도 안전합니다.
+  dynamodb-init:
+    build:
+      context: .
+      dockerfile: scripts/Dockerfile.seed
+    command: ["npx", "ts-node", "--transpile-only", "-r", "tsconfig-paths/register", "scripts/dynamodb-init.ts"]
+    environment:
+      - DYNAMODB_ENDPOINT=http://dynamodb-local:8000
+      - DYNAMODB_REGION=ap-northeast-2
+    depends_on:
+      - dynamodb-local
+    restart: "no"
+
   # 3. API Gateway
   api-gateway:
     build:
@@ -115,16 +143,6 @@ services:
       - NODE_ENV=development
 
 
-# rag-service명을 chatbot-service로 변경 후 수정해야 하는 부분
-  # rag-service:
-  #   build:
-  #     context: .
-  #     dockerfile: apps/rag-service/Dockerfile
-  #   ports:
-  #     - "3003:3003"
-  #   environment:
-  #     - NODE_ENV=development
-
 # DB 볼륨 사용 시 아래 주속 해제
 # volumes:
 #   mariadb_data:
@@ -152,5 +170,11 @@ services:
       dockerfile: apps/chat-bot-service/Dockerfile
     ports:
       - "3005:3005"
+    env_file:
+      - .env
     environment:
       - NODE_ENV=development
+      - DYNAMODB_ENDPOINT=http://dynamodb-local:8000
+      - DYNAMODB_REGION=ap-northeast-2
+    depends_on:
+      - dynamodb-local
