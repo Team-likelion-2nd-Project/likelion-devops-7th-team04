@@ -1,13 +1,16 @@
 import {
+  ConflictException,
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
   Inject,
   NotFoundException,
   OnModuleInit,
   Param,
   ParseIntPipe,
+  Put,
   Post,
   UseGuards,
 } from '@nestjs/common';
@@ -37,6 +40,7 @@ interface BookingService {
   getHello(data: {}): Observable<{ message: string }>;
   getBookings(data: {}): Observable<{ bookings: BookingDto[] }>;
   getBookingsByUserId(data: { userId: number }): Observable<{ bookings: BookingDto[] }>;
+  cancelBooking(data: { reservationId: number; userId: number }): Observable<BookingDto>;
   createBooking(data: {
     userId: number;
     roomId: number;
@@ -147,6 +151,44 @@ export class BookingController implements OnModuleInit {
   async getBookingsByUserId(@Param('userId', ParseIntPipe) userId: number): Promise<{ bookings: BookingDto[] }> {
     return firstValueFrom(this.bookingService.getBookingsByUserId({ userId }));
   }
+
+  /**
+   * PUT http://localhost:3000/api/bookings/{reservationId}
+   * 로그인한 사용자 본인의 예약을 취소합니다. status를 CANCELLED로 변경하고, 예약했던 기간의
+   * 예약 가능일(room_availabilities)을 복구합니다.
+   * TODO(환불): payment-service 연동 후 결제 환불 처리를 이 취소 흐름에 추가해야 한다.
+   */
+  @Put(':reservationId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiParam({ name: 'reservationId', description: '취소할 예약 PK ID', type: Number })
+  @ApiOperation({
+    summary: '예약 취소',
+    description:
+      '유효한 액세스 토큰을 가진 사용자 본인의 예약만 취소할 수 있습니다. gRPC를 통해 booking-service에 예약 상태 변경 및 예약 가능일 복구를 요청합니다.',
+  })
+  @ApiResponse({ status: 200, description: '예약 취소 성공' })
+  @ApiResponse({ status: 403, description: '본인의 예약이 아님' })
+  @ApiResponse({ status: 404, description: '존재하지 않는 예약' })
+  @ApiResponse({ status: 409, description: '이미 취소되었거나 완료된 예약' })
+  async cancelBooking(
+    @Param('reservationId', ParseIntPipe) reservationId: number,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<BookingDto> {
+    return firstValueFrom(
+      this.bookingService.cancelBooking({ reservationId, userId: user.userId }),
+    ).catch((err) => {
+      const message = err?.details || err?.message || '예약 취소에 실패했습니다.';
+      if (message.includes('본인의 예약만')) {
+        throw new ForbiddenException(message);
+      }
+      if (message.includes('이미 취소')) {
+        throw new ConflictException(message);
+      }
+      throw new NotFoundException(message);
+    });
+  }
+
 
   /**
    * POST http://localhost:3000/api/bookings

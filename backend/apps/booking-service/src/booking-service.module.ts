@@ -37,6 +37,7 @@ import { Reservation } from './entities/reservation.entity';
     // 3. 엔티티 리포지토리 등록
     TypeOrmModule.forFeature([Reservation]),
 
+    // 4. hotel-service gRPC 클라이언트 등록 (예약 취소 시 예약 가능일 복구 요청)
     // 4. hotel-service gRPC 클라이언트 등록 (예약 생성 시 객실 예약 가능 여부 검증 및 가격 합산)
     ClientsModule.register([
       {

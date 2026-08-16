@@ -101,6 +101,21 @@ export class HotelServiceController {
     );
   }
 
+  // proto의 HotelService / SetRoomAvailability 메서드와 매핑: 예약 가능일 갱신 (booking-service가 호출)
+  @GrpcMethod('HotelService', 'SetRoomAvailability')
+  async setRoomAvailability(data: {
+    roomId: number;
+    startDate: string;
+    endDate: string;
+    isAvailable: boolean;
+  }) {
+    return this.roomService.setRoomAvailability(
+      data.roomId,
+      data.startDate,
+      data.endDate,
+      data.isAvailable,
+    );
+  }
   // proto의 HotelService / ReserveRoomAvailability 메서드와 매핑: booking-service가 예약 생성 시 호출
   @GrpcMethod('HotelService', 'ReserveRoomAvailability')
   async reserveRoomAvailability(data: {

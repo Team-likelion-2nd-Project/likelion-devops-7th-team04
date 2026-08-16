@@ -25,6 +25,12 @@ export class BookingServiceController {
     return { bookings };
   }
 
+  // 본인 예약 취소
+  @GrpcMethod('BookingService', 'CancelBooking')
+  async cancelBooking(data: { reservationId: number; userId: number }) {
+    return this.bookingServiceService.cancelBooking(data.reservationId, data.userId);
+  }
+  
   // 신규 예약 생성
   @GrpcMethod('BookingService', 'CreateBooking')
   async createBooking(data: {
