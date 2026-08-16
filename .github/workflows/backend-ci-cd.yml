@@ -149,3 +149,50 @@ jobs:
         run: |
           echo "${{ matrix.service }}"
           echo "${{ steps.login-ecr.outputs.registry }}/${REPOSITORY}:${IMAGE_TAG}"
+
+  # 7개 이미지가 모두 push된 뒤 1회만 실행됩니다 (matrix job마다 실행하면 같은 파일을
+  # 동시에 고쳐서 충돌합니다). GitOps manifest는 이 워크플로우가 직접 develop에 push하지
+  # 않고 새 브랜치+PR만 만듭니다 — develop 브랜치가 GitHub에서 Protected이기 때문입니다.
+  update-gitops-manifest:
+    name: Update GitOps Manifest (PR)
+    needs: deploy
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/develop'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Update image tags in dev overlay
+        working-directory: gitops/backend/overlays/dev
+        run: |
+          REGISTRY="834922934330.dkr.ecr.us-east-1.amazonaws.com"
+          for repo in api-gateway auth-service booking-service chat-bot-service hotel-service payment-service user-service; do
+            yq -i "(.images[] | select(.name == \"${REGISTRY}/team04-dev-${repo}\")).newTag = \"${GITHUB_SHA}\"" kustomization.yaml
+          done
+          cat kustomization.yaml
+
+      - name: Create branch and commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          BRANCH="gitops-update-${GITHUB_SHA}"
+          git checkout -b "$BRANCH"
+          git add gitops/backend/overlays/dev/kustomization.yaml
+          git commit -m "chore(gitops): update backend image tags to ${GITHUB_SHA}"
+          git push origin "$BRANCH"
+
+      - name: Create Pull Request to develop
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh pr create \
+            --base develop \
+            --head "gitops-update-${GITHUB_SHA}" \
+            --title "chore(gitops): backend image tag -> ${GITHUB_SHA}" \
+            --body "Backend CD가 자동 생성한 PR입니다. 7개 backend ECR 이미지의 GitOps manifest(\`gitops/backend/overlays/dev/kustomization.yaml\`) tag를 \`${GITHUB_SHA}\`로 갱신합니다. 리뷰 후 merge하면 ArgoCD가 감지해 EKS에 반영합니다."

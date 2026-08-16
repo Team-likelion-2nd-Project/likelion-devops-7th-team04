@@ -1,0 +1,32 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      containers:
+        - name: payment-service
+          image: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-payment-service:dev
+          ports:
+            - containerPort: 3004
+          # payment-service는 현재 코드상 process.env를 전혀 읽지 않아(ConfigModule/TypeORM 미사용)
+          # NODE_ENV 외 추가 환경변수가 없습니다. 값을 추측해서 넣지 않았습니다.
+          env:
+            - name: NODE_ENV
+              value: "production"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

@@ -1,0 +1,88 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: auth-service
+  template:
+    metadata:
+      labels:
+        app: auth-service
+    spec:
+      containers:
+        - name: auth-service
+          image: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-auth-service:dev
+          ports:
+            - containerPort: 3006
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: USER_SERVICE_HOST
+              value: "user-service:3001"
+            - name: DB_PORT
+              value: "3306"
+            - name: REDIS_PORT
+              value: "6379"
+            - name: JWT_ACCESS_EXPIRES_IN
+              value: "15m"
+            - name: JWT_REFRESH_EXPIRES_IN
+              value: "7d"
+            # DB_HOST/REDIS_HOST는 실제 EC2 MariaDB/ElastiCache 엔드포인트(런타임에만 알 수 있음),
+            # 나머지는 실제 시크릿 값이라 이 저장소에 하드코딩하지 않고 backend-secrets Secret을
+            # 클러스터에 out-of-band로 미리 생성해두었다고 가정하고 참조만 합니다.
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: DB_HOST
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: DB_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: DB_PASSWORD
+            - name: DB_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: DB_DATABASE
+            - name: REDIS_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: REDIS_HOST
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: REDIS_PASSWORD
+            - name: REDIS_TLS
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: REDIS_TLS
+            - name: JWT_ACCESS_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: JWT_ACCESS_SECRET
+            - name: JWT_REFRESH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: JWT_REFRESH_SECRET
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
