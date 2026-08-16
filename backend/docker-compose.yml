@@ -9,6 +9,14 @@ services:
     restart: always
     env_file:
       - .env
+    # mariadb 공식 이미지 엔트리포인트는 최초 초기화 시 MARIADB_ROOT_PASSWORD(또는
+    # MARIADB_ALLOW_EMPTY_ROOT_PASSWORD 등) 중 하나가 없으면 즉시 종료됩니다. env_file로
+    # 주입되는 DB_*는 TypeORM(앱)이 접속할 때 쓰는 이름이라 이 이미지가 찾는 이름이
+    # 아니므로, 아래에서 명시적으로 매핑해줍니다. 볼륨을 안 쓰기 때문에(아래 "볼륨 사용하지
+    # 않았습니다" 주석 참고) 매 기동마다 이 초기화가 처음부터 다시 성공해야 합니다.
+    environment:
+      - MARIADB_ROOT_PASSWORD=${DB_PASSWORD}
+      - MARIADB_DATABASE=${DB_DATABASE}
     ports:
       - "3306:3306"
     healthcheck:

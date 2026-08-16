@@ -24,5 +24,5 @@ async def health() -> dict[str, str]:
 
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest) -> ChatResponse:
-    reply = await generate_reply(request.message, request.history)
+    reply = await generate_reply(request.message, request.history, request.context)
     return ChatResponse(reply=reply)

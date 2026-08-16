@@ -4,10 +4,13 @@ This is the "LLM Service" from CLAUDE.md's Chatbot / AI subsystem section —
 it orchestrates one chat turn (prompt assembly, optional retrieved context,
 the Ollama call) behind the HTTP contract in main.py.
 
-RAG retrieval (S3 Vectors / Neptune) is not implemented yet.
-`_retrieve_context` is the extension point: swap its body for a real
-retriever call and the returned context flows straight into the prompt
-without any change to the HTTP contract.
+RAG retrieval (S3 Vectors / Neptune) is not implemented yet. Per the
+intended architecture, retrieval is n8n's job — its workflow (see
+langchain_rag/n8n/) does the lookup and passes the result in as the
+`context` field on POST /chat. `_retrieve_context` below is only a fallback
+for when this service is called directly (curl, no n8n in front) so it stays
+independently testable; swap its body for a real retriever call if this
+service is ever meant to do its own retrieval too.
 """
 
 import os
@@ -54,9 +57,13 @@ def _to_langchain_messages(history: list[ChatMessage]) -> list[HumanMessage | AI
     return converted
 
 
-async def generate_reply(message: str, history: list[ChatMessage]) -> str:
-    """Orchestrate one turn: (future) retrieve context, then call the LLM."""
-    context = _retrieve_context(message)
+async def generate_reply(
+    message: str, history: list[ChatMessage], context: str | None = None
+) -> str:
+    """Orchestrate one turn: use the caller-supplied context if given, else
+    fall back to the local retrieval stub, then call the LLM."""
+    if context is None:
+        context = _retrieve_context(message)
     prompt_message = message if context is None else f"{message}\n\nContext:\n{context}"
 
     result = await _chain.ainvoke(
