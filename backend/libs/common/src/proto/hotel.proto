@@ -27,6 +27,12 @@ service HotelService {
 
   // 특정 객실의 지정 기간 예약 가능 여부를 조회합니다. (hotelId/roomId 조합이 존재하지 않으면 에러)
   rpc GetRoomAvailability (GetRoomAvailabilityRequest) returns (RoomAvailabilityResponse);
+
+  // booking-service 전용: 예약 생성 시 호출됩니다. roomId의 지정 기간(startDate~endDate, 둘 다 포함)에
+  // room_availabilities row가 하루도 빠짐없이 존재하고 전부 isAvailable=true인지 검증한 뒤, 원자적으로
+  // (같은 트랜잭션 내에서) 전부 isAvailable=false로 전환하고 가격 합계를 반환합니다.
+  // 하루라도 row가 없거나 이미 isAvailable=false면 예약을 막기 위해 RpcException을 던집니다.
+  rpc ReserveRoomAvailability (ReserveRoomAvailabilityRequest) returns (ReserveRoomAvailabilityResponse);
 }
 
 message Empty {}
@@ -143,4 +149,15 @@ message RoomAvailabilityResponse {
   string endDate = 4;
   bool isAvailable = 5;
   repeated RoomAvailabilityDay availabilities = 6;
+}
+
+message ReserveRoomAvailabilityRequest {
+  int32 roomId = 1;
+  string startDate = 2;
+  string endDate = 3;
+}
+
+message ReserveRoomAvailabilityResponse {
+  // 예약 불가로 전환된 기간(startDate~endDate, 둘 다 포함)의 일별 price 합계
+  int32 totalAmount = 1;
 }

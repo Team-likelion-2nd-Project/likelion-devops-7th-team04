@@ -24,4 +24,17 @@ export class BookingServiceController {
     const bookings = await this.bookingServiceService.getBookingsByUserId(data.userId);
     return { bookings };
   }
+
+  // 신규 예약 생성
+  @GrpcMethod('BookingService', 'CreateBooking')
+  async createBooking(data: {
+    userId: number;
+    roomId: number;
+    checkInDate: string;
+    checkOutDate: string;
+    hasIndoorPool: boolean;
+    hasLounge: boolean;
+  }) {
+    return this.bookingServiceService.createBooking(data);
+  }
 }
