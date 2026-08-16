@@ -17,3 +17,8 @@ output "redis_security_group_id" {
   description = "Security Group ID for Redis"
   value       = aws_security_group.redis.id
 }
+
+output "github_runner_security_group_id" {
+  description = "Security Group ID for the self-hosted GitHub Actions runner"
+  value       = aws_security_group.github_runner.id
+}
