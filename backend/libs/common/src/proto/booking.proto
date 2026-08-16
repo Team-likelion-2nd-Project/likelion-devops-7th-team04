@@ -26,6 +26,7 @@ message GetBookingsByUserIdRequest {
   int32 userId = 1;
 }
 
+<<<<<<< HEAD
 message CreateBookingRequest {
   int32 userId = 1;
   int32 roomId = 2;
@@ -35,6 +36,8 @@ message CreateBookingRequest {
   bool hasLounge = 6;
 }
 
+=======
+>>>>>>> origin/develop
 message Booking {
   int32 reservationId = 1;
   int32 userId = 2;

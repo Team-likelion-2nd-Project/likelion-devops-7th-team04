@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { ApiGatewayController } from './api-gateway.controller';
 import { ApiGatewayService } from './api-gateway.service';
 import { AuthModule } from './auth/auth.module';
@@ -13,6 +15,15 @@ import { BookingModule } from './booking/booking.module';
 
 @Module({
   imports: [
+    // 게이트웨이 전역 rate limit. 기본값은 기존 라우트에 영향을 주지 않도록 넉넉하게 잡고,
+    // 익명 호출을 허용하는 라우트(예: 챗봇 메시지 전송)에서는 @Throttle()로 더 타이트하게 덮어씁니다.
+    ThrottlerModule.forRoot([
+      {
+        name: 'default',
+        ttl: 60_000,
+        limit: 100,
+      },
+    ]),
     AuthModule,
     UserModule,
     HotelModule,
@@ -21,6 +32,9 @@ import { BookingModule } from './booking/booking.module';
     BookingModule,
   ],
   controllers: [ApiGatewayController],
-  providers: [ApiGatewayService],
+  providers: [
+    ApiGatewayService,
+    { provide: APP_GUARD, useClass: ThrottlerGuard },
+  ],
 })
 export class ApiGatewayModule {}
