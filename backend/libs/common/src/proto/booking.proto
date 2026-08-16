@@ -4,10 +4,36 @@ package booking;
 
 service BookingService {
   rpc GetHello (Empty) returns (HelloResponse);
+
+  // 관리자 전용: 전체 예약 목록 조회 (권한 검증은 api-gateway에서 수행)
+  rpc GetBookings (Empty) returns (BookingListResponse);
+
+  // 특정 유저의 예약 목록 조회. /me(본인 조회)와 /:userId(관리자 조회) 양쪽에서 재사용된다.
+  rpc GetBookingsByUserId (GetBookingsByUserIdRequest) returns (BookingListResponse);
 }
 
 message Empty {}
 
 message HelloResponse {
   string message = 1;
+}
+
+message GetBookingsByUserIdRequest {
+  int32 userId = 1;
+}
+
+message Booking {
+  int32 reservationId = 1;
+  int32 userId = 2;
+  int32 roomId = 3;
+  string checkInDate = 4;
+  string checkOutDate = 5;
+  bool hasIndoorPool = 6;
+  bool hasLounge = 7;
+  int32 totalAmount = 8;
+  string status = 9;
+}
+
+message BookingListResponse {
+  repeated Booking bookings = 1;
 }

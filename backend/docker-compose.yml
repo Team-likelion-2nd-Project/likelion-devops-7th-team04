@@ -134,6 +134,8 @@ services:
       dockerfile: apps/booking-service/Dockerfile
     ports:
       - "3003:3003"
+    env_file:
+      - .env
     environment:
       - NODE_ENV=development
 
