@@ -244,3 +244,21 @@ module "eks" {
   gpu_min_size     = 0
   gpu_max_size     = 1
 }
+
+# =========================
+# DEV-146 GitHub Runner Module
+# =========================
+# 계정 SCP가 GitHub Actions OIDC(sts:AssumeRoleWithWebIdentity)를 막고 있어
+# GitHub-hosted runner로는 backend_cd role을 assume할 수 없었다. self-hosted runner를
+# EC2에 띄우고 Instance Profile로 동일한 ECR push 권한을 직접 부여해 우회한다.
+
+module "runner" {
+  source = "../../modules/runner"
+
+  environment                     = "dev"
+  private_app_subnet_ids          = module.network.private_app_subnet_ids
+  github_runner_security_group_id = module.security.github_runner_security_group_id
+  iam_instance_profile_name       = module.iam.github_runner_instance_profile_name
+
+  instance_type = "t3.medium"
+}
