@@ -13,17 +13,11 @@ on:
     paths:
       - "backend/**"
       - ".github/workflows/backend-ci-cd.yml"
-  # 수동 CD 트리거: MFA 코드 입력받기 (frontend-ci-cd.yml과 동일한 패턴)
+  # 수동 CD 트리거
   workflow_dispatch:
-    inputs:
-      mfa_code:
-        description: "AWS MFA 6-digit Code (관리자 인증)"
-        required: true
-        type: string
 
 permissions:
   contents: read
-  id-token: write
 
 env:
   AWS_REGION: us-east-1
@@ -78,7 +72,10 @@ jobs:
     name: Build and Push Backend Images
     needs: build-and-test
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/develop'
-    runs-on: ubuntu-latest
+    # self-hosted EC2 runner: EC2 Instance Profile로 ECR push 권한을 바로 받으므로
+    # OIDC/MFA 인증이 필요 없습니다 (계정 SCP가 OIDC AssumeRoleWithWebIdentity를 막고
+    # 있어 GitHub-hosted runner + OIDC 방식은 사용할 수 없었습니다).
+    runs-on: [self-hosted, backend-cd]
 
     strategy:
       fail-fast: false
@@ -96,33 +93,7 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 1. AWS OIDC 1차 기본 인증 (frontend-ci-cd.yml과 동일한 구조)
-      - name: Configure AWS credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ vars.AWS_BACKEND_CD_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
-
-      # 2. MFA 코드로 AWS STS 임시 세션 토큰 발급 (frontend-ci-cd.yml과 동일)
-      - name: Get AWS STS Session Token using MFA
-        id: mfa_session
-        run: |
-          MFA_CODE="${{ inputs.mfa_code }}"
-          MFA_ARN="${{ secrets.AWS_MFA_DEVICE_ARN }}"
-
-          echo "Requesting STS Session Token with MFA..."
-
-          CREDENTIALS=$(aws sts get-session-token \
-            --serial-number "$MFA_ARN" \
-            --token-code "$MFA_CODE" \
-            --duration-seconds 900 \
-            --output json)
-
-          echo "AWS_ACCESS_KEY_ID=$(echo $CREDENTIALS | jq -r '.Credentials.AccessKeyId')" >> $GITHUB_ENV
-          echo "AWS_SECRET_ACCESS_KEY=$(echo $CREDENTIALS | jq -r '.Credentials.SecretAccessKey')" >> $GITHUB_ENV
-          echo "AWS_SESSION_TOKEN=$(echo $CREDENTIALS | jq -r '.Credentials.SessionToken')" >> $GITHUB_ENV
-
-      # 3. MFA 세션 토큰으로 ECR 로그인 (amazon-ecr-login은 환경변수의 AWS_* 자격증명을 그대로 사용)
+      # EC2 Instance Profile 자격증명을 자동으로 사용합니다 (별도 인증 스텝 불필요).
       - name: Login to Amazon ECR
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
