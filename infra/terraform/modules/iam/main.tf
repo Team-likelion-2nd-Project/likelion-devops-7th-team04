@@ -399,6 +399,55 @@ resource "aws_iam_role_policy_attachment" "backend_cd_ecr" {
   role       = aws_iam_role.backend_cd.name
   policy_arn = aws_iam_policy.backend_cd_ecr.arn
 }
+
+# =========================
+# GitHub Runner Role (self-hosted EC2)
+# =========================
+# 계정 SCP가 OIDC(sts:AssumeRoleWithWebIdentity)를 막고 있어, GitHub-hosted runner +
+# backend_cd(OIDC) role 조합을 쓸 수 없다. 대신 EC2 Instance Profile로 동일한 ECR push
+# 권한(backend_cd_ecr 정책 재사용)을 self-hosted runner에 직접 부여한다.
+
+resource "aws_iam_role" "github_runner" {
+  name = "${var.project_name}-github-runner-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Principal = {
+          Service = "ec2.amazonaws.com"
+        }
+
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.project_name}-github-runner-role"
+  }
+}
+
+# SSH 없이 SSM Session Manager로 접속하기 위함 (cloudwatch_agent role과 동일한 패턴)
+resource "aws_iam_role_policy_attachment" "github_runner_ssm" {
+  role       = aws_iam_role.github_runner.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore"
+}
+
+# backend_cd_ecr 정책을 그대로 재사용 (동일한 ECR push 권한이 필요하므로 정책 중복 생성 안 함)
+resource "aws_iam_role_policy_attachment" "github_runner_ecr" {
+  role       = aws_iam_role.github_runner.name
+  policy_arn = aws_iam_policy.backend_cd_ecr.arn
+}
+
+resource "aws_iam_instance_profile" "github_runner" {
+  name = "${var.project_name}-github-runner-profile"
+  role = aws_iam_role.github_runner.name
+}
+
 # =========================
 # VPC CNI Role
 # =========================

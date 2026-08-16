@@ -45,3 +45,11 @@ output "backend_cd_role_arn" {
   description = "ARN of the Backend CD IAM role"
   value       = aws_iam_role.backend_cd.arn
 }
+output "github_runner_role_arn" {
+  description = "ARN of the self-hosted GitHub Actions runner IAM role"
+  value       = aws_iam_role.github_runner.arn
+}
+output "github_runner_instance_profile_name" {
+  description = "Name of the self-hosted GitHub Actions runner EC2 instance profile"
+  value       = aws_iam_instance_profile.github_runner.name
+}
