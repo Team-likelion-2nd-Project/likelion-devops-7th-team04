@@ -31,10 +31,12 @@ oldest first.
 
 ```bash
 docker compose -f ../docker-compose.yml up --build   # or: cd .. && docker compose up --build
-curl localhost:8000/health
-curl localhost:8000/chat -X POST -H 'Content-Type: application/json' \
+curl localhost:8001/health
+curl localhost:8001/chat -X POST -H 'Content-Type: application/json' \
     -d '{"message": "안녕하세요, 예약 가능한 방 있나요?", "history": []}'
 ```
+
+(Host port `8001`, not `8000` — `backend/docker-compose.yml`'s `dynamodb-local` already claims host `8000`, and the two Compose projects can run side by side. Internal/container-to-container calls still use `llm-service:8000`.)
 
 This builds both `../ollama` (the model-baked-in Ollama image) and this
 service, and wires them together. First build takes a while (pulling the
