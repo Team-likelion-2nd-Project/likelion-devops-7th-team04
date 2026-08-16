@@ -36,3 +36,13 @@ variable "vector_index_arn" {
   description = "ARN of the S3 Vectors index used by the chatbot"
   type        = string
 }
+variable "backend_github_branch" {
+  description = "GitHub branch allowed to assume the Backend CD role"
+  type        = string
+  default     = "develop"
+}
+
+variable "backend_ecr_repository_arns" {
+  description = "Map of ECR repository ARNs used by Backend CD"
+  type        = map(string)
+}

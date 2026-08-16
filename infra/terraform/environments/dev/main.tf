@@ -161,9 +161,15 @@ module "iam" {
   github_repo   = "likelion-devops-7th-team04"
   github_branch = "infra"
 
+  # Backend CD는 develop 브랜치에서 수동 실행
+  backend_github_branch = "develop"
+
   frontend_bucket_arn         = module.s3_frontend.frontend_bucket_arn
   cloudfront_distribution_arn = module.s3_frontend.cloudfront_distribution_arn
   vector_index_arn            = module.ai_data.vector_index_arn
+
+  # DEV-46 ECR Repository와 Backend CD IAM 연결
+  backend_ecr_repository_arns = module.ecr.repository_arns
 }
 
 # =========================
