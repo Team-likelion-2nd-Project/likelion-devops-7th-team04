@@ -1,0 +1,28 @@
+# Local test harness for the Ollama node + LLM Service pair. Not related to
+# backend/docker-compose.yml (the NestJS/gRPC mesh) — nothing there calls
+# this yet, since n8n (the intended caller, per CLAUDE.md) doesn't exist yet.
+#
+# Usage:
+#   docker compose -f langchain_rag/docker-compose.yml up --build
+#   curl localhost:8000/chat -X POST -H 'Content-Type: application/json' \
+#       -d '{"message": "안녕하세요, 예약 가능한 방 있나요?", "history": []}'
+
+services:
+  ollama:
+    build:
+      context: ./ollama
+      args:
+        OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b-instruct}
+    ports:
+      - "11434:11434"
+
+  llm-service:
+    build:
+      context: ./llm-service
+    environment:
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-qwen2.5:7b-instruct}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - ollama
