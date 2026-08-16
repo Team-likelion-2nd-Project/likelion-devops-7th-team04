@@ -31,6 +31,9 @@ export class Reservation {
   @Column({ name: 'check_out_date', type: 'date' })
   checkOutDate!: string;
 
+  @Column({ name: 'guest_count' })
+  guestCount!: number;
+
   @Column({ name: 'has_indoor_pool', default: false })
   hasIndoorPool!: boolean;
 

@@ -33,6 +33,7 @@ message CreateBookingRequest {
   string checkOutDate = 4;
   bool hasIndoorPool = 5;
   bool hasLounge = 6;
+  int32 guestCount = 7;
 }
 
 message Booking {
@@ -45,6 +46,7 @@ message Booking {
   bool hasLounge = 7;
   int32 totalAmount = 8;
   string status = 9;
+  int32 guestCount = 10;
 }
 
 message BookingListResponse {

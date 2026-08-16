@@ -25,6 +25,7 @@ interface BookingDto {
   roomId: number;
   checkInDate: string;
   checkOutDate: string;
+  guestCount: number;
   hasIndoorPool: boolean;
   hasLounge: boolean;
   totalAmount: number;
@@ -41,6 +42,7 @@ interface BookingService {
     roomId: number;
     checkInDate: string;
     checkOutDate: string;
+    guestCount: number;
     hasIndoorPool?: boolean;
     hasLounge?: boolean;
   }): Observable<BookingDto>;

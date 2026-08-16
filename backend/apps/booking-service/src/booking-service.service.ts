@@ -26,6 +26,12 @@ function addDays(dateStr: string, offset: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+// TODO: 편의시설(인도어풀/라운지) 요금을 지금은 상수로 하드코딩해서 계산한다. 
+// 편의시설 종류가 늘어나거나 가격이 달라져야 한다면, 이 상수를 지우고 별도의 편의시설 전용 DB
+// 테이블(예: facilities/reservation_facilities)을 만들어 가격을 조회하도록 리팩터링해야 한다.
+const INDOOR_POOL_SURCHARGE = 30000;
+const LOUNGE_SURCHARGE = 50000;
+
 // proto의 Booking 메시지와 1:1 대응되는 응답 형태
 export interface BookingGrpcResponse {
   reservationId: number;
@@ -33,6 +39,7 @@ export interface BookingGrpcResponse {
   roomId: number;
   checkInDate: string;
   checkOutDate: string;
+  guestCount: number;
   hasIndoorPool: boolean;
   hasLounge: boolean;
   totalAmount: number;
@@ -67,6 +74,7 @@ export class BookingServiceService implements OnModuleInit {
     roomId: number;
     checkInDate: string;
     checkOutDate: string;
+    guestCount: number;
     hasIndoorPool: boolean;
     hasLounge: boolean;
   }): Promise<BookingGrpcResponse> {
@@ -76,7 +84,7 @@ export class BookingServiceService implements OnModuleInit {
 
     const lastNightDate = addDays(data.checkOutDate, -1);
 
-    const { totalAmount } = await firstValueFrom(
+    const { totalAmount: roomAmount } = await firstValueFrom(
       this.hotelService.reserveRoomAvailability({
         roomId: data.roomId,
         startDate: data.checkInDate,
@@ -88,11 +96,21 @@ export class BookingServiceService implements OnModuleInit {
       );
     });
 
+    // 편의시설 요금 가산 (하드코딩, 상단 TODO 참고)
+    let totalAmount = roomAmount;
+    if (data.hasIndoorPool) {
+      totalAmount += INDOOR_POOL_SURCHARGE;
+    }
+    if (data.hasLounge) {
+      totalAmount += LOUNGE_SURCHARGE;
+    }
+
     const reservation = this.reservationRepository.create({
       userId: data.userId,
       roomId: data.roomId,
       checkInDate: data.checkInDate,
       checkOutDate: data.checkOutDate,
+      guestCount: data.guestCount,
       hasIndoorPool: data.hasIndoorPool,
       hasLounge: data.hasLounge,
       totalAmount,
@@ -127,6 +145,7 @@ export class BookingServiceService implements OnModuleInit {
       roomId: reservation.roomId,
       checkInDate: reservation.checkInDate,
       checkOutDate: reservation.checkOutDate,
+      guestCount: reservation.guestCount,
       hasIndoorPool: reservation.hasIndoorPool,
       hasLounge: reservation.hasLounge,
       totalAmount: reservation.totalAmount,

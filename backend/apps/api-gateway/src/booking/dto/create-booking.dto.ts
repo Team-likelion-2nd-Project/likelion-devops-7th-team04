@@ -24,6 +24,14 @@ export class CreateBookingDto {
   checkOutDate: string;
 
   /**
+   * 투숙 인원수
+   * @example 2
+   */
+  @IsInt()
+  @Min(1)
+  guestCount: number;
+
+  /**
    * 실내 수영장 이용 옵션 추가 여부
    * @example false
    */

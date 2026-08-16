@@ -32,6 +32,7 @@ export class BookingServiceController {
     roomId: number;
     checkInDate: string;
     checkOutDate: string;
+    guestCount: number;
     hasIndoorPool: boolean;
     hasLounge: boolean;
   }) {
