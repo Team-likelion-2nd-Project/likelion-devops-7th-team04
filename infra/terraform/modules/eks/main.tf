@@ -22,34 +22,30 @@ resource "aws_eks_cluster" "main" {
 }
 
 # =========================
-# CPU Managed Node Group
+# CPU Fargate Profile
 # =========================
+# EC2 관리형 노드 그룹 대신 Fargate로 전환 (pod 수 증가로 인한 노드 수용량 한계 대응).
+# kube-system/argocd/backend 네임스페이스의 pod가 전부 여기서 스케줄됩니다.
+# chat-bot-service도 backend 네임스페이스로 통합되어 별도 selector가 필요 없습니다.
 
-resource "aws_eks_node_group" "cpu" {
-  cluster_name    = aws_eks_cluster.main.name
-  node_group_name = "${var.project_name}-${var.environment}-cpu-nodes"
-  node_role_arn   = var.node_role_arn
-  subnet_ids      = var.subnet_ids
+resource "aws_eks_fargate_profile" "cpu" {
+  cluster_name           = aws_eks_cluster.main.name
+  fargate_profile_name   = "${var.project_name}-${var.environment}-cpu-fargate"
+  pod_execution_role_arn = var.fargate_pod_execution_role_arn
+  subnet_ids             = var.subnet_ids
 
-  instance_types = var.node_instance_types
-  capacity_type  = "ON_DEMAND"
-
-  scaling_config {
-    desired_size = var.desired_size
-    min_size     = var.min_size
-    max_size     = var.max_size
+  selector {
+    namespace = "kube-system"
   }
-
-  update_config {
-    max_unavailable = 1
+  selector {
+    namespace = "argocd"
   }
-
-  labels = {
-    workload = "backend"
+  selector {
+    namespace = "backend"
   }
 
   tags = {
-    Name        = "${var.project_name}-${var.environment}-cpu-nodes"
+    Name        = "${var.project_name}-${var.environment}-cpu-fargate"
     Environment = var.environment
     Project     = var.project_name
   }
@@ -117,7 +113,7 @@ resource "aws_eks_addon" "coredns" {
   resolve_conflicts_on_update = "PRESERVE"
 
   depends_on = [
-    aws_eks_node_group.cpu
+    aws_eks_fargate_profile.cpu
   ]
 }
 

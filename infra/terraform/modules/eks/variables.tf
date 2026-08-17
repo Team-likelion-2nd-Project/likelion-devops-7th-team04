@@ -29,29 +29,11 @@ variable "cluster_version" {
   default     = "1.35"
 }
 
-variable "node_instance_types" {
-  description = "EC2 instance types used by the managed node group"
-  type        = list(string)
-  default     = ["t3.medium"]
+variable "fargate_pod_execution_role_arn" {
+  description = "IAM role ARN used by the EKS Fargate pod execution role (CPU workloads)"
+  type        = string
 }
 
-variable "desired_size" {
-  description = "Desired number of worker nodes"
-  type        = number
-  default     = 1
-}
-
-variable "min_size" {
-  description = "Minimum number of worker nodes"
-  type        = number
-  default     = 1
-}
-
-variable "max_size" {
-  description = "Maximum number of worker nodes"
-  type        = number
-  default     = 2
-}
 variable "gpu_instance_types" {
   description = "EC2 GPU instance types used by the chatbot node group"
   type        = list(string)

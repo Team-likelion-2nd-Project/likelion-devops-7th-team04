@@ -121,6 +121,40 @@ resource "aws_iam_instance_profile" "cloudwatch_agent" {
 
 
 # =========================
+# EKS Fargate Pod Execution Role
+# =========================
+
+resource "aws_iam_role" "fargate_pod_execution" {
+  name = "${var.project_name}-fargate-pod-execution-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Principal = {
+          Service = "eks-fargate-pods.amazonaws.com"
+        }
+
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.project_name}-fargate-pod-execution-role"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "fargate_pod_execution" {
+  role       = aws_iam_role.fargate_pod_execution.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy"
+}
+
+
+# =========================
 # AWS Load Balancer Controller Role
 # =========================
 
