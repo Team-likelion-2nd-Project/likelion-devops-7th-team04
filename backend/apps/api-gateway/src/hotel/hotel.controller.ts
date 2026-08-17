@@ -58,6 +58,12 @@ interface RoomDto {
   images: RoomImageDto[];
 }
 
+// proto의 RoomSearchResult 메시지와 1:1 대응되는 응답 형태
+interface RoomSearchResultDto {
+  room: RoomDto;
+  minPrice: number;
+}
+
 // proto의 RoomAvailabilityDay 메시지와 1:1 대응되는 응답 형태
 interface RoomAvailabilityDayDto {
   date: string;
@@ -93,7 +99,7 @@ interface HotelService {
     checkIn: string;
     checkOut: string;
     guests: number;
-  }): Observable<{ rooms: RoomDto[] }>;
+  }): Observable<{ results: RoomSearchResultDto[] }>;
   getRoom(data: { hotelId: number; roomId: number }): Observable<RoomDto>;
   createRoom(data: {
     hotelId: number;
@@ -268,7 +274,8 @@ export class HotelController implements OnModuleInit {
     summary: '예약 가능 객실 검색',
     description:
       '호텔 PK ID와 체크인/체크아웃 날짜, 인원수를 바탕으로 gRPC를 통해 hotel-service에서 최대 인원(capacity)이 ' +
-      'guests 이상이고 지정 기간(checkIn~체크아웃 전날) 동안 예약 가능한 객실 목록을 조회합니다.',
+      'guests 이상이고 지정 기간(checkIn~체크아웃 전날) 동안 예약 가능한 객실 목록을, 구간 중 최저 1박 요금(minPrice)과 ' +
+      '함께 조회합니다.',
   })
   @ApiParam({
     name: 'hotelId',
@@ -282,7 +289,7 @@ export class HotelController implements OnModuleInit {
   async searchRooms(
     @Param('hotelId', ParseIntPipe) hotelId: number,
     @Query() query: RoomSearchQueryDto,
-  ): Promise<{ rooms: RoomDto[] }> {
+  ): Promise<{ results: RoomSearchResultDto[] }> {
     if (query.checkIn >= query.checkOut) {
       throw new BadRequestException('checkOut은 checkIn보다 이후여야 합니다.');
     }

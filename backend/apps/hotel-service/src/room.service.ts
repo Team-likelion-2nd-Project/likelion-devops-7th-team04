@@ -39,6 +39,12 @@ export interface RoomGrpcResponse {
   images: RoomImageGrpcResponse[];
 }
 
+// proto의 RoomSearchResult 메시지와 1:1 대응되는 응답 형태
+export interface RoomSearchResultGrpcResponse {
+  room: RoomGrpcResponse;
+  minPrice: number;
+}
+
 // proto의 RoomAvailabilityResponse 메시지와 1:1 대응되는 응답 형태
 export interface RoomAvailabilityGrpcResponse {
   hotelId: number;
@@ -140,12 +146,13 @@ export class RoomService {
   // capacity가 guests 이상인 객실 중, checkIn~(checkOut 하루 전)까지 모든 날짜의 room_availabilities
   // 행이 하루도 빠짐없이 존재하고 전부 isAvailable=true인 객실만 반환한다 (checkOut 당일은 다음 손님의
   // 체크인일이므로 검사 대상에서 제외 — reserveRoomAvailability/createBooking과 동일한 규칙).
+  // 이 검증 과정에서 이미 조회한 row.price로 minPrice(구간 중 최저 1박 요금)도 추가 쿼리 없이 함께 계산한다.
   async searchAvailableRooms(
     hotelId: number,
     checkIn: string,
     checkOut: string,
     guests: number,
-  ): Promise<RoomGrpcResponse[]> {
+  ): Promise<RoomSearchResultGrpcResponse[]> {
     const hotel = await this.hotelRepository.findOne({ where: { hotelId } });
     if (!hotel) {
       throw new RpcException('존재하지 않는 호텔입니다.');
@@ -172,11 +179,16 @@ export class RoomService {
       },
     });
     const availableNightsByRoomId = new Map<number, number>();
+    const minPriceByRoomId = new Map<number, number>();
     for (const row of availableRows) {
       availableNightsByRoomId.set(
         row.roomId,
         (availableNightsByRoomId.get(row.roomId) ?? 0) + 1,
       );
+      const currentMin = minPriceByRoomId.get(row.roomId);
+      if (currentMin === undefined || row.price < currentMin) {
+        minPriceByRoomId.set(row.roomId, row.price);
+      }
     }
 
     const availableRooms = candidates.filter(
@@ -197,9 +209,10 @@ export class RoomService {
       imagesByRoomId.set(image.roomId, bucket);
     }
 
-    return availableRooms.map((room) =>
-      this.toGrpcResponse(room, imagesByRoomId.get(room.roomId) ?? []),
-    );
+    return availableRooms.map((room) => ({
+      room: this.toGrpcResponse(room, imagesByRoomId.get(room.roomId) ?? []),
+      minPrice: minPriceByRoomId.get(room.roomId) ?? 0,
+    }));
   }
 
   // 기존 객실 정보 수정. hotelId/roomId 조합이 존재하지 않으면 RpcException.

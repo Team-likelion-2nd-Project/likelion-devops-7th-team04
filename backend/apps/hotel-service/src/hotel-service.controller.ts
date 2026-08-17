@@ -62,13 +62,13 @@ export class HotelServiceController {
     checkOut: string;
     guests: number;
   }) {
-    const rooms = await this.roomService.searchAvailableRooms(
+    const results = await this.roomService.searchAvailableRooms(
       data.hotelId,
       data.checkIn,
       data.checkOut,
       data.guests,
     );
-    return { rooms };
+    return { results };
   }
 
   // proto의 HotelService / CreateRoom 메서드와 매핑: 신규 객실 등록 (관리자 전용, api-gateway에서 권한 검증)

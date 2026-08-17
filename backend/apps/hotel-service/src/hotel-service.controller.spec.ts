@@ -266,9 +266,9 @@ describe('HotelServiceController', () => {
       hotelRepository.findOne.mockResolvedValue(hotel);
       roomRepository.find.mockResolvedValue([roomA, roomB]);
       roomAvailabilityRepository.find.mockResolvedValue([
-        { roomId: 1, date: '2026-09-01', isAvailable: true },
-        { roomId: 1, date: '2026-09-02', isAvailable: true },
-        { roomId: 2, date: '2026-09-01', isAvailable: true },
+        { roomId: 1, date: '2026-09-01', price: 100000, isAvailable: true },
+        { roomId: 1, date: '2026-09-02', price: 90000, isAvailable: true },
+        { roomId: 2, date: '2026-09-01', price: 150000, isAvailable: true },
         // roomId 2는 09-02 행이 없어 구간을 전부 채우지 못함 -> 제외
       ]);
 
@@ -282,8 +282,11 @@ describe('HotelServiceController', () => {
       expect(roomRepository.find).toHaveBeenCalledWith({
         where: { hotelId: 1, capacity: MoreThanOrEqual(2) },
       });
-      expect(result.rooms).toEqual([
-        expect.objectContaining({ roomId: 1, capacity: 2 }),
+      expect(result.results).toEqual([
+        {
+          room: expect.objectContaining({ roomId: 1, capacity: 2 }),
+          minPrice: 90000,
+        },
       ]);
     });
 
@@ -312,7 +315,7 @@ describe('HotelServiceController', () => {
         guests: 10,
       });
 
-      expect(result.rooms).toEqual([]);
+      expect(result.results).toEqual([]);
       expect(roomAvailabilityRepository.find).not.toHaveBeenCalled();
     });
   });

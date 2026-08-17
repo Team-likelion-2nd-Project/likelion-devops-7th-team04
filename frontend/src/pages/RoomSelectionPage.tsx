@@ -1,24 +1,17 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { HOTELS } from '../data/hotels'
-import { fetchRoomAvailability, fetchRooms, toImageDataUrl } from '../api/hotels'
-import type { Room } from '../api/hotels'
+import { searchRooms, toImageDataUrl } from '../api/hotels'
+import type { Room, RoomSearchResult } from '../api/hotels'
 import ReservationSteps from '../components/reservation/ReservationSteps'
 import RoomDetailModal from '../components/reservation/RoomDetailModal'
 import { sumGuests } from '../components/reservation/guestTypes'
 import { CalendarIcon, PersonIcon, PinIcon, RefreshIcon } from '../components/reservation/icons'
-import { addDays, diffDays, formatDateISO, formatDateWithWeekday } from '../utils/date'
+import { diffDays, formatDateISO, formatDateWithWeekday } from '../utils/date'
 import { parseReservationSearchParams, toReservationSearchParams } from '../utils/reservationQuery'
 import './RoomSelectionPage.css'
 
 type ListStatus = 'loading' | 'success' | 'error'
-
-interface RoomAvailabilityInfo {
-  status: ListStatus
-  isAvailable?: boolean
-  /** 조회 구간 중 가장 저렴한 1박 요금 */
-  minPrice?: number | null
-}
 
 type SortOrder = 'price-asc' | 'price-desc'
 
@@ -30,10 +23,11 @@ function RoomSelectionPage() {
   const search = useMemo(() => parseReservationSearchParams(searchParams), [searchParams])
   const hotel = search ? HOTELS.find((h) => h.id === search.hotelSlug) ?? null : null
 
-  const [rooms, setRooms] = useState<Room[]>([])
-  const [roomsStatus, setRoomsStatus] = useState<ListStatus>('loading')
-  const [roomsError, setRoomsError] = useState('')
-  const [availabilityMap, setAvailabilityMap] = useState<Record<number, RoomAvailabilityInfo>>({})
+  // GET /rooms/search 결과 — capacity가 투숙 인원 이상이고 지정 기간 동안 예약 가능한 객실만 담겨
+  // 있으므로, 목록에 뜨는 객실은 전부 바로 "선택" 가능하다(별도 가용성 재확인이 필요 없다).
+  const [results, setResults] = useState<RoomSearchResult[]>([])
+  const [resultsStatus, setResultsStatus] = useState<ListStatus>('loading')
+  const [resultsError, setResultsError] = useState('')
   const [sortOrder, setSortOrder] = useState<SortOrder>('price-asc')
   const [detailRoom, setDetailRoom] = useState<Room | null>(null)
 
@@ -48,35 +42,20 @@ function RoomSelectionPage() {
     if (!search || !hotel) return
     let cancelled = false
 
-    // 예약 가능 여부/가격 조회는 "묵는 마지막 날 밤"까지만 포함한다 — 체크아웃 당일은 밤을 보내지 않는다.
-    const startDate = formatDateISO(search.checkIn)
-    const endDate = formatDateISO(addDays(search.checkOut, -1))
+    // 유아를 포함한 총인원 — ReservationPage의 검색 버튼과 동일한 기준으로 room.capacity와 비교한다.
+    const guests = sumGuests(search.rooms)
+    const totalGuests = guests.adults + guests.children + guests.infants
 
-    fetchRooms(hotel.hotelId)
-      .then(async (data) => {
+    searchRooms(hotel.hotelId, formatDateISO(search.checkIn), formatDateISO(search.checkOut), totalGuests)
+      .then((data) => {
         if (cancelled) return
-        setRooms(data)
-        setRoomsStatus('success')
-
-        const entries = await Promise.all(
-          data.map(async (room): Promise<[number, RoomAvailabilityInfo]> => {
-            try {
-              const availability = await fetchRoomAvailability(hotel.hotelId, room.roomId, startDate, endDate)
-              const prices = availability.availabilities.map((day) => day.price)
-              const minPrice = prices.length > 0 ? Math.min(...prices) : null
-              return [room.roomId, { status: 'success', isAvailable: availability.isAvailable, minPrice }]
-            } catch {
-              return [room.roomId, { status: 'error' }]
-            }
-          }),
-        )
-        if (cancelled) return
-        setAvailabilityMap(Object.fromEntries(entries))
+        setResults(data)
+        setResultsStatus('success')
       })
       .catch((err) => {
         if (cancelled) return
-        setRoomsStatus('error')
-        setRoomsError(err instanceof Error ? err.message : '알 수 없는 오류')
+        setResultsStatus('error')
+        setResultsError(err instanceof Error ? err.message : '알 수 없는 오류')
       })
 
     return () => {
@@ -84,16 +63,11 @@ function RoomSelectionPage() {
     }
   }, [search, hotel])
 
-  const sortedRooms = useMemo(() => {
-    return [...rooms].sort((a, b) => {
-      const priceA = availabilityMap[a.roomId]?.minPrice
-      const priceB = availabilityMap[b.roomId]?.minPrice
-      if (priceA == null && priceB == null) return 0
-      if (priceA == null) return 1
-      if (priceB == null) return -1
-      return sortOrder === 'price-asc' ? priceA - priceB : priceB - priceA
-    })
-  }, [rooms, availabilityMap, sortOrder])
+  const sortedResults = useMemo(() => {
+    return [...results].sort((a, b) =>
+      sortOrder === 'price-asc' ? a.minPrice - b.minPrice : b.minPrice - a.minPrice,
+    )
+  }, [results, sortOrder])
 
   // "선택"한 객실 정보까지 실어서 다음 단계(옵션 선택)로 이동한다.
   const handleSelectRoom = (room: Room) => {
@@ -123,7 +97,7 @@ function RoomSelectionPage() {
         <div className="room-selection-main">
           <div className="room-selection-toolbar">
             <p className="room-selection-count">
-              {roomsStatus === 'success' ? `${hotel.name} · 총 ${rooms.length}개 객실` : hotel.name}
+              {resultsStatus === 'success' ? `${hotel.name} · 예약 가능 ${results.length}개 객실` : hotel.name}
             </p>
             <label className="room-selection-sort">
               정렬
@@ -134,20 +108,18 @@ function RoomSelectionPage() {
             </label>
           </div>
 
-          {roomsStatus === 'loading' && <p className="room-selection-status">객실 정보를 불러오는 중입니다…</p>}
-          {roomsStatus === 'error' && (
-            <p className="room-selection-status error">객실 정보를 불러오지 못했습니다: {roomsError}</p>
+          {resultsStatus === 'loading' && <p className="room-selection-status">객실 정보를 불러오는 중입니다…</p>}
+          {resultsStatus === 'error' && (
+            <p className="room-selection-status error">객실 정보를 불러오지 못했습니다: {resultsError}</p>
           )}
-          {roomsStatus === 'success' && sortedRooms.length === 0 && (
-            <p className="room-selection-status">현재 등록된 객실이 없습니다.</p>
+          {resultsStatus === 'success' && sortedResults.length === 0 && (
+            <p className="room-selection-status">예약 가능한 객실이 없습니다.</p>
           )}
 
-          {roomsStatus === 'success' && sortedRooms.length > 0 && (
+          {resultsStatus === 'success' && sortedResults.length > 0 && (
             <ul className="room-select-list">
-              {sortedRooms.map((room) => {
-                const availability = availabilityMap[room.roomId]
+              {sortedResults.map(({ room, minPrice }) => {
                 const thumbnail = room.images[0]
-                const canSelect = availability?.status === 'success' && availability.isAvailable && availability.minPrice != null
 
                 return (
                   <li className="room-select-card" key={room.roomId}>
@@ -171,26 +143,14 @@ function RoomSelectionPage() {
                       <p className="room-select-capacity">기준 인원 {room.capacity}명</p>
 
                       <div className="room-select-inline-price">
-                        {(!availability || availability.status === 'loading') && <p>가격 조회 중…</p>}
-                        {availability?.status === 'error' && <p className="error">가격 정보를 불러오지 못했습니다</p>}
-                        {availability?.status === 'success' &&
-                          (canSelect ? (
-                            <p>
-                              최저가 <strong>{availability.minPrice!.toLocaleString()}원~</strong>
-                              <span className="room-select-price-unit">{nights}박</span>
-                            </p>
-                          ) : (
-                            <p className="is-soldout">선택한 기간에 예약이 마감되었습니다</p>
-                          ))}
+                        <p>
+                          최저가 <strong>{minPrice.toLocaleString()}원~</strong>
+                          <span className="room-select-price-unit">{nights}박</span>
+                        </p>
                       </div>
                     </div>
 
-                    <button
-                      type="button"
-                      className="room-select-button"
-                      disabled={!canSelect}
-                      onClick={() => handleSelectRoom(room)}
-                    >
+                    <button type="button" className="room-select-button" onClick={() => handleSelectRoom(room)}>
                       선택
                     </button>
                   </li>

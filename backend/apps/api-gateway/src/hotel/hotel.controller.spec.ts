@@ -50,7 +50,7 @@ describe('HotelController', () => {
     getHotelMock.mockReturnValue(of(hotel));
     updateHotelMock.mockReturnValue(of(hotel));
     getRoomsMock.mockReturnValue(of({ rooms: [room] }));
-    searchRoomsMock.mockReturnValue(of({ rooms: [room] }));
+    searchRoomsMock.mockReturnValue(of({ results: [{ room, minPrice: 90000 }] }));
     getRoomMock.mockReturnValue(of(room));
     createRoomMock.mockReturnValue(of(room));
     updateRoomMock.mockReturnValue(of(room));
@@ -174,7 +174,7 @@ describe('HotelController', () => {
       const result = await controller.searchRooms(1, query);
 
       expect(searchRoomsMock).toHaveBeenCalledWith({ hotelId: 1, ...query });
-      expect(result).toEqual({ rooms: [room] });
+      expect(result).toEqual({ results: [{ room, minPrice: 90000 }] });
     });
 
     it('should throw NotFoundException when the hotel does not exist', async () => {
