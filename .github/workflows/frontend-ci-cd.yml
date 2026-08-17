@@ -24,8 +24,9 @@ permissions:
   contents: read
 
 jobs:
-  # [자동 CI] 코드 변경 시 빌드 및 테스트 자동 검증
+  # [자동 CI] 코드 변경 시 빌드 및 테스트 자동 검증 (수동 배포 트리거일 땐 스킵)
   build-and-test:
+    if: github.event_name != 'workflow_dispatch'
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Source Code
@@ -44,9 +45,8 @@ jobs:
           npm ci
           npm run build
 
-  # [수동 CD] Actions 탭에서 Run workflow 클릭 시 실행
+  # [수동 CD] Actions 탭에서 Run workflow 클릭 시 실행 (자체 빌드를 수행하므로 needs 없음)
   deploy:
-    needs: build-and-test
     if: github.event_name == 'workflow_dispatch'  # 수동 트리거일 때만 작동
     runs-on: self-hosted
 
