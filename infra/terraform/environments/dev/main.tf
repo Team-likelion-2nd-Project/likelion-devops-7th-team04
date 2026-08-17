@@ -211,7 +211,8 @@ module "eks" {
 
   chatbot_role_arn = module.iam.chatbot_service_role_arn
 
-  chatbot_namespace       = "chatbot"
+  # chat-bot-service가 backend 네임스페이스로 통합되어 Pod Identity 연결도 함께 갱신
+  chatbot_namespace       = "backend"
   chatbot_service_account = "chatbot-service"
 
   # EKS Cluster / Node는 Private App Subnet에 배치
@@ -220,16 +221,10 @@ module "eks" {
   cluster_version = "1.35"
 
   # -------------------------
-  # CPU Node Group
+  # CPU: EKS Fargate Profile (기존 EC2 관리형 노드 그룹에서 전환 — pod 수용량 한계 대응)
   # -------------------------
 
-  node_instance_types = [
-    "t3.medium"
-  ]
-
-  desired_size = 1
-  min_size     = 1
-  max_size     = 2
+  fargate_pod_execution_role_arn = module.iam.fargate_pod_execution_role_arn
 
   # -------------------------
   # GPU Node Group
