@@ -22,6 +22,11 @@ resource "aws_instance" "mariadb" {
   vpc_security_group_ids = [var.db_security_group_id]
   iam_instance_profile   = var.iam_instance_profile_name
 
+  # user_data가 바뀌면 인스턴스를 재생성해 cloud-init이 다시 실행되도록 강제합니다.
+  # 기본값(false)이면 in-place로 user_data 속성만 갱신되고 cloud-init은 최초 부팅 때
+  # 한 번만 실행되므로, 이후 user_data 변경(예: 비밀번호 로직 수정)이 실제로 반영되지 않습니다.
+  user_data_replace_on_change = true
+
   # Root EBS Volume 설정 (성능/용량 세팅)
   root_block_device {
     volume_size           = var.ebs_volume_size

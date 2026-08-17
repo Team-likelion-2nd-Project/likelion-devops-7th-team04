@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: chat-bot-service
-  namespace: chatbot
+  namespace: backend
 spec:
   replicas: 1
   selector:
@@ -13,9 +13,10 @@ spec:
       labels:
         app: chat-bot-service
     spec:
-      # chatbot 네임스페이스의 chatbot-service ServiceAccount를 통해 EKS Pod Identity로
+      # backend 네임스페이스의 chatbot-service ServiceAccount를 통해 EKS Pod Identity로
       # DynamoDB/S3Vectors 권한을 받습니다 (infra/terraform/modules/iam/main.tf의
-      # aws_iam_role.chatbot_service). 이름을 바꾸면 권한 연결이 끊깁니다.
+      # aws_iam_role.chatbot_service, chatbot_namespace = "backend"). 이름을 바꾸면 권한
+      # 연결이 끊깁니다.
       serviceAccountName: chatbot-service
       containers:
         - name: chat-bot-service
