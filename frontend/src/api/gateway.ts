@@ -202,6 +202,33 @@ export async function refreshAccessToken(): Promise<AuthResponse> {
   return parseAuthResponse(res, customerAuth)
 }
 
+// proto의 Booking 메시지와 1:1 대응되는 응답 형태 (api-gateway BookingController의 BookingDto와 동일)
+export interface Booking {
+  reservationId: number
+  userId: number
+  roomId: number
+  checkInDate: string
+  checkOutDate: string
+  guestCount: number
+  hasIndoorPool: boolean
+  hasLounge: boolean
+  totalAmount: number
+  status: 'RESERVED' | 'CANCELLED' | 'COMPLETED'
+}
+
+// api-gateway(GET /api/bookings/me) -> booking-service(gRPC)로 로그인한 사용자 본인의 예약 목록을 조회한다.
+export async function fetchMyBookings(): Promise<Booking[]> {
+  const res = await authorizedFetch('/api/bookings/me')
+  const data = await parseJsonResponse<{ bookings: Booking[] }>(res)
+  return data.bookings
+}
+
+// api-gateway(PUT /api/bookings/{reservationId}) -> booking-service(gRPC)로 예약을 취소한다.
+export async function cancelBooking(reservationId: number): Promise<Booking> {
+  const res = await authorizedFetch(`/api/bookings/${reservationId}`, { method: 'PUT' })
+  return parseJsonResponse<Booking>(res)
+}
+
 // 관리자 전용 재발급. adminRefreshToken 쿠키를 사용하며, 고객 세션(refreshToken)에는 영향을 주지 않는다.
 export async function refreshAdminAccessToken(): Promise<AuthResponse> {
   const res = await fetch(`${BASE_URL}/api/auth/admin/refresh`, {
