@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: chat-bot-service
-  namespace: chatbot
+  namespace: backend
 spec:
   replicas: 1
   selector:
@@ -13,9 +13,10 @@ spec:
       labels:
         app: chat-bot-service
     spec:
-      # chatbot 네임스페이스의 chatbot-service ServiceAccount를 통해 EKS Pod Identity로
+      # backend 네임스페이스의 chatbot-service ServiceAccount를 통해 EKS Pod Identity로
       # DynamoDB/S3Vectors 권한을 받습니다 (infra/terraform/modules/iam/main.tf의
-      # aws_iam_role.chatbot_service). 이름을 바꾸면 권한 연결이 끊깁니다.
+      # aws_iam_role.chatbot_service, chatbot_namespace 변수가 "backend"로 설정되어야 함).
+      # ServiceAccount 이름을 바꾸면 권한 연결이 끊깁니다.
       serviceAccountName: chatbot-service
       containers:
         - name: chat-bot-service
@@ -36,6 +37,8 @@ spec:
             # DYNAMODB_ENDPOINT / AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY는 의도적으로 설정하지
             # 않습니다. backend/.env.example 주석대로 운영에서는 비워두면 EKS Pod Identity로
             # 실제 AWS DynamoDB에 인증됩니다.
+            # chatbot-secrets Secret은 이제 backend 네임스페이스에 있어야 합니다 (Secret 참조는
+            # 항상 같은 네임스페이스 안에서만 됩니다).
             - name: N8N_WEBHOOK_URL
               valueFrom:
                 secretKeyRef:

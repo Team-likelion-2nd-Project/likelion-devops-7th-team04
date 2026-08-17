@@ -3,7 +3,6 @@ kind: Kustomization
 
 resources:
   - namespace-backend.yaml
-  - namespace-chatbot.yaml
   - serviceaccount-chatbot.yaml
   - api-gateway/deployment.yaml
   - api-gateway/service.yaml
