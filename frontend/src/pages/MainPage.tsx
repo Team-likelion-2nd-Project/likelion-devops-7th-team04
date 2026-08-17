@@ -1,9 +1,12 @@
 import { Link } from 'react-router-dom'
 import { HOTELS } from '../data/hotels'
 import HotelCard from '../components/HotelCard'
+import { customerAuth } from '../api/tokenStore'
 import './MainPage.css'
 
 function MainPage() {
+  const accessToken = customerAuth.useAccessToken()
+
   return (
     <>
       {/* TODO: 배경 그라디언트를 실제 대표 이미지로 교체 */}
@@ -14,7 +17,7 @@ function MainPage() {
           <p className="hero-description">
             도심과 자연 속 세 곳의 호텔에서, 조용하고 세심하게 준비된 휴식을 경험하세요.
           </p>
-          <Link to="/reservation" className="hero-cta">
+          <Link to={accessToken ? '/reservation' : '/login'} className="hero-cta">
             예약하기
           </Link>
         </div>
