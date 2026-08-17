@@ -1,11 +1,19 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { RpcException } from '@nestjs/microservices';
-import { Between, DataSource, In, Repository } from 'typeorm';
+import { Between, DataSource, In, MoreThanOrEqual, Repository } from 'typeorm';
 import { Room } from './entities/room.entity';
 import { Hotel } from './entities/hotel.entity';
 import { RoomAvailability } from './entities/room-availability.entity';
 import { RoomImage } from './entities/room-image.entity';
+
+// 'YYYY-MM-DD' 문자열에 일 단위 offset을 더한 'YYYY-MM-DD' 문자열을 반환한다 (UTC 기준 계산,
+// date 컬럼은 시간대 정보가 없으므로 로컬 타임존에 영향받지 않도록 UTC로 계산한다).
+function addDays(dateStr: string, offset: number): string {
+  const date = new Date(`${dateStr}T00:00:00.000Z`);
+  date.setUTCDate(date.getUTCDate() + offset);
+  return date.toISOString().slice(0, 10);
+}
 
 // proto의 RoomImageInput 메시지와 1:1 대응되는 입력 형태
 export interface RoomImageInput {
@@ -126,6 +134,72 @@ export class RoomService {
       order: { sortOrder: 'ASC' },
     });
     return this.toGrpcResponse(room, images);
+  }
+
+  // 예약 가능 객실 검색. hotelId가 존재하지 않으면 RpcException.
+  // capacity가 guests 이상인 객실 중, checkIn~(checkOut 하루 전)까지 모든 날짜의 room_availabilities
+  // 행이 하루도 빠짐없이 존재하고 전부 isAvailable=true인 객실만 반환한다 (checkOut 당일은 다음 손님의
+  // 체크인일이므로 검사 대상에서 제외 — reserveRoomAvailability/createBooking과 동일한 규칙).
+  async searchAvailableRooms(
+    hotelId: number,
+    checkIn: string,
+    checkOut: string,
+    guests: number,
+  ): Promise<RoomGrpcResponse[]> {
+    const hotel = await this.hotelRepository.findOne({ where: { hotelId } });
+    if (!hotel) {
+      throw new RpcException('존재하지 않는 호텔입니다.');
+    }
+
+    const candidates = await this.roomRepository.find({
+      where: { hotelId, capacity: MoreThanOrEqual(guests) },
+    });
+    if (candidates.length === 0) {
+      return [];
+    }
+
+    const lastNight = addDays(checkOut, -1);
+    const dayMs = 24 * 60 * 60 * 1000;
+    const totalNights = Math.round(
+      (new Date(checkOut).getTime() - new Date(checkIn).getTime()) / dayMs,
+    );
+
+    const availableRows = await this.roomAvailabilityRepository.find({
+      where: {
+        roomId: In(candidates.map((room) => room.roomId)),
+        date: Between(checkIn, lastNight),
+        isAvailable: true,
+      },
+    });
+    const availableNightsByRoomId = new Map<number, number>();
+    for (const row of availableRows) {
+      availableNightsByRoomId.set(
+        row.roomId,
+        (availableNightsByRoomId.get(row.roomId) ?? 0) + 1,
+      );
+    }
+
+    const availableRooms = candidates.filter(
+      (room) => availableNightsByRoomId.get(room.roomId) === totalNights,
+    );
+    if (availableRooms.length === 0) {
+      return [];
+    }
+
+    const images = await this.roomImageRepository.find({
+      where: { roomId: In(availableRooms.map((room) => room.roomId)) },
+      order: { sortOrder: 'ASC' },
+    });
+    const imagesByRoomId = new Map<number, RoomImage[]>();
+    for (const image of images) {
+      const bucket = imagesByRoomId.get(image.roomId) ?? [];
+      bucket.push(image);
+      imagesByRoomId.set(image.roomId, bucket);
+    }
+
+    return availableRooms.map((room) =>
+      this.toGrpcResponse(room, imagesByRoomId.get(room.roomId) ?? []),
+    );
   }
 
   // 기존 객실 정보 수정. hotelId/roomId 조합이 존재하지 않으면 RpcException.

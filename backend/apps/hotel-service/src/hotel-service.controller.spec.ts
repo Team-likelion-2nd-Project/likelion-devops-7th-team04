@@ -1,6 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { DataSource } from 'typeorm';
+import { DataSource, MoreThanOrEqual } from 'typeorm';
 import { RpcException } from '@nestjs/microservices';
 import { HotelServiceController } from './hotel-service.controller';
 import { HotelServiceService } from './hotel-service.service';
@@ -255,6 +255,65 @@ describe('HotelServiceController', () => {
       await expect(
         hotelServiceController.getRoom({ hotelId: 1, roomId: 999 }),
       ).rejects.toThrow(RpcException);
+    });
+  });
+
+  describe('searchRooms', () => {
+    const roomA = { ...room, roomId: 1, capacity: 2 };
+    const roomB = { roomId: 2, hotelId: 1, name: '패밀리 스위트', capacity: 4 };
+
+    it('should return only rooms available for every night in the range', async () => {
+      hotelRepository.findOne.mockResolvedValue(hotel);
+      roomRepository.find.mockResolvedValue([roomA, roomB]);
+      roomAvailabilityRepository.find.mockResolvedValue([
+        { roomId: 1, date: '2026-09-01', isAvailable: true },
+        { roomId: 1, date: '2026-09-02', isAvailable: true },
+        { roomId: 2, date: '2026-09-01', isAvailable: true },
+        // roomId 2는 09-02 행이 없어 구간을 전부 채우지 못함 -> 제외
+      ]);
+
+      const result = await hotelServiceController.searchRooms({
+        hotelId: 1,
+        checkIn: '2026-09-01',
+        checkOut: '2026-09-03',
+        guests: 2,
+      });
+
+      expect(roomRepository.find).toHaveBeenCalledWith({
+        where: { hotelId: 1, capacity: MoreThanOrEqual(2) },
+      });
+      expect(result.rooms).toEqual([
+        expect.objectContaining({ roomId: 1, capacity: 2 }),
+      ]);
+    });
+
+    it('should throw RpcException when the hotel does not exist', async () => {
+      hotelRepository.findOne.mockResolvedValue(null);
+
+      await expect(
+        hotelServiceController.searchRooms({
+          hotelId: 999,
+          checkIn: '2026-09-01',
+          checkOut: '2026-09-03',
+          guests: 2,
+        }),
+      ).rejects.toThrow(RpcException);
+      expect(roomRepository.find).not.toHaveBeenCalled();
+    });
+
+    it('should return an empty list when no room meets the capacity condition', async () => {
+      hotelRepository.findOne.mockResolvedValue(hotel);
+      roomRepository.find.mockResolvedValue([]);
+
+      const result = await hotelServiceController.searchRooms({
+        hotelId: 1,
+        checkIn: '2026-09-01',
+        checkOut: '2026-09-03',
+        guests: 10,
+      });
+
+      expect(result.rooms).toEqual([]);
+      expect(roomAvailabilityRepository.find).not.toHaveBeenCalled();
     });
   });
 

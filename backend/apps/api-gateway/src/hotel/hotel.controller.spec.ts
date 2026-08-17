@@ -10,6 +10,7 @@ describe('HotelController', () => {
   const getHotelMock = jest.fn();
   const updateHotelMock = jest.fn();
   const getRoomsMock = jest.fn();
+  const searchRoomsMock = jest.fn();
   const getRoomMock = jest.fn();
   const createRoomMock = jest.fn();
   const updateRoomMock = jest.fn();
@@ -49,6 +50,7 @@ describe('HotelController', () => {
     getHotelMock.mockReturnValue(of(hotel));
     updateHotelMock.mockReturnValue(of(hotel));
     getRoomsMock.mockReturnValue(of({ rooms: [room] }));
+    searchRoomsMock.mockReturnValue(of({ rooms: [room] }));
     getRoomMock.mockReturnValue(of(room));
     createRoomMock.mockReturnValue(of(room));
     updateRoomMock.mockReturnValue(of(room));
@@ -67,6 +69,7 @@ describe('HotelController', () => {
               getHotel: getHotelMock,
               updateHotel: updateHotelMock,
               getRooms: getRoomsMock,
+              searchRooms: searchRoomsMock,
               getRoom: getRoomMock,
               createRoom: createRoomMock,
               updateRoom: updateRoomMock,
@@ -161,6 +164,38 @@ describe('HotelController', () => {
       );
 
       await expect(controller.getRooms(999)).rejects.toThrow(NotFoundException);
+    });
+  });
+
+  describe('searchRooms', () => {
+    it('should search rooms by the hotelId path param and query conditions', async () => {
+      const query = { checkIn: '2026-09-01', checkOut: '2026-09-03', guests: 2 };
+
+      const result = await controller.searchRooms(1, query);
+
+      expect(searchRoomsMock).toHaveBeenCalledWith({ hotelId: 1, ...query });
+      expect(result).toEqual({ rooms: [room] });
+    });
+
+    it('should throw NotFoundException when the hotel does not exist', async () => {
+      searchRoomsMock.mockReturnValue(
+        throwError(() => ({ message: '존재하지 않는 호텔입니다.' })),
+      );
+      const query = { checkIn: '2026-09-01', checkOut: '2026-09-03', guests: 2 };
+
+      await expect(controller.searchRooms(999, query)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('should throw BadRequestException when checkOut is not after checkIn without calling gRPC', async () => {
+      const query = { checkIn: '2026-09-03', checkOut: '2026-09-01', guests: 2 };
+      searchRoomsMock.mockClear();
+
+      await expect(controller.searchRooms(1, query)).rejects.toThrow(
+        BadRequestException,
+      );
+      expect(searchRoomsMock).not.toHaveBeenCalled();
     });
   });
 

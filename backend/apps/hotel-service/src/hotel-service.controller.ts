@@ -54,6 +54,23 @@ export class HotelServiceController {
     return this.roomService.getRoomById(data.hotelId, data.roomId);
   }
 
+  // proto의 HotelService / SearchRooms 메서드와 매핑: 체크인/체크아웃/인원수 조건으로 예약 가능한 객실 검색
+  @GrpcMethod('HotelService', 'SearchRooms')
+  async searchRooms(data: {
+    hotelId: number;
+    checkIn: string;
+    checkOut: string;
+    guests: number;
+  }) {
+    const rooms = await this.roomService.searchAvailableRooms(
+      data.hotelId,
+      data.checkIn,
+      data.checkOut,
+      data.guests,
+    );
+    return { rooms };
+  }
+
   // proto의 HotelService / CreateRoom 메서드와 매핑: 신규 객실 등록 (관리자 전용, api-gateway에서 권한 검증)
   @GrpcMethod('HotelService', 'CreateRoom')
   async createRoom(data: {

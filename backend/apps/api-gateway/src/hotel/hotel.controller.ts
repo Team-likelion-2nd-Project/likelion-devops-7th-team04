@@ -28,6 +28,7 @@ import { JwtAuthGuard, RolesGuard, Roles } from '@app/common';
 import { CreateRoomDto } from './dto/create-room.dto';
 import { UpdateRoomDto } from './dto/update-room.dto';
 import { RoomAvailabilityQueryDto } from './dto/room-availability-query.dto';
+import { RoomSearchQueryDto } from './dto/room-search-query.dto';
 import { UpdateHotelDto } from './dto/update-hotel.dto';
 
 // proto의 Hotel 메시지와 1:1 대응되는 응답 형태
@@ -87,6 +88,12 @@ interface HotelService {
     description?: string;
   }): Observable<HotelDto>;
   getRooms(data: { hotelId: number }): Observable<{ rooms: RoomDto[] }>;
+  searchRooms(data: {
+    hotelId: number;
+    checkIn: string;
+    checkOut: string;
+    guests: number;
+  }): Observable<{ rooms: RoomDto[] }>;
   getRoom(data: { hotelId: number; roomId: number }): Observable<RoomDto>;
   createRoom(data: {
     hotelId: number;
@@ -247,6 +254,45 @@ export class HotelController implements OnModuleInit {
         );
       },
     );
+  }
+
+  /**
+   * GET http://localhost:3000/api/hotels/{hotelId}/rooms/search?checkIn=2026-09-01&checkOut=2026-09-03&guests=2
+   * 브라우저/프론트엔드 HTTP 요청 수신 -> hotel-service gRPC 호출 -> 체크인/체크아웃/인원수 조건으로 예약 가능한 객실 검색
+   *
+   * ⚠️ ':hotelId/rooms/:roomId'보다 먼저 등록해야 한다 — 그렇지 않으면 'search'가 roomId 경로
+   * 파라미터로 매칭되어 버린다.
+   */
+  @Get(':hotelId/rooms/search')
+  @ApiOperation({
+    summary: '예약 가능 객실 검색',
+    description:
+      '호텔 PK ID와 체크인/체크아웃 날짜, 인원수를 바탕으로 gRPC를 통해 hotel-service에서 최대 인원(capacity)이 ' +
+      'guests 이상이고 지정 기간(checkIn~체크아웃 전날) 동안 예약 가능한 객실 목록을 조회합니다.',
+  })
+  @ApiParam({
+    name: 'hotelId',
+    description: '호텔 PK ID',
+    type: Number,
+    example: 1,
+  })
+  @ApiResponse({ status: 200, description: '예약 가능 객실 검색 성공' })
+  @ApiResponse({ status: 400, description: 'checkOut이 checkIn보다 빠르거나 같음' })
+  @ApiResponse({ status: 404, description: '존재하지 않는 호텔' })
+  async searchRooms(
+    @Param('hotelId', ParseIntPipe) hotelId: number,
+    @Query() query: RoomSearchQueryDto,
+  ): Promise<{ rooms: RoomDto[] }> {
+    if (query.checkIn >= query.checkOut) {
+      throw new BadRequestException('checkOut은 checkIn보다 이후여야 합니다.');
+    }
+    return firstValueFrom(
+      this.hotelService.searchRooms({ hotelId, ...query }),
+    ).catch((err) => {
+      throw new NotFoundException(
+        err?.details || err?.message || '존재하지 않는 호텔입니다.',
+      );
+    });
   }
 
   /**
