@@ -99,6 +99,32 @@ resource "aws_vpc_security_group_ingress_rule" "redis_from_eks" {
 
   description = "Allow Redis from EKS nodes"
 }
+
+# DB - Fargate pod(EKS 클러스터 기본 보안그룹)에서도 MariaDB 접근 허용
+# (CPU 워크로드가 Fargate로 전환되며 eks_node SG에 속하지 않게 됨 — GPU EC2 노드는 계속
+# eks_node SG를 쓰므로 위 db_from_eks 규칙도 그대로 유지)
+resource "aws_vpc_security_group_ingress_rule" "db_from_eks_cluster_sg" {
+  security_group_id = aws_security_group.db.id
+
+  referenced_security_group_id = var.eks_cluster_security_group_id
+  from_port                    = 3306
+  to_port                      = 3306
+  ip_protocol                  = "tcp"
+
+  description = "Allow MariaDB from EKS cluster security group (Fargate pods)"
+}
+
+# Redis - Fargate pod(EKS 클러스터 기본 보안그룹)에서도 Redis 접근 허용
+resource "aws_vpc_security_group_ingress_rule" "redis_from_eks_cluster_sg" {
+  security_group_id = aws_security_group.redis.id
+
+  referenced_security_group_id = var.eks_cluster_security_group_id
+  from_port                    = 6379
+  to_port                      = 6379
+  ip_protocol                  = "tcp"
+
+  description = "Allow Redis from EKS cluster security group (Fargate pods)"
+}
 # ALB Outbound
 resource "aws_vpc_security_group_egress_rule" "alb_all" {
   security_group_id = aws_security_group.alb.id

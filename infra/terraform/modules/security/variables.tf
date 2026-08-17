@@ -8,3 +8,8 @@ variable "vpc_id" {
   description = "VPC ID where security groups will be created"
   type        = string
 }
+
+variable "eks_cluster_security_group_id" {
+  description = "EKS cluster security group ID (used by Fargate pods for network traffic)"
+  type        = string
+}

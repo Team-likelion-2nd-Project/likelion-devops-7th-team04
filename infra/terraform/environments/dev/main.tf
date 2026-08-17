@@ -54,6 +54,12 @@ variable "alarm_email" {
   description = "Email address for CloudWatch SNS alarm notifications"
   type        = string
 }
+
+variable "db_root_password" {
+  description = "Root password to configure for the MariaDB instance on first boot"
+  type        = string
+  sensitive   = true
+}
 # =========================
 # DEV-41 Network Module
 # =========================
@@ -73,6 +79,10 @@ module "security" {
 
   project_name = "team04-hotel"
   vpc_id       = module.network.vpc_id
+
+  # CPU 워크로드가 Fargate로 전환되며 DB/Redis가 Fargate pod(EKS 클러스터 기본 보안그룹)의
+  # 트래픽도 허용해야 함
+  eks_cluster_security_group_id = module.eks.cluster_security_group_id
 }
 
 # =========================
@@ -93,6 +103,8 @@ module "database" {
   instance_type   = "t3.micro"
   ebs_volume_size = 20
   ebs_volume_type = "gp3"
+
+  db_root_password = var.db_root_password
 }
 
 # =========================
@@ -211,7 +223,8 @@ module "eks" {
 
   chatbot_role_arn = module.iam.chatbot_service_role_arn
 
-  chatbot_namespace       = "chatbot"
+  # chat-bot-service가 backend 네임스페이스로 통합되어 Pod Identity 연결도 함께 갱신
+  chatbot_namespace       = "backend"
   chatbot_service_account = "chatbot-service"
 
   # EKS Cluster / Node는 Private App Subnet에 배치
@@ -220,16 +233,10 @@ module "eks" {
   cluster_version = "1.35"
 
   # -------------------------
-  # CPU Node Group
+  # CPU: EKS Fargate Profile (기존 EC2 관리형 노드 그룹에서 전환 — pod 수용량 한계 대응)
   # -------------------------
 
-  node_instance_types = [
-    "t3.medium"
-  ]
-
-  desired_size = 1
-  min_size     = 1
-  max_size     = 2
+  fargate_pod_execution_role_arn = module.iam.fargate_pod_execution_role_arn
 
   # -------------------------
   # GPU Node Group

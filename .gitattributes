@@ -1,6 +1,9 @@
 # 텍스트 파일은 전부 CRLF로 정규화 (Windows VS Code 기준 통일)
 * text=auto eol=crlf
 
+# 쉘 스크립트는 실행 가능해야 하므로 LF 강제 (CRLF면 shebang이 깨져 실행 불가)
+*.sh text eol=lf
+
 # 바이너리 파일은 줄바꿈 변환 대상에서 제외
 *.png binary
 *.jpg binary

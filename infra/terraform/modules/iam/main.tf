@@ -121,6 +121,40 @@ resource "aws_iam_instance_profile" "cloudwatch_agent" {
 
 
 # =========================
+# EKS Fargate Pod Execution Role
+# =========================
+
+resource "aws_iam_role" "fargate_pod_execution" {
+  name = "${var.project_name}-fargate-pod-execution-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Principal = {
+          Service = "eks-fargate-pods.amazonaws.com"
+        }
+
+        Action = "sts:AssumeRole"
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.project_name}-fargate-pod-execution-role"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "fargate_pod_execution" {
+  role       = aws_iam_role.fargate_pod_execution.name
+  policy_arn = "arn:aws:iam::aws:policy/AmazonEKSFargatePodExecutionRolePolicy"
+}
+
+
+# =========================
 # AWS Load Balancer Controller Role
 # =========================
 
@@ -441,6 +475,13 @@ resource "aws_iam_role_policy_attachment" "github_runner_ssm" {
 resource "aws_iam_role_policy_attachment" "github_runner_ecr" {
   role       = aws_iam_role.github_runner.name
   policy_arn = aws_iam_policy.backend_cd_ecr.arn
+}
+
+# cicd 정책(S3 배포 + CloudFront 무효화)을 그대로 재사용 (프론트엔드 배포도 같은
+# self-hosted runner에서 수행하므로 정책 중복 생성 안 함)
+resource "aws_iam_role_policy_attachment" "github_runner_frontend_deploy" {
+  role       = aws_iam_role.github_runner.name
+  policy_arn = aws_iam_policy.cicd.arn
 }
 
 resource "aws_iam_instance_profile" "github_runner" {

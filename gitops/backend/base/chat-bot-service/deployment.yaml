@@ -15,8 +15,8 @@ spec:
     spec:
       # backend 네임스페이스의 chatbot-service ServiceAccount를 통해 EKS Pod Identity로
       # DynamoDB/S3Vectors 권한을 받습니다 (infra/terraform/modules/iam/main.tf의
-      # aws_iam_role.chatbot_service, chatbot_namespace 변수가 "backend"로 설정되어야 함).
-      # ServiceAccount 이름을 바꾸면 권한 연결이 끊깁니다.
+      # aws_iam_role.chatbot_service, chatbot_namespace = "backend"). 이름을 바꾸면 권한
+      # 연결이 끊깁니다.
       serviceAccountName: chatbot-service
       containers:
         - name: chat-bot-service

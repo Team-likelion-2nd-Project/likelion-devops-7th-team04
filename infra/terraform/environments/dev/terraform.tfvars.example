@@ -1,1 +1,2 @@
 alarm_email = "your-email@example.com"
+db_root_password = "REPLACE_ME"
