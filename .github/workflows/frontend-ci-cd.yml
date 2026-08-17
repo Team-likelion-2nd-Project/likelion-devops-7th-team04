@@ -45,9 +45,6 @@ jobs:
           npm run build
 
   # [수동 CD] Actions 탭에서 Run workflow 클릭 시 실행
-  # 계정 SCP가 OIDC(sts:AssumeRoleWithWebIdentity)를 막고 있어, GitHub-hosted runner +
-  # OIDC 조합을 쓸 수 없다 (backend-ci-cd.yml과 동일한 제약). 대신 self-hosted EC2 runner의
-  # Instance Profile로 S3/CloudFront 권한을 바로 받는다.
   deploy:
     needs: build-and-test
     if: github.event_name == 'workflow_dispatch'  # 수동 트리거일 때만 작동
