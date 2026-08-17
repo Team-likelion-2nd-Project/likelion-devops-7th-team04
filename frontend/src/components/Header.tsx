@@ -98,7 +98,7 @@ function Header() {
       </nav>
 
       <div className="header-actions">
-        <Link to="/reservation" className="nav-cta">
+        <Link to={accessToken ? '/reservation' : '/login'} className="nav-cta">
           예약하기
         </Link>
         {accessToken && user ? (
