@@ -24,14 +24,9 @@ output "cluster_security_group_id" {
   value       = aws_eks_cluster.main.vpc_config[0].cluster_security_group_id
 }
 
-output "cpu_node_group_name" {
-  description = "Name of the CPU managed node group"
-  value       = aws_eks_node_group.cpu.node_group_name
-}
-
-output "cpu_node_group_arn" {
-  description = "ARN of the CPU managed node group"
-  value       = aws_eks_node_group.cpu.arn
+output "cpu_fargate_profile_arn" {
+  description = "ARN of the CPU Fargate profile"
+  value       = aws_eks_fargate_profile.cpu.arn
 }
 output "gpu_node_group_name" {
   description = "Name of the GPU managed node group"
