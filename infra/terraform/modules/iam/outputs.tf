@@ -53,3 +53,7 @@ output "github_runner_instance_profile_name" {
   description = "Name of the self-hosted GitHub Actions runner EC2 instance profile"
   value       = aws_iam_instance_profile.github_runner.name
 }
+output "fargate_pod_execution_role_arn" {
+  description = "ARN of the EKS Fargate Pod Execution role"
+  value       = aws_iam_role.fargate_pod_execution.arn
+}
