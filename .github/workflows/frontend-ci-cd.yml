@@ -21,7 +21,6 @@ on:
   workflow_dispatch:
 
 permissions:
-  id-token: write  # AWS OIDC 인증 권한
   contents: read
 
 jobs:
@@ -49,7 +48,7 @@ jobs:
   deploy:
     needs: build-and-test
     if: github.event_name == 'workflow_dispatch'  # 수동 트리거일 때만 작동
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
 
     steps:
       - name: Checkout Source Code
@@ -68,19 +67,11 @@ jobs:
           npm ci
           npm run build
 
-      # 1. AWS OIDC 인증 (GitHub Actions -> AWS CICD Role)
-      - name: Configure AWS Credentials via OIDC
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: ${{ secrets.AWS_CICD_ROLE_ARN }}
-          aws-region: us-east-1
-
-      # 2. OIDC 인증 자격 증명으로 S3 배포 수행
+      # EC2 Instance Profile 자격증명을 자동으로 사용합니다 (별도 인증 스텝 불필요).
       - name: Deploy to S3 (Vite dist folder)
         run: |
           aws s3 sync frontend/dist s3://${{ secrets.FRONTEND_S3_BUCKET_NAME }} --delete
 
-      # 3. OIDC 인증 자격 증명으로 CloudFront 캐시 무효화
       - name: Invalidate CloudFront Cache
         run: |
           aws cloudfront create-invalidation --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} --paths "/*"
