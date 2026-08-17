@@ -48,10 +48,6 @@ function RoomSelectionPage() {
     if (!search || !hotel) return
     let cancelled = false
 
-    setRoomsStatus('loading')
-    setRoomsError('')
-    setAvailabilityMap({})
-
     // 예약 가능 여부/가격 조회는 "묵는 마지막 날 밤"까지만 포함한다 — 체크아웃 당일은 밤을 보내지 않는다.
     const startDate = formatDateISO(search.checkIn)
     const endDate = formatDateISO(addDays(search.checkOut, -1))

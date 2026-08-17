@@ -59,7 +59,6 @@ function ReservationOptionsPage() {
     if (!hotel || !roomId) return
     let cancelled = false
 
-    setRoomStatus('loading')
     fetchRoom(hotel.hotelId, roomId)
       .then((data) => {
         if (cancelled) return
@@ -80,7 +79,6 @@ function ReservationOptionsPage() {
     if (!search || !hotel || !roomId) return
     let cancelled = false
 
-    setPriceStatus('loading')
     // 예약 가능 여부/가격 조회는 "묵는 마지막 날 밤"까지만 포함한다 — 체크아웃 당일은 밤을 보내지 않는다.
     const startDate = formatDateISO(search.checkIn)
     const endDate = formatDateISO(addDays(search.checkOut, -1))

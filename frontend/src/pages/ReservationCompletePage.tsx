@@ -49,16 +49,13 @@ function ReservationCompletePage() {
 
   // state로 예약 정보가 전달되지 않은 경우(새로고침, 북마크/직접 접근 등) — 로그인한 사용자 본인의
   // 예약 목록에서 reservationId로 다시 찾아온다. 단건 조회 API가 없어 목록 조회로 대체한다.
-  useEffect(() => {
-    if (booking || !reservationId) return
+  // 로그인하지 않은 상태에서는 예약 정보를 조회할 방법이 없다 — 별도 상태 없이 렌더링 시점에 바로 판단한다.
+  const missingAuth = !booking && !!reservationId && !customerAuth.getAccessToken()
 
-    if (!customerAuth.getAccessToken()) {
-      setStatus('error')
-      return
-    }
+  useEffect(() => {
+    if (booking || !reservationId || missingAuth) return
 
     let cancelled = false
-    setStatus('loading')
 
     fetchMyBookings()
       .then(async (bookings) => {
@@ -91,13 +88,14 @@ function ReservationCompletePage() {
     return () => {
       cancelled = true
     }
-  }, [booking, reservationId])
+  }, [booking, reservationId, missingAuth])
 
   if (!reservationId) {
     // useEffect가 /reservation으로 돌려보내는 동안 잠깐 보여줄 빈 화면
     return null
   }
 
+  const effectiveStatus = missingAuth ? 'error' : status
   const checkIn = booking ? parseDateISO(booking.checkInDate) : null
   const checkOut = booking ? parseDateISO(booking.checkOutDate) : null
   const nights = checkIn && checkOut ? diffDays(checkOut, checkIn) : null
@@ -120,16 +118,16 @@ function ReservationCompletePage() {
         <ReservationSteps activeStep={3} />
       </div>
 
-      {status === 'loading' && <p className="reservation-complete-status">예약 정보를 불러오는 중입니다…</p>}
+      {effectiveStatus === 'loading' && <p className="reservation-complete-status">예약 정보를 불러오는 중입니다…</p>}
 
-      {status === 'error' && (
+      {effectiveStatus === 'error' && (
         <div className="reservation-complete-status error">
           <p>예약 정보를 불러오지 못했습니다.</p>
           <Link to="/reservations">내 예약 내역에서 확인하기</Link>
         </div>
       )}
 
-      {status === 'success' && booking && (
+      {effectiveStatus === 'success' && booking && (
         <>
           <div className="reservation-complete-banner">
             <span className="reservation-complete-check" aria-hidden="true">
