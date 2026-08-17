@@ -34,13 +34,27 @@ resource "aws_instance" "mariadb" {
     }
   }
 
-  # 사용자 데이터: MariaDB 자동 설치 및 서비스 활성화
+  # 사용자 데이터: MariaDB 자동 설치 + 최초 부팅 시 1회 root 비밀번호/DB 초기화.
+  # 영구 볼륨이 없어 인스턴스가 재생성될 때마다 처음부터 다시 실행되므로, 매번 수동으로
+  # SSM 접속해 설정할 필요가 없도록 자동화합니다.
   user_data = <<-EOF
               #!/bin/bash
               dnf update -y
               dnf install -y mariadb105-server
+
+              # VPC 내부(EKS pod)에서 접속 가능하도록 (기본은 localhost만 허용)
+              sed -i 's/^bind-address.*/bind-address = 0.0.0.0/' /etc/my.cnf.d/mariadb-server.cnf
+
               systemctl start mariadb
               systemctl enable mariadb
+
+              mysql -u root <<SQL
+              ALTER USER 'root'@'localhost' IDENTIFIED BY '${var.db_root_password}';
+              CREATE USER IF NOT EXISTS 'root'@'%' IDENTIFIED BY '${var.db_root_password}';
+              GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' WITH GRANT OPTION;
+              CREATE DATABASE IF NOT EXISTS ${var.db_database_name};
+              FLUSH PRIVILEGES;
+              SQL
               EOF
 
   tags = {
