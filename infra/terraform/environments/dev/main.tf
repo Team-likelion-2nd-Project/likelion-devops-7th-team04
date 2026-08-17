@@ -54,6 +54,12 @@ variable "alarm_email" {
   description = "Email address for CloudWatch SNS alarm notifications"
   type        = string
 }
+
+variable "db_root_password" {
+  description = "Root password to configure for the MariaDB instance on first boot"
+  type        = string
+  sensitive   = true
+}
 # =========================
 # DEV-41 Network Module
 # =========================
@@ -73,6 +79,10 @@ module "security" {
 
   project_name = "team04-hotel"
   vpc_id       = module.network.vpc_id
+
+  # CPU 워크로드가 Fargate로 전환되며 DB/Redis가 Fargate pod(EKS 클러스터 기본 보안그룹)의
+  # 트래픽도 허용해야 함
+  eks_cluster_security_group_id = module.eks.cluster_security_group_id
 }
 
 # =========================
@@ -93,6 +103,8 @@ module "database" {
   instance_type   = "t3.micro"
   ebs_volume_size = 20
   ebs_volume_type = "gp3"
+
+  db_root_password = var.db_root_password
 }
 
 # =========================

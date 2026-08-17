@@ -46,3 +46,15 @@ variable "iam_instance_profile_name" {
   type        = string
   default     = null
 }
+
+variable "db_root_password" {
+  description = "Root password to configure for the MariaDB instance on first boot"
+  type        = string
+  sensitive   = true
+}
+
+variable "db_database_name" {
+  description = "Initial database name to create on first boot"
+  type        = string
+  default     = "hotel_service"
+}
