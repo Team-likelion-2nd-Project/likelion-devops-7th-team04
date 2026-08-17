@@ -46,3 +46,35 @@ export async function fetchRoom(hotelId: number, roomId: number): Promise<Room> 
   const res = await fetch(`${BASE_URL}/api/hotels/${hotelId}/rooms/${roomId}`)
   return parseJsonOrThrow<Room>(res)
 }
+
+// proto의 RoomAvailabilityDay 메시지 / gateway RoomAvailabilityDayDto와 1:1 대응
+export interface RoomAvailabilityDay {
+  date: string
+  isAvailable: boolean
+  price: number
+}
+
+// proto의 RoomAvailabilityResponse 메시지 / gateway RoomAvailabilityDto와 1:1 대응
+export interface RoomAvailability {
+  hotelId: number
+  roomId: number
+  startDate: string
+  endDate: string
+  /** 구간 전체(startDate~endDate)가 하루도 빠짐없이 예약 가능할 때만 true */
+  isAvailable: boolean
+  availabilities: RoomAvailabilityDay[]
+}
+
+// GET /api/hotels/{hotelId}/rooms/{roomId}/availability — 특정 객실의 기간별 예약 가능 여부/가격 조회 (인증 불필요)
+// startDate~endDate는 둘 다 포함(inclusive). 체크아웃 당일은 밤을 묵지 않으므로, 박 수를 셀 때는
+// endDate에 체크아웃일 하루 전날을 넘겨야 한다.
+export async function fetchRoomAvailability(
+  hotelId: number,
+  roomId: number,
+  startDate: string,
+  endDate: string,
+): Promise<RoomAvailability> {
+  const params = new URLSearchParams({ startDate, endDate })
+  const res = await fetch(`${BASE_URL}/api/hotels/${hotelId}/rooms/${roomId}/availability?${params}`)
+  return parseJsonOrThrow<RoomAvailability>(res)
+}
