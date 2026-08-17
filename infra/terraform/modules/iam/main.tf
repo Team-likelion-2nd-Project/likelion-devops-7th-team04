@@ -477,6 +477,13 @@ resource "aws_iam_role_policy_attachment" "github_runner_ecr" {
   policy_arn = aws_iam_policy.backend_cd_ecr.arn
 }
 
+# cicd 정책(S3 배포 + CloudFront 무효화)을 그대로 재사용 (프론트엔드 배포도 같은
+# self-hosted runner에서 수행하므로 정책 중복 생성 안 함)
+resource "aws_iam_role_policy_attachment" "github_runner_frontend_deploy" {
+  role       = aws_iam_role.github_runner.name
+  policy_arn = aws_iam_policy.cicd.arn
+}
+
 resource "aws_iam_instance_profile" "github_runner" {
   name = "${var.project_name}-github-runner-profile"
   role = aws_iam_role.github_runner.name
