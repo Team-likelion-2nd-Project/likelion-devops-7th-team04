@@ -1,0 +1,24 @@
+# ArgoCD가 설치된 클러스터(infra/terraform/environments/dev/addons/argocd.tf)에
+# 최초 1회 등록해야 하는 Application입니다. 이 파일 자체를 kubectl apply하는 것은
+# DEV-145 코드 범위 밖(클러스터 조작)이라 이번 세션에서 실행하지 않았습니다.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: backend
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Team-likelion-2nd-Project/likelion-devops-7th-team04.git
+    targetRevision: develop
+    path: gitops/backend/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+    # ArgoCD가 배포 대상과 동일한 클러스터(EKS team04-hotel-dev-eks)에 설치되어 있으므로
+    # in-cluster 대상이며, 별도 Terraform 클러스터 등록이 필요 없습니다.
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=false

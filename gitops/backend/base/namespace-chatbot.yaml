@@ -1,0 +1,7 @@
+# chatbot 네임스페이스: infra/terraform/modules/eks/main.tf의
+# aws_eks_pod_identity_association.chatbot 이 namespace = var.chatbot_namespace ("chatbot")를
+# 참조하므로 이름을 임의로 바꾸면 안 됩니다.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: chatbot

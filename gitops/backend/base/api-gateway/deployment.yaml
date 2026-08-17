@@ -1,0 +1,53 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      containers:
+        - name: api-gateway
+          image: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-api-gateway:dev
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3000"
+            - name: USER_SERVICE_HOST
+              value: "user-service:3001"
+            - name: AUTH_SERVICE_HOST
+              value: "auth-service:3006"
+            - name: BOOKING_SERVICE_HOST
+              value: "booking-service:3003"
+            - name: HOTEL_SERVICE_HOST
+              value: "hotel-service:3002"
+            - name: PAYMENT_SERVICE_HOST
+              value: "payment-service:3004"
+            # chat-bot-service는 chatbot 네임스페이스에 있어 FQDN이 필요합니다.
+            - name: CHAT_BOT_SERVICE_HOST
+              value: "chat-bot-service.chatbot.svc.cluster.local:3005"
+            - name: JWT_REFRESH_EXPIRES_IN
+              value: "7d"
+            - name: JWT_ACCESS_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: JWT_ACCESS_SECRET
+          # 실사용 트래픽 기준 없이 임시로 넣은 추정값입니다 (재사용할 기존 값 없음). 운영 전 조정 필요.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
