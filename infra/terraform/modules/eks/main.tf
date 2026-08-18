@@ -27,6 +27,13 @@ resource "aws_eks_cluster" "main" {
 # EC2 관리형 노드 그룹 대신 Fargate로 전환 (pod 수 증가로 인한 노드 수용량 한계 대응).
 # kube-system/argocd/backend 네임스페이스의 pod가 전부 여기서 스케줄됩니다.
 # chat-bot-service도 backend 네임스페이스로 통합되어 별도 selector가 필요 없습니다.
+#
+# langchain 네임스페이스(llm-service/n8n/ollama)는 label 기반 selector로 부분적으로만
+# 매칭합니다: `compute=fargate` 라벨이 붙은 pod(llm-service, n8n)만 여기서 Fargate로
+# 뜨고, 그 라벨이 없는 ollama pod는 이 selector에 걸리지 않아 일반 스케줄러를 거쳐
+# GPU node group(nodeSelector+taint toleration, 아래 aws_eks_node_group.gpu)으로 갑니다.
+# Fargate는 GPU를 지원하지 않으므로 네임스페이스 전체를 매칭하면 ollama가 스케줄 불가능한
+# 상태가 되어, 이렇게 같은 네임스페이스 안에서 label로 갈라야 합니다.
 
 resource "aws_eks_fargate_profile" "cpu" {
   cluster_name           = aws_eks_cluster.main.name
@@ -42,6 +49,12 @@ resource "aws_eks_fargate_profile" "cpu" {
   }
   selector {
     namespace = "backend"
+  }
+  selector {
+    namespace = var.langchain_namespace
+    labels = {
+      compute = "fargate"
+    }
   }
 
   tags = {

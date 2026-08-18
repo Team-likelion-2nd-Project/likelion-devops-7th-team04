@@ -231,6 +231,11 @@ module "eks" {
   chatbot_namespace       = "backend"
   chatbot_service_account = "chatbot-service"
 
+  # langchain AI 파이프라인(llm-service/n8n/ollama, gitops/langchain/)의 Fargate profile
+  # label selector 대상 네임스페이스 — compute=fargate 라벨이 있는 pod(llm-service, n8n)만
+  # 여기서 Fargate로 뜨고, ollama는 GPU node group으로 감(위 CPU Fargate Profile 주석 참고)
+  langchain_namespace = "langchain"
+
   # EKS Cluster / Node는 Private App Subnet에 배치
   subnet_ids = module.network.private_app_subnet_ids
 
