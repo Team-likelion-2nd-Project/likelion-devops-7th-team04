@@ -1,31 +1,13 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Payment } from '../../api/payments'
+import { PAYMENT_METHOD_LABEL, formatPaidAt } from '../../utils/payment'
 import { CheckIcon } from './icons'
 import './PaymentCompleteModal.css'
 
 interface PaymentCompleteModalProps {
   payment: Payment
   onClose: () => void
-}
-
-const METHOD_LABELS: Record<string, string> = {
-  CARD: '신용·체크카드',
-  KAKAOPAY: '카카오페이',
-  NAVERPAY: '네이버페이',
-  TOSSPAY: '토스페이',
-}
-
-// payment.paidAt("2026-08-20T10:00:00.000Z" 등 ISO 문자열)을 "YYYY.MM.DD HH:mm"으로 보여준다.
-function formatPaidAt(iso: string) {
-  const date = new Date(iso)
-  if (Number.isNaN(date.getTime())) return iso
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  const hh = String(date.getHours()).padStart(2, '0')
-  const mm = String(date.getMinutes()).padStart(2, '0')
-  return `${y}.${m}.${d} ${hh}:${mm}`
 }
 
 /** PaymentModal에서 결제 요청(POST /api/payments)이 성공한 직후 뜨는 결제완료 안내 모달. */
@@ -35,7 +17,7 @@ function PaymentCompleteModal({ payment, onClose }: PaymentCompleteModalProps) {
   // "확인"을 누르면 내 결제 내역 페이지로 보낸다.
   const handleConfirm = () => {
     onClose()
-    navigate('/payments')
+    navigate('/mypage/payments')
   }
 
   useEffect(() => {
@@ -68,7 +50,7 @@ function PaymentCompleteModal({ payment, onClose }: PaymentCompleteModalProps) {
           </div>
           <div className="payment-complete-modal-row">
             <span>결제수단</span>
-            <span>{METHOD_LABELS[payment.paymentMethod] ?? payment.paymentMethod}</span>
+            <span>{PAYMENT_METHOD_LABEL[payment.paymentMethod] ?? payment.paymentMethod}</span>
           </div>
           <div className="payment-complete-modal-row">
             <span>결제일시</span>

@@ -46,3 +46,17 @@ export async function createPayment(payload: CreatePaymentRequest): Promise<Paym
   })
   return parseJsonOrThrow<Payment>(res)
 }
+
+// GET /api/payments/me — 로그인한 사용자 본인의 결제 목록을 조회한다 (인증 필요).
+// payment-service가 paidAt 최신순으로 정렬해서 내려준다.
+export async function fetchMyPayments(): Promise<Payment[]> {
+  const token = customerAuth.getAccessToken()
+  const res = await fetch(`${BASE_URL}/api/payments/me`, {
+    credentials: 'include',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  })
+  const data = await parseJsonOrThrow<{ payments: Payment[] }>(res)
+  return data.payments
+}
