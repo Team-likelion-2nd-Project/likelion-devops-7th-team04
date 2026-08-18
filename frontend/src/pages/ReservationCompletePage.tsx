@@ -11,6 +11,9 @@ import ReservationSteps from '../components/reservation/ReservationSteps'
 import { sumGuests } from '../components/reservation/guestTypes'
 import type { RoomGuests } from '../components/reservation/guestTypes'
 import { CalendarIcon, CheckIcon, PersonIcon, PinIcon } from '../components/reservation/icons'
+import PaymentModal from '../components/reservation/PaymentModal'
+import PaymentCompleteModal from '../components/reservation/PaymentCompleteModal'
+import type { Payment } from '../api/payments'
 import { diffDays, formatDateWithWeekday, parseDateISO } from '../utils/date'
 import './ReservationCompletePage.css'
 
@@ -39,6 +42,8 @@ function ReservationCompletePage() {
   const [hotel, setHotel] = useState<Hotel | null>(state.hotel ?? null)
   const [room, setRoom] = useState<Room | null>(state.room ?? null)
   const [status, setStatus] = useState<LoadStatus>(booking ? 'success' : 'loading')
+  const [showPaymentModal, setShowPaymentModal] = useState(false)
+  const [completedPayment, setCompletedPayment] = useState<Payment | null>(null)
 
   // reservationId 자체가 없으면(예: 페이지 직접 잘못 접근) 예약 플로우 처음으로 돌려보낸다.
   useEffect(() => {
@@ -90,6 +95,14 @@ function ReservationCompletePage() {
     }
   }, [booking, reservationId, missingAuth])
 
+  // PaymentModal이 결제 API 호출까지 마치고 알려주면, 결제창은 닫고 결제완료 모달을 띄운다.
+  // 응답은 Payment이며 갱신된 Booking을 함께 내려주지 않으므로, 화면 상태도 함께 RESERVED로 반영한다.
+  const handlePaid = (payment: Payment) => {
+    setShowPaymentModal(false)
+    setBooking((prev) => (prev ? { ...prev, status: 'RESERVED' } : prev))
+    setCompletedPayment(payment)
+  }
+
   if (!reservationId) {
     // useEffect가 /reservation으로 돌려보내는 동안 잠깐 보여줄 빈 화면
     return null
@@ -123,7 +136,7 @@ function ReservationCompletePage() {
       {effectiveStatus === 'error' && (
         <div className="reservation-complete-status error">
           <p>예약 정보를 불러오지 못했습니다.</p>
-          <Link to="/reservations">내 예약 내역에서 확인하기</Link>
+          <Link to="/mypage/reservations">내 예약 내역에서 확인하기</Link>
         </div>
       )}
 
@@ -231,7 +244,21 @@ function ReservationCompletePage() {
               </div>
 
               <div className="reservation-complete-actions">
-                <Link className="reservation-complete-primary" to="/reservations">
+                {booking.status === 'PENDING_PAYMENT' && (
+                  <button
+                    type="button"
+                    className="reservation-complete-primary"
+                    onClick={() => setShowPaymentModal(true)}
+                  >
+                    결제하기
+                  </button>
+                )}
+                <Link
+                  className={
+                    booking.status === 'PENDING_PAYMENT' ? 'reservation-complete-secondary' : 'reservation-complete-primary'
+                  }
+                  to="/mypage/reservations"
+                >
                   예약 내역 보기
                 </Link>
                 <Link className="reservation-complete-secondary" to="/">
@@ -240,6 +267,29 @@ function ReservationCompletePage() {
               </div>
             </aside>
           </div>
+
+          {showPaymentModal && (
+            <PaymentModal
+              reservationId={booking.reservationId}
+              summary={{
+                roomName: room ? room.name : `객실 #${booking.roomId}`,
+                hotelName: hotel?.name,
+                period:
+                  checkIn && checkOut
+                    ? `${formatDateWithWeekday(checkIn)} - ${formatDateWithWeekday(checkOut)}${
+                        nights != null ? ` · ${nights}박` : ''
+                      }`
+                    : undefined,
+                amount: booking.totalAmount,
+              }}
+              onClose={() => setShowPaymentModal(false)}
+              onPaid={handlePaid}
+            />
+          )}
+
+          {completedPayment && (
+            <PaymentCompleteModal payment={completedPayment} onClose={() => setCompletedPayment(null)} />
+          )}
         </>
       )}
     </section>

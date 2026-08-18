@@ -119,16 +119,12 @@ function ReservationOptionsPage() {
     setOptionCounts((prev) => ({ ...prev, [key]: Math.min(totalGuests, Math.max(0, value)) }))
   }
 
-  // payment-service 연동(실제 결제)이 아직 없다. 그래서 "결제하기"를 누르면 결제 없이
-  // booking-service의 예약 생성 API(POST /api/bookings)를 바로 호출해 예약을 만든다.
+  // 예약 - 결제 프로세스 변경: 이 페이지는 결제 없이 예약만 먼저 생성한다(booking-service
+  // POST /api/bookings). 서버가 예약을 PENDING_PAYMENT 상태로 만들며, 실제 결제(POST /api/payments)는
+  // 이어지는 예약완료 페이지(ReservationCompletePage)나 내 예약 내역 상세 페이지에서 별도로 진행한다.
   // 주의: 백엔드 CreateBookingRequest는 옵션을 인원수가 아니라 boolean(hasIndoorPool/hasLounge)으로만
   // 받으므로, 선택 인원이 1명 이상이면 true로 보낸다 — 옵션별 인원수/추가 요금은 서버에 반영되지 않는다.
-  // TODO(결제): 백엔드는 이제 예약 생성 시 PENDING_PAYMENT 상태로 만들고, 결제 승인(POST /api/payments)이
-  // 성공해야 RESERVED로 전환된다(booking-service ReservationStatus 참고). 이 페이지는 아직 결제 API를
-  // 호출하지 않아서, 지금 이 흐름대로면 예약이 PENDING_PAYMENT인 채로 "예약 완료" 페이지로 넘어가게 된다 —
-  // createBooking 이후 결제수단 선택 + POST /api/payments 호출을 이어붙이고, 성공 시에만 완료 페이지로
-  // 이동하도록 바꿔야 한다. 별도 이슈로 분리됨(프론트 결제 흐름 연동).
-  const handlePayment = async () => {
+  const handleReserve = async () => {
     if (!customerAuth.getAccessToken()) {
       setBookingStatus('error')
       setBookingError('로그인이 필요합니다.')
@@ -335,10 +331,10 @@ function ReservationOptionsPage() {
             <button
               type="button"
               className="reservation-options-pay-button"
-              onClick={handlePayment}
+              onClick={handleReserve}
               disabled={bookingStatus === 'submitting'}
             >
-              {bookingStatus === 'submitting' ? '예약 생성 중…' : '결제하기'}
+              {bookingStatus === 'submitting' ? '예약 생성 중…' : '예약하기'}
             </button>
             {bookingStatus === 'error' && (
               <p className="reservation-options-pay-status error">{bookingError}</p>
