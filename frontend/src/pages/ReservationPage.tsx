@@ -64,7 +64,8 @@ function ReservationPage() {
   const { adults: totalAdults, children: totalChildren, infants: totalInfants } = sumGuests(rooms)
 
   // "객실 검색"을 누르면 이 페이지에서 바로 결과를 보여주는 대신, 조건을 쿼리스트링에 실어
-  // 2단계(객실 선택) 페이지로 이동한다.
+  // 2단계(객실 선택) 페이지로 이동한다. 실제 GET /rooms/search 호출과 "예약 가능한 객실이
+  // 없습니다" 안내는 그 2단계(RoomSelectionPage)에서 수행한다.
   const handleSearch = () => {
     if (!selectedHotel) {
       setOpenPanel('hotel')
