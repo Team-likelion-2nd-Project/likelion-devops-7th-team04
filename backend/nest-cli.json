@@ -89,6 +89,15 @@
         "tsConfigPath": "apps/payment-service/tsconfig.app.json"
       }
     },
+    "pg-mock-service": {
+      "type": "application",
+      "root": "apps/pg-mock-service",
+      "entryFile": "main",
+      "sourceRoot": "apps/pg-mock-service/src",
+      "compilerOptions": {
+        "tsConfigPath": "apps/pg-mock-service/tsconfig.app.json"
+      }
+    },
     "user-service": {
       "type": "application",
       "root": "apps/user-service",
