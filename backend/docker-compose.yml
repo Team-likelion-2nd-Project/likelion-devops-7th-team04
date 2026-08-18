@@ -190,6 +190,21 @@ services:
     environment:
       - NODE_ENV=development
 
+  # 4-1. PG 목업 서버 — 실제 PG사(토스페이먼츠 등) 서버를 대신하는 목업. payment-service가
+  #      HTTP로 결제 생성/승인/취소를 요청하고, 이 서버는 결과를 웹훅으로 통보합니다.
+  #      payment-service의 웹훅 수신 엔드포인트는 별도 이슈에서 구현되므로, 그전까지는
+  #      PAYMENT_SERVICE_WEBHOOK_URL을 비워두면 됩니다(웹훅 발송만 스킵되고 나머지 API는 정상 동작).
+  pg-mock-service:
+    build:
+      context: .
+      dockerfile: apps/pg-mock-service/Dockerfile
+    ports:
+      - "3007:3007"
+    environment:
+      - NODE_ENV=development
+      - PAYMENT_SERVICE_WEBHOOK_URL=${PAYMENT_SERVICE_WEBHOOK_URL:-}
+      - MOCK_PG_SECRET=${MOCK_PG_SECRET:-mock-pg-secret}
+
   chat-bot-service:
     build:
       context: .
