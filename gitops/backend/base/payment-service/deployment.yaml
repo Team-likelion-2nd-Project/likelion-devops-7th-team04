@@ -20,14 +20,15 @@ spec:
             - containerPort: 3004
           # payment-service가 TypeORM(MariaDB)과 booking-service gRPC 클라이언트를 쓰게 되어
           # hotel-service/booking-service와 동일한 패턴으로 DB 접속 정보(backend-secrets Secret)와
-          # BOOKING_SERVICE_HOST를 추가했습니다.
-          # PG_MOCK_SERVICE_URL은 없습니다 — pg-mock-service는 k8s에 배포하지 않기로 했습니다
-          # (별도 이슈에서 재논의). 그때까지 POST /api/payments는 PG 호출 단계에서 실패합니다.
+          # BOOKING_SERVICE_HOST를 추가했습니다. PG_MOCK_SERVICE_URL은 pg-mock-service의
+          # k8s Service DNS를 가리킵니다(gitops/backend/base/pg-mock-service/service.yaml).
           env:
             - name: NODE_ENV
               value: "production"
             - name: BOOKING_SERVICE_HOST
               value: "booking-service:3003"
+            - name: PG_MOCK_SERVICE_URL
+              value: "http://pg-mock-service:3007"
             - name: DB_PORT
               value: "3306"
             - name: DB_HOST

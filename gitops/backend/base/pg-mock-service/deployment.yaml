@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pg-mock-service
+  namespace: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pg-mock-service
+  template:
+    metadata:
+      labels:
+        app: pg-mock-service
+    spec:
+      containers:
+        - name: pg-mock-service
+          image: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-pg-mock-service:dev
+          ports:
+            - containerPort: 3007
+          # 실제 PG사를 대신하는 목업 서버라 DB/Redis가 필요 없습니다(인메모리 저장소).
+          # MOCK_PG_SECRET은 api-gateway(gitops/backend/base/api-gateway/deployment.yaml)와
+          # backend-secrets의 같은 키를 참조하므로 값은 자동으로 동일합니다.
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PAYMENT_SERVICE_WEBHOOK_URL
+              value: "http://api-gateway:3000/api/payments/webhook"
+            - name: MOCK_PG_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: MOCK_PG_SECRET
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

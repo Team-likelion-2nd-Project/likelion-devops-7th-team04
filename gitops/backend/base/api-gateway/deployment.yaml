@@ -35,6 +35,14 @@ spec:
               value: "payment-service:3004"
             - name: CHAT_BOT_SERVICE_HOST
               value: "chat-bot-service:3005"
+            # pg-mock-service가 보내는 결제 웹훅(POST /api/payments/webhook)의 HMAC 서명을
+            # 검증하는 데 씁니다. pg-mock-service(gitops/backend/base/pg-mock-service/
+            # deployment.yaml)와 backend-secrets의 같은 키를 참조하므로 값은 자동으로 동일합니다.
+            - name: MOCK_PG_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: MOCK_PG_SECRET
             - name: JWT_REFRESH_EXPIRES_IN
               value: "7d"
             - name: JWT_ACCESS_SECRET
