@@ -14,6 +14,13 @@ resource "aws_eks_cluster" "main" {
     endpoint_public_access  = true
   }
 
+  # aws_eks_access_entry가 동작하려면 CONFIG_MAP이 아닌 API 모드가 필요.
+  # 기존 aws-auth ConfigMap 기반 접근도 유지하기 위해 API_AND_CONFIG_MAP 사용
+  # (CONFIG_MAP -> API로 한 번에 전환은 AWS에서 허용하지 않음).
+  access_config {
+    authentication_mode = "API_AND_CONFIG_MAP"
+  }
+
   tags = {
     Name        = "${var.project_name}-${var.environment}-eks"
     Environment = var.environment
