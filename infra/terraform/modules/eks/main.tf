@@ -17,8 +17,15 @@ resource "aws_eks_cluster" "main" {
   # aws_eks_access_entry가 동작하려면 CONFIG_MAP이 아닌 API 모드가 필요.
   # 기존 aws-auth ConfigMap 기반 접근도 유지하기 위해 API_AND_CONFIG_MAP 사용
   # (CONFIG_MAP -> API로 한 번에 전환은 AWS에서 허용하지 않음).
+  #
+  # bootstrap_cluster_creator_admin_permissions를 명시적으로 true로 고정해야 함
+  # (DEV-176) — access_config가 없던 최초 생성 시 AWS가 이 값을 true로 자동
+  # 설정해 state에 기록해뒀는데, 여기서 값을 안 주면 Terraform이 null로 취급하고
+  # 이 필드는 ForceNew라 클러스터 전체가 destroy+recreate로 잡힌다(실제로 apply
+  # 중 "Cluster has nodegroups attached"로 destroy가 실패하며 발견됨).
   access_config {
-    authentication_mode = "API_AND_CONFIG_MAP"
+    authentication_mode                         = "API_AND_CONFIG_MAP"
+    bootstrap_cluster_creator_admin_permissions = true
   }
 
   tags = {
