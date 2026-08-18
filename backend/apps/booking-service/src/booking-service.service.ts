@@ -27,6 +27,13 @@ interface HotelGrpcService {
   }): Observable<ReserveRoomAvailabilityGrpcResponse>;
 }
 
+// libs/common/src/proto/payment.proto의 PaymentService / RefundPayment와 1:1 대응
+interface PaymentGrpcService {
+  refundPayment(data: {
+    reservationId: number;
+  }): Observable<{ refunded: boolean }>;
+}
+
 // 'YYYY-MM-DD' 문자열에 일 단위 offset을 더한 'YYYY-MM-DD' 문자열을 반환한다 (UTC 기준 계산,
 // date 컬럼은 시간대 정보가 없으므로 로컬 타임존에 영향받지 않도록 UTC로 계산한다).
 function addDays(dateStr: string, offset: number): string {
@@ -59,16 +66,20 @@ export interface BookingGrpcResponse {
 export class BookingServiceService implements OnModuleInit {
   private readonly logger = new Logger(BookingServiceService.name);
   private hotelService!: HotelGrpcService;
+  private paymentService!: PaymentGrpcService;
 
   constructor(
     @InjectRepository(Reservation)
     private readonly reservationRepository: Repository<Reservation>,
     @Inject('HOTEL_SERVICE') private readonly hotelClient: ClientGrpc,
+    @Inject('PAYMENT_SERVICE') private readonly paymentClient: ClientGrpc,
   ) {}
 
   onModuleInit() {
     this.hotelService =
       this.hotelClient.getService<HotelGrpcService>('HotelService');
+    this.paymentService =
+      this.paymentClient.getService<PaymentGrpcService>('PaymentService');
   }
 
   getHello(): string {
@@ -126,7 +137,7 @@ export class BookingServiceService implements OnModuleInit {
       hasIndoorPool: data.hasIndoorPool,
       hasLounge: data.hasLounge,
       totalAmount,
-      status: ReservationStatus.RESERVED,
+      status: ReservationStatus.PENDING_PAYMENT,
     });
     const saved = await this.reservationRepository.save(reservation);
     return this.toGrpcResponse(saved);
@@ -165,11 +176,16 @@ export class BookingServiceService implements OnModuleInit {
   }
 
   // 본인 예약 취소. reservationId가 존재하지 않으면, 혹은 요청자가 예약자 본인이 아니면 RpcException.
-  // 이미 취소/완료된 예약도 재취소할 수 없다.
+  // 이미 취소/완료된 예약도 재취소할 수 없다. PENDING_PAYMENT(결제 전)/RESERVED(결제 완료) 둘 다
+  // 취소 가능하다.
   // 1) Reservation.status를 CANCELLED로 먼저 확정한다 (이 서비스의 소스 오브 트루스).
   // 2) hotel-service에 room_availabilities 복구를 요청한다 — 체크아웃 당일은 다음 손님의 체크인일이므로
   //    막지 않고, 체크인일부터 체크아웃 전날까지만 되돌린다. 이 호출이 실패해도 예약 자체는 이미
   //    취소된 상태이므로 요청을 실패시키지 않고 로그만 남긴다(가용일 동기화는 별도로 복구 가능).
+  // 3) payment-service에 환불을 요청한다. 취소 전 상태(PENDING_PAYMENT였는지 RESERVED였는지)와
+  //    무관하게 항상 호출한다 — PAID 결제가 실제로 있는지 판단은 payment-service가 스스로 하도록
+  //    맡긴다(RefundPayment 주석 참고). 이 호출도 hotel-service와 동일하게 실패해도 예약취소
+  //    자체는 막지 않고 로그만 남긴다.
   async cancelBooking(
     reservationId: number,
     userId: number,
@@ -183,7 +199,10 @@ export class BookingServiceService implements OnModuleInit {
     if (reservation.userId !== userId) {
       throw new RpcException('본인의 예약만 취소할 수 있습니다.');
     }
-    if (reservation.status !== ReservationStatus.RESERVED) {
+    if (
+      reservation.status !== ReservationStatus.PENDING_PAYMENT &&
+      reservation.status !== ReservationStatus.RESERVED
+    ) {
       throw new RpcException('이미 취소되었거나 완료된 예약입니다.');
     }
 
@@ -206,11 +225,35 @@ export class BookingServiceService implements OnModuleInit {
       );
     }
 
-    // TODO(환불): 결제(payment-service) 연동 후, 여기서 해당 예약(totalAmount)에 대한 환불 요청을
-    // 추가해야 한다. payment.proto에 아직 Refund RPC가 없으므로 별도 작업으로 구현 예정.
-    // (room_availabilities 복구와 동일하게 실패해도 예약 취소 자체는 막지 않되, 환불 실패는 반드시
-    // 로그/재시도 큐 등으로 추적되어야 함 — 단순 로그만 남기는 현재 방식으로는 부족할 수 있음)
+    try {
+      await firstValueFrom(
+        this.paymentService.refundPayment({ reservationId }),
+      );
+    } catch (error) {
+      this.logger.error(
+        `예약(#${reservationId}) 취소 후 결제 환불 요청 실패`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    }
 
+    return this.toGrpcResponse(saved);
+  }
+
+  // 결제 승인 완료 후 payment-service가 호출: PENDING_PAYMENT -> RESERVED로 전환한다.
+  // PENDING_PAYMENT 상태가 아니면(이미 확정됐거나 취소된 예약에 뒤늦게 도달한 콜백 등) 에러.
+  async confirmBooking(reservationId: number): Promise<BookingGrpcResponse> {
+    const reservation = await this.reservationRepository.findOne({
+      where: { reservationId },
+    });
+    if (!reservation) {
+      throw new RpcException('존재하지 않는 예약입니다.');
+    }
+    if (reservation.status !== ReservationStatus.PENDING_PAYMENT) {
+      throw new RpcException('결제 대기 상태의 예약이 아닙니다.');
+    }
+
+    reservation.status = ReservationStatus.RESERVED;
+    const saved = await this.reservationRepository.save(reservation);
     return this.toGrpcResponse(saved);
   }
 

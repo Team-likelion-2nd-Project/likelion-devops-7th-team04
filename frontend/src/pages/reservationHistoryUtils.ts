@@ -7,6 +7,7 @@ import { formatDate as formatDateObj, parseDateISO } from '../utils/date'
 
 // ReservationHistoryPage(목록)와 ReservationDetailPage(상세)가 함께 쓰는 표시용 헬퍼.
 export const STATUS_LABEL: Record<Booking['status'], string> = {
+  PENDING_PAYMENT: '결제 대기',
   RESERVED: '예약 확정',
   CANCELLED: '취소됨',
   COMPLETED: '이용 완료',

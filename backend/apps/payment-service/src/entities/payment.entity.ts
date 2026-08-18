@@ -29,6 +29,11 @@ export class Payment {
   @Column({ name: 'approval_number' })
   approvalNumber!: string;
 
+  // PG(pg-mock)가 발급한 결제 식별자. 환불(RefundPayment) 시 PG 취소 API(/payments/:paymentKey/cancel)
+  // 호출에 필요해서 저장해둔다 — approvalNumber는 표시용, paymentKey는 PG 재호출용이라 역할이 다르다.
+  @Column({ name: 'payment_key' })
+  paymentKey!: string;
+
   @Column({ name: 'amount' })
   amount!: number;
 

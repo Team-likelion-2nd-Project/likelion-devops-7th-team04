@@ -123,7 +123,11 @@ function ReservationOptionsPage() {
   // booking-service의 예약 생성 API(POST /api/bookings)를 바로 호출해 예약을 만든다.
   // 주의: 백엔드 CreateBookingRequest는 옵션을 인원수가 아니라 boolean(hasIndoorPool/hasLounge)으로만
   // 받으므로, 선택 인원이 1명 이상이면 true로 보낸다 — 옵션별 인원수/추가 요금은 서버에 반영되지 않는다.
-  // TODO(결제): payment-service 연동 후에는 결제 성공 콜백에서 예약을 생성하도록 이 흐름을 바꿔야 한다.
+  // TODO(결제): 백엔드는 이제 예약 생성 시 PENDING_PAYMENT 상태로 만들고, 결제 승인(POST /api/payments)이
+  // 성공해야 RESERVED로 전환된다(booking-service ReservationStatus 참고). 이 페이지는 아직 결제 API를
+  // 호출하지 않아서, 지금 이 흐름대로면 예약이 PENDING_PAYMENT인 채로 "예약 완료" 페이지로 넘어가게 된다 —
+  // createBooking 이후 결제수단 선택 + POST /api/payments 호출을 이어붙이고, 성공 시에만 완료 페이지로
+  // 이동하도록 바꿔야 한다. 별도 이슈로 분리됨(프론트 결제 흐름 연동).
   const handlePayment = async () => {
     if (!customerAuth.getAccessToken()) {
       setBookingStatus('error')

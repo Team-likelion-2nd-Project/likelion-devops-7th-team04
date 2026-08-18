@@ -54,6 +54,22 @@ export class PgMockClient {
     });
   }
 
+  // PG 결제 취소(환불) 요청. 승인(approve)된 결제만 취소할 수 있다 — pg-mock 쪽에서 상태 검증.
+  async cancel(
+    paymentKey: string,
+    params?: { cancelReason?: string },
+  ): Promise<PgMockPaymentResult> {
+    const baseUrl = process.env.PG_MOCK_SERVICE_URL || DEFAULT_BASE_URL;
+
+    return this.post<PgMockPaymentResult>(
+      `${baseUrl}/payments/${paymentKey}/cancel`,
+      params,
+    ).catch((error: unknown) => {
+      this.logError('PG 결제 취소 실패', error);
+      throw new RpcException('PG 결제 취소에 실패했습니다.');
+    });
+  }
+
   private async post<T>(url: string, data?: unknown): Promise<T> {
     const { data: body } = await firstValueFrom(
       this.httpService.post<T>(url, data, { timeout: DEFAULT_TIMEOUT_MS }),

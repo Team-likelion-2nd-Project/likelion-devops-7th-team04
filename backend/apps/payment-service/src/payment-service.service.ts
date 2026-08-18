@@ -6,12 +6,16 @@ import { Repository } from 'typeorm';
 import { Payment, PaymentStatus } from './entities/payment.entity';
 import { PgMockClient } from './pg-mock/pg-mock.client';
 
-// libs/common/src/proto/booking.proto의 BookingService / GetBookingById와 1:1 대응
+// libs/common/src/proto/booking.proto의 BookingService / GetBookingById, ConfirmBooking과 1:1 대응
 interface BookingGrpcService {
   getBookingById(data: { reservationId: number }): Observable<{
     reservationId: number;
     userId: number;
     totalAmount: number;
+    status: string;
+  }>;
+  confirmBooking(data: { reservationId: number }): Observable<{
+    reservationId: number;
     status: string;
   }>;
 }
@@ -73,7 +77,7 @@ export class PaymentServiceService implements OnModuleInit {
     if (booking.userId !== data.userId) {
       throw new RpcException('본인의 예약만 결제할 수 있습니다.');
     }
-    if (booking.status !== 'RESERVED') {
+    if (booking.status !== 'PENDING_PAYMENT') {
       throw new RpcException('결제할 수 없는 예약 상태입니다.');
     }
 
@@ -104,12 +108,28 @@ export class PaymentServiceService implements OnModuleInit {
       reservationId: data.reservationId,
       userId: data.userId,
       approvalNumber: result.approvalNumber,
+      paymentKey: result.paymentKey,
       amount: booking.totalAmount,
       paymentMethod: data.paymentMethod,
       status: PaymentStatus.PAID,
       paidAt: result.approvedAt ? new Date(result.approvedAt) : new Date(),
     });
     const saved = await this.paymentRepository.save(payment);
+
+    // 예약 확정 요청(PENDING_PAYMENT -> RESERVED). PG 승인은 이미 끝나 돈이 움직인 뒤이므로, 이
+    // 호출이 실패해도 결제 요청 자체는 성공으로 응답한다 — 실패시키면 이미 승인된 결제를 없던 일로
+    // 되돌려야 하는데(PG 재취소) 그건 더 위험하다. 실패하면 예약이 PENDING_PAYMENT로 남을 수 있지만,
+    // cancelBooking은 이 상태와 무관하게 항상 RefundPayment를 호출하도록 구현돼 있어 환불 누락으로
+    // 이어지지는 않는다(a안 정책, booking.proto의 CancelBooking 주석 참고). 정합성 자체는 로그로만
+    // 남기고, 추후 필요 시 재시도/정산 배치로 보완한다.
+    await firstValueFrom(
+      this.bookingService.confirmBooking({ reservationId: data.reservationId }),
+    ).catch((error: unknown) => {
+      this.logger.error(
+        `결제 승인 후 예약(#${data.reservationId}) 확정(PENDING_PAYMENT→RESERVED) 요청 실패`,
+        error instanceof Error ? error.stack : String(error),
+      );
+    });
 
     return this.toGrpcResponse(saved);
   }
@@ -123,6 +143,7 @@ export class PaymentServiceService implements OnModuleInit {
     amount: number;
     paymentMethod: string;
     approvalNumber: string;
+    paymentKey: string;
   }): Promise<void> {
     const reservationId = Number(data.orderId);
     if (!Number.isInteger(reservationId)) {
@@ -159,6 +180,7 @@ export class PaymentServiceService implements OnModuleInit {
         reservationId,
         userId: booking.userId,
         approvalNumber: data.approvalNumber,
+        paymentKey: data.paymentKey,
         amount: data.amount,
         paymentMethod: data.paymentMethod,
         status: PaymentStatus.PAID,
@@ -168,6 +190,19 @@ export class PaymentServiceService implements OnModuleInit {
       this.logger.warn(
         `동기 흐름에서 누락된 결제를 웹훅으로 구제했습니다 (reservationId=${reservationId})`,
       );
+
+      // requestPayment()의 동기 흐름이 confirmBooking 호출 전에 끊겼을 수 있으므로 여기서도
+      // 시도한다. 이미 RESERVED로 확정된 경우(confirmBooking까지는 성공했던 경우) booking-service가
+      // 에러를 던지지만, 그 결과가 결제 구제 자체를 실패시키진 않으므로 로그만 남긴다.
+      await firstValueFrom(
+        this.bookingService.confirmBooking({ reservationId }),
+      ).catch((error: unknown) => {
+        this.logger.warn(
+          `웹훅 구제 후 예약(#${reservationId}) 확정 요청 실패(이미 확정됐을 수 있음): ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      });
       return;
     }
 
@@ -204,6 +239,29 @@ export class PaymentServiceService implements OnModuleInit {
       order: { paidAt: 'DESC' },
     });
     return payments.map((payment) => this.toGrpcResponse(payment));
+  }
+
+  // 예약 취소 시 booking-service가 항상 호출하는 내부용 환불 RPC (payment.proto의 RefundPayment
+  // 주석 참고). PAID 결제가 없으면(결제 전 취소 등) no-op으로 조용히 반환한다 — booking-service가
+  // reservation.status와 무관하게 매 취소마다 호출하므로, 이게 정상 흐름의 일부다.
+  async refundPayment(reservationId: number): Promise<{ refunded: boolean }> {
+    const payment = await this.paymentRepository.findOne({
+      where: { reservationId, status: PaymentStatus.PAID },
+    });
+    if (!payment) {
+      return { refunded: false };
+    }
+
+    // PG 취소 호출이 실패하면 결제내역은 PAID로 남겨둔 채 에러를 그대로 던진다 — 호출자
+    // (booking-service.cancelBooking)가 로그만 남기고 예약취소 자체는 막지 않는 정책이다.
+    // 여기서 임의로 REFUNDED로 바꾸면 실제로는 환불되지 않은 결제를 환불된 것처럼 기록하게 된다.
+    await this.pgMockClient.cancel(payment.paymentKey, {
+      cancelReason: '예약 취소',
+    });
+
+    payment.status = PaymentStatus.REFUNDED;
+    await this.paymentRepository.save(payment);
+    return { refunded: true };
   }
 
   private toGrpcResponse(payment: Payment): PaymentGrpcResponse {

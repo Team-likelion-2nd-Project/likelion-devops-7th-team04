@@ -13,17 +13,25 @@ service BookingService {
 
   // 본인 예약 취소: status를 CANCELLED로 변경하고, hotel-service에 예약 가능일 복구를 요청한다.
   // (reservationId가 없거나 userId가 예약자 본인이 아니면 에러)
-  // TODO(환불): payment-service 연동 후 결제 환불 처리를 추가해야 한다 (아직 payment.proto에 없음).
+  // PENDING_PAYMENT(결제 전) / RESERVED(결제 완료) 상태 모두 취소 가능하며, payment-service의
+  // RefundPayment는 상태와 무관하게 항상 호출한다 — 결제 존재 여부 판단은 payment-service가
+  // 스스로 한다 (PENDING_PAYMENT로 남아있어도 실제로는 결제가 됐을 수 있어서, reservation.status만
+  // 믿고 환불 호출 여부를 정하면 환불 누락이 생길 수 있다. payment-service.service.ts의
+  // requestPayment/refundPayment 주석 참고).
   rpc CancelBooking (CancelBookingRequest) returns (Booking);
-  
+
   // 신규 예약 생성. hotel-service의 ReserveRoomAvailability를 호출해 checkInDate~checkOutDate 전날까지
-  // 예약 가능 여부를 검증하고 가격 합계(totalAmount)를 받아온 뒤 예약을 저장한다.
+  // 예약 가능 여부를 검증하고 가격 합계(totalAmount)를 받아온 뒤 예약을 PENDING_PAYMENT 상태로 저장한다.
   rpc CreateBooking (CreateBookingRequest) returns (Booking);
 
   // 단건 예약 조회. payment-service가 결제 요청을 처리할 때 예약의 금액(totalAmount)/소유자
   // (userId)/상태(status)를 검증하기 위해 호출한다. 소유자 검증은 호출 측(payment-service)의
   // 책임이며, 여기서는 reservationId로 조회만 한다 (없으면 에러).
   rpc GetBookingById (GetBookingByIdRequest) returns (Booking);
+
+  // 결제 승인 완료 후 payment-service가 호출: 예약을 PENDING_PAYMENT -> RESERVED로 전환한다.
+  // PENDING_PAYMENT 상태가 아니면(이미 확정됐거나 취소된 예약) 에러.
+  rpc ConfirmBooking (ConfirmBookingRequest) returns (Booking);
 }
 
 message Empty {}
@@ -37,6 +45,10 @@ message GetBookingsByUserIdRequest {
 }
 
 message GetBookingByIdRequest {
+  int32 reservationId = 1;
+}
+
+message ConfirmBookingRequest {
   int32 reservationId = 1;
 }
 

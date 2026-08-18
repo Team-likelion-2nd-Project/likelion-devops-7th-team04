@@ -213,7 +213,7 @@ export interface Booking {
   hasIndoorPool: boolean
   hasLounge: boolean
   totalAmount: number
-  status: 'RESERVED' | 'CANCELLED' | 'COMPLETED'
+  status: 'PENDING_PAYMENT' | 'RESERVED' | 'CANCELLED' | 'COMPLETED'
 }
 
 // api-gateway(GET /api/bookings/me) -> booking-service(gRPC)로 로그인한 사용자 본인의 예약 목록을 조회한다.
