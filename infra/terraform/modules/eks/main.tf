@@ -82,6 +82,12 @@ resource "aws_eks_node_group" "gpu" {
   instance_types = var.gpu_instance_types
   capacity_type  = "ON_DEMAND"
 
+  # 기본값(20GB)이 langchain_rag/ollama/Dockerfile이 굽는 이미지(7B 채팅 모델 +
+  # nomic-embed-text 임베딩 모델, 수 GB)를 담기엔 너무 작아서 kubelet이
+  # node.kubernetes.io/disk-pressure:NoSchedule taint를 자동으로 붙이고 ollama
+  # pod가 영원히 스케줄 안 되는 문제가 실제로 발생했다 (DEV-163).
+  disk_size = var.gpu_disk_size
+
   scaling_config {
     desired_size = var.gpu_desired_size
     min_size     = var.gpu_min_size

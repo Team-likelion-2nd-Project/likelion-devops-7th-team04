@@ -40,6 +40,12 @@ variable "gpu_instance_types" {
   default     = ["g4dn.xlarge"]
 }
 
+variable "gpu_disk_size" {
+  description = "Root EBS volume size (GB) for GPU worker nodes. Default AMI size (20GB) is too small for the Ollama image (7B chat model + embedding model baked in) and trips kubelet's disk-pressure taint (DEV-163)."
+  type        = number
+  default     = 100
+}
+
 variable "gpu_desired_size" {
   description = "Desired number of GPU worker nodes"
   type        = number
