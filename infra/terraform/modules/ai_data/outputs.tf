@@ -1,8 +1,3 @@
-output "neptune_endpoint" {
-  value       = aws_neptune_cluster.ai_data.endpoint
-  description = "Neptune Graph DB 접속 엔드포인트"
-}
-
 # ------------------------------------------------------------------------------
 # DEV-57 Chatbot Role IAM 권한 연결용 S3 Vectors Output (실제 리소스 참조)
 # ------------------------------------------------------------------------------
