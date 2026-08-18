@@ -201,7 +201,11 @@ module "ecr" {
     "chat-bot-service",
     "hotel-service",
     "payment-service",
-    "user-service"
+    "user-service",
+    # langchain_rag/ollama, langchain_rag/llm-service 이미지용 (n8n은 퍼블릭
+    # n8nio/n8n 이미지를 그대로 쓰므로 ECR repo 불필요)
+    "ollama",
+    "llm-service"
   ]
 }
 
