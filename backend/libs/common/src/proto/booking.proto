@@ -19,6 +19,11 @@ service BookingService {
   // 신규 예약 생성. hotel-service의 ReserveRoomAvailability를 호출해 checkInDate~checkOutDate 전날까지
   // 예약 가능 여부를 검증하고 가격 합계(totalAmount)를 받아온 뒤 예약을 저장한다.
   rpc CreateBooking (CreateBookingRequest) returns (Booking);
+
+  // 단건 예약 조회. payment-service가 결제 요청을 처리할 때 예약의 금액(totalAmount)/소유자
+  // (userId)/상태(status)를 검증하기 위해 호출한다. 소유자 검증은 호출 측(payment-service)의
+  // 책임이며, 여기서는 reservationId로 조회만 한다 (없으면 에러).
+  rpc GetBookingById (GetBookingByIdRequest) returns (Booking);
 }
 
 message Empty {}
@@ -29,6 +34,10 @@ message HelloResponse {
 
 message GetBookingsByUserIdRequest {
   int32 userId = 1;
+}
+
+message GetBookingByIdRequest {
+  int32 reservationId = 1;
 }
 
 message CancelBookingRequest {

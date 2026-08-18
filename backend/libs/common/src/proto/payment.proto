@@ -4,10 +4,33 @@ package payment;
 
 service PaymentService {
   rpc GetHello (Empty) returns (HelloResponse);
+
+  // 유저 측 결제 요청. booking-service에서 예약을 조회해 금액/소유자/상태를 검증한 뒤,
+  // PG(pg-mock-service)에 결제 생성+승인을 동기로 요청한다. 실제 PG의 confirm API 호출 방식
+  // (서버-투-서버, 동기)을 그대로 따른다 — 승인 응답을 그 자리에서 받아 결제내역을 즉시
+  // paid 상태로 저장한다. 실패 시(예약 없음/본인 아님/이미 결제됨/PG 승인 실패) gRPC 에러.
+  rpc RequestPayment (RequestPaymentRequest) returns (Payment);
 }
 
 message Empty {}
 
 message HelloResponse {
   string message = 1;
+}
+
+message RequestPaymentRequest {
+  int32 reservationId = 1;
+  int32 userId = 2; // 본인 확인용 (api-gateway가 JWT에서 추출해 넘긴다)
+  string paymentMethod = 3;
+}
+
+// 결제내역 테이블과 1:1 대응
+message Payment {
+  int32 paymentId = 1;
+  int32 reservationId = 2;
+  string approvalNumber = 3; // PG승인번호
+  int32 amount = 4;
+  string paymentMethod = 5;
+  string status = 6; // 'paid' | 'refunded'
+  string paidAt = 7;
 }
