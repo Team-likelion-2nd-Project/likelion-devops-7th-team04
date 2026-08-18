@@ -181,6 +181,10 @@ services:
     environment:
       - NODE_ENV=development
       - HOTEL_SERVICE_HOST=hotel-service:3002
+      # 예약 취소 시 환불 요청(RefundPayment)에 사용. payment-service도 이 서비스를 호출하는
+      # 반대 방향 의존(getBookingById/ConfirmBooking)이 있어 순환 의존이 되므로, 여기서는
+      # depends_on을 걸지 않는다 — gRPC 클라이언트는 연결을 지연 생성/재시도한다.
+      - PAYMENT_SERVICE_HOST=payment-service:3004
     depends_on:
       - hotel-service
 

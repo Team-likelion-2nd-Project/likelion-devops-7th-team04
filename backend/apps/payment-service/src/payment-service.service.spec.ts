@@ -10,20 +10,23 @@ describe('PaymentServiceService', () => {
   let service: PaymentServiceService;
 
   const getBookingByIdMock = jest.fn();
+  const confirmBookingMock = jest.fn();
   const createAndApproveMock = jest.fn();
+  const cancelMock = jest.fn();
   const findOneMock = jest.fn();
   const createMock = jest.fn();
   const saveMock = jest.fn();
 
-  const reservedBooking = {
+  const pendingPaymentBooking = {
     reservationId: 1,
     userId: 10,
     totalAmount: 50000,
-    status: 'RESERVED',
+    status: 'PENDING_PAYMENT',
   };
 
   beforeEach(async () => {
     jest.clearAllMocks();
+    confirmBookingMock.mockReturnValue(of({ reservationId: 1, status: 'RESERVED' }));
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -39,12 +42,15 @@ describe('PaymentServiceService', () => {
         {
           provide: 'BOOKING_SERVICE',
           useValue: {
-            getService: () => ({ getBookingById: getBookingByIdMock }),
+            getService: () => ({
+              getBookingById: getBookingByIdMock,
+              confirmBooking: confirmBookingMock,
+            }),
           },
         },
         {
           provide: PgMockClient,
-          useValue: { createAndApprove: createAndApproveMock },
+          useValue: { createAndApprove: createAndApproveMock, cancel: cancelMock },
         },
       ],
     }).compile();
@@ -54,7 +60,7 @@ describe('PaymentServiceService', () => {
   });
 
   it('정상 결제 요청을 처리하고 결제내역을 저장한다', async () => {
-    getBookingByIdMock.mockReturnValue(of(reservedBooking));
+    getBookingByIdMock.mockReturnValue(of(pendingPaymentBooking));
     findOneMock.mockResolvedValue(null);
     createAndApproveMock.mockResolvedValue({
       approvalNumber: '12345678',
@@ -85,6 +91,7 @@ describe('PaymentServiceService', () => {
     });
     expect(result.status).toBe(PaymentStatus.PAID);
     expect(result.approvalNumber).toBe('12345678');
+    expect(confirmBookingMock).toHaveBeenCalledWith({ reservationId: 1 });
   });
 
   it('존재하지 않는 예약이면 RpcException을 던진다', async () => {
@@ -102,7 +109,7 @@ describe('PaymentServiceService', () => {
   });
 
   it('본인의 예약이 아니면 RpcException을 던진다', async () => {
-    getBookingByIdMock.mockReturnValue(of({ ...reservedBooking, userId: 999 }));
+    getBookingByIdMock.mockReturnValue(of({ ...pendingPaymentBooking, userId: 999 }));
 
     await expect(
       service.requestPayment({
@@ -113,9 +120,9 @@ describe('PaymentServiceService', () => {
     ).rejects.toThrow(RpcException);
   });
 
-  it('RESERVED 상태가 아니면 RpcException을 던진다', async () => {
+  it('PENDING_PAYMENT 상태가 아니면 RpcException을 던진다', async () => {
     getBookingByIdMock.mockReturnValue(
-      of({ ...reservedBooking, status: 'CANCELLED' }),
+      of({ ...pendingPaymentBooking, status: 'CANCELLED' }),
     );
 
     await expect(
@@ -128,7 +135,7 @@ describe('PaymentServiceService', () => {
   });
 
   it('이미 결제된 예약이면 RpcException을 던진다', async () => {
-    getBookingByIdMock.mockReturnValue(of(reservedBooking));
+    getBookingByIdMock.mockReturnValue(of(pendingPaymentBooking));
     findOneMock.mockResolvedValue({ paymentId: 1 });
 
     await expect(
@@ -141,7 +148,7 @@ describe('PaymentServiceService', () => {
   });
 
   it('PG 승인 실패 시 RpcException이 그대로 전파된다', async () => {
-    getBookingByIdMock.mockReturnValue(of(reservedBooking));
+    getBookingByIdMock.mockReturnValue(of(pendingPaymentBooking));
     findOneMock.mockResolvedValue(null);
     createAndApproveMock.mockRejectedValue(
       new RpcException('결제 승인에 실패했습니다.'),
@@ -156,6 +163,64 @@ describe('PaymentServiceService', () => {
     ).rejects.toThrow(RpcException);
   });
 
+  it('예약 확정(ConfirmBooking) 호출이 실패해도 결제 요청 자체는 성공 처리한다', async () => {
+    getBookingByIdMock.mockReturnValue(of(pendingPaymentBooking));
+    findOneMock.mockResolvedValue(null);
+    createAndApproveMock.mockResolvedValue({
+      paymentKey: 'pgmock_1',
+      approvalNumber: '12345678',
+      approvedAt: '2026-08-18T02:00:05.000Z',
+    });
+    createMock.mockReturnValue({});
+    saveMock.mockResolvedValue({
+      paymentId: 1,
+      reservationId: 1,
+      approvalNumber: '12345678',
+      amount: 50000,
+      paymentMethod: 'CARD',
+      status: PaymentStatus.PAID,
+      paidAt: new Date('2026-08-18T02:00:05.000Z'),
+    });
+    confirmBookingMock.mockReturnValue(
+      throwError(() => new RpcException('예약 확정 실패')),
+    );
+
+    const result = await service.requestPayment({
+      reservationId: 1,
+      userId: 10,
+      paymentMethod: 'CARD',
+    });
+
+    expect(result.status).toBe(PaymentStatus.PAID);
+  });
+
+  describe('refundPayment', () => {
+    it('PAID 결제가 있으면 PG 취소를 요청하고 결제내역을 refunded로 바꾼다', async () => {
+      const paid = { paymentId: 1, paymentKey: 'pgmock_1', status: PaymentStatus.PAID };
+      findOneMock.mockResolvedValue(paid);
+      cancelMock.mockResolvedValue({});
+      saveMock.mockResolvedValue({ ...paid, status: PaymentStatus.REFUNDED });
+
+      const result = await service.refundPayment(1);
+
+      expect(cancelMock).toHaveBeenCalledWith('pgmock_1', { cancelReason: '예약 취소' });
+      expect(saveMock).toHaveBeenCalledWith(
+        expect.objectContaining({ status: PaymentStatus.REFUNDED }),
+      );
+      expect(result).toEqual({ refunded: true });
+    });
+
+    it('PAID 결제가 없으면 아무것도 하지 않는다(no-op)', async () => {
+      findOneMock.mockResolvedValue(null);
+
+      const result = await service.refundPayment(1);
+
+      expect(cancelMock).not.toHaveBeenCalled();
+      expect(saveMock).not.toHaveBeenCalled();
+      expect(result).toEqual({ refunded: false });
+    });
+  });
+
   describe('handlePaymentWebhook', () => {
     const webhookBase = {
       eventType: 'PAYMENT.APPROVED',
@@ -163,6 +228,7 @@ describe('PaymentServiceService', () => {
       amount: 50000,
       paymentMethod: 'CARD',
       approvalNumber: '12345678',
+      paymentKey: 'pgmock_1',
     };
 
     it('APPROVED 웹훅인데 이미 결제내역이 있으면 무시한다(중복 생성 방지)', async () => {

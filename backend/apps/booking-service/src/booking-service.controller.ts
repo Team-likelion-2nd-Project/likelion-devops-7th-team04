@@ -55,4 +55,10 @@ export class BookingServiceController {
   }) {
     return this.bookingServiceService.createBooking(data);
   }
+
+  // 결제 승인 완료 후 payment-service가 호출: PENDING_PAYMENT -> RESERVED로 전환.
+  @GrpcMethod('BookingService', 'ConfirmBooking')
+  async confirmBooking(data: { reservationId: number }) {
+    return this.bookingServiceService.confirmBooking(data.reservationId);
+  }
 }

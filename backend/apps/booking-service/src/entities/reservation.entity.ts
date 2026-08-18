@@ -7,7 +7,8 @@ import {
 } from 'typeorm';
 
 export enum ReservationStatus {
-  RESERVED = 'RESERVED', // 예약 확정 (기본값)
+  PENDING_PAYMENT = 'PENDING_PAYMENT', // 결제 대기 (예약 생성 시 기본값, 아직 결제 전)
+  RESERVED = 'RESERVED', // 결제 완료, 예약 확정
   CANCELLED = 'CANCELLED', // 예약 취소
   COMPLETED = 'COMPLETED', // 체크아웃 완료
 }
@@ -46,7 +47,7 @@ export class Reservation {
   @Column({
     type: 'enum',
     enum: ReservationStatus,
-    default: ReservationStatus.RESERVED,
+    default: ReservationStatus.PENDING_PAYMENT,
   })
   status!: ReservationStatus;
 

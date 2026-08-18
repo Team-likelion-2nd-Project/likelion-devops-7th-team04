@@ -227,7 +227,7 @@ function ReservationDetailPage() {
                 </ul>
               </div>
 
-              {booking.status === 'RESERVED' && (
+              {(booking.status === 'PENDING_PAYMENT' || booking.status === 'RESERVED') && (
                 <div className="mypage-actions">
                   <button type="button" className="mypage-ghost-btn" onClick={() => setIsCancelModalOpen(true)}>
                     예약 취소

@@ -111,6 +111,12 @@
   background: var(--text-h);
 }
 
+/* 결제 대기는 확정(accent)과 시각적으로 구분되어야 해서 muted 톤을 쓴다. */
+.reservation-detail-row .reservation-status-pending_payment {
+  background: var(--text-h);
+  opacity: 0.8;
+}
+
 .reservation-detail-notice {
   margin-top: 24px;
   padding-top: 20px;
