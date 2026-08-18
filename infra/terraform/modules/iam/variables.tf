@@ -46,3 +46,15 @@ variable "backend_ecr_repository_arns" {
   description = "Map of ECR repository ARNs used by Backend CD"
   type        = map(string)
 }
+
+# DEV-170: IRSA용 — alb_controller role의 신뢰 정책이 EKS 클러스터의 OIDC provider를
+# 참조해야 하므로, eks 모듈에서 만든 OIDC provider 정보를 받아온다.
+variable "eks_oidc_provider_arn" {
+  description = "ARN of the EKS cluster's IAM OIDC provider (for IRSA trust policies)"
+  type        = string
+}
+
+variable "eks_oidc_provider_url" {
+  description = "EKS cluster OIDC issuer URL without the https:// scheme (used as the Condition key prefix in IRSA trust policies)"
+  type        = string
+}

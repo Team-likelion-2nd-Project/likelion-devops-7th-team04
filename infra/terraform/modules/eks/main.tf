@@ -189,22 +189,29 @@ resource "aws_eks_addon" "vpc_cni" {
     aws_eks_addon.pod_identity_agent
   ]
 }
-# =========================
-# AWS Load Balancer Controller Pod Identity
-# =========================
 
-resource "aws_eks_pod_identity_association" "alb_controller" {
-  cluster_name    = aws_eks_cluster.main.name
-  namespace       = "kube-system"
-  service_account = "aws-load-balancer-controller"
-  role_arn        = var.alb_controller_role_arn
-
-  depends_on = [
-    aws_eks_addon.pod_identity_agent
-  ]
-} # =========================
-# AWS Load Balancer Controller Pod Identity
 # =========================
+# EKS Cluster OIDC Provider (IRSA)
+# =========================
+# DEV-170: eks-pod-identity-agent는 DaemonSet인데 Fargate는 DaemonSet을 스케줄할 수
+# 없어서, Fargate pod 안에는 169.254.170.23(로컬 자격증명 엔드포인트)에 응답할 프로세스가
+# 없다 — aws-load-balancer-controller(Fargate에서 실행)가 자격증명 요청에서 타임아웃 없이
+# 영구 hang되는 것으로 실측 확인됨(kubectl debug + curl, CloudTrail에 AssumeRole 이벤트
+# 0건). alb_controller는 Pod Identity 대신 DaemonSet에 의존하지 않는 IRSA(OIDC)로 전환.
+
+data "tls_certificate" "eks_oidc" {
+  url = aws_eks_cluster.main.identity[0].oidc[0].issuer
+}
+
+resource "aws_iam_openid_connect_provider" "eks" {
+  url             = aws_eks_cluster.main.identity[0].oidc[0].issuer
+  client_id_list  = ["sts.amazonaws.com"]
+  thumbprint_list = [data.tls_certificate.eks_oidc.certificates[0].sha1_fingerprint]
+
+  tags = {
+    Name = "${var.project_name}-${var.environment}-eks-oidc"
+  }
+}
 
 # =========================
 # Chatbot Pod Identity
