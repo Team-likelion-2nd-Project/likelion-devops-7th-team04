@@ -7,16 +7,16 @@ resources:
 # ${GITHUB_SHA}로 갱신합니다 (kustomize edit set image 사용).
 images:
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-api-gateway
-    newTag: bc24246ffd54f9b0b7a8856530a9db77162d8557
+    newTag: 98596e953bc68bf9a90a28ab9340fbaa17a6d6dc
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-auth-service
-    newTag: bc24246ffd54f9b0b7a8856530a9db77162d8557
+    newTag: 98596e953bc68bf9a90a28ab9340fbaa17a6d6dc
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-booking-service
-    newTag: bc24246ffd54f9b0b7a8856530a9db77162d8557
+    newTag: 98596e953bc68bf9a90a28ab9340fbaa17a6d6dc
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-chat-bot-service
-    newTag: bc24246ffd54f9b0b7a8856530a9db77162d8557
+    newTag: 98596e953bc68bf9a90a28ab9340fbaa17a6d6dc
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-hotel-service
-    newTag: bc24246ffd54f9b0b7a8856530a9db77162d8557
+    newTag: 98596e953bc68bf9a90a28ab9340fbaa17a6d6dc
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-payment-service
-    newTag: bc24246ffd54f9b0b7a8856530a9db77162d8557
+    newTag: 98596e953bc68bf9a90a28ab9340fbaa17a6d6dc
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-user-service
-    newTag: bc24246ffd54f9b0b7a8856530a9db77162d8557
+    newTag: 98596e953bc68bf9a90a28ab9340fbaa17a6d6dc

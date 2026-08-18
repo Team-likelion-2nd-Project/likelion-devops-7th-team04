@@ -3,10 +3,12 @@ kind: Kustomization
 resources:
   - ../../base
 # backend-ci-cd.yml의 deploy-langchain job이 ECR push 직후 이 newTag 값들을
+
 # ${GITHUB_SHA}로 갱신합니다 (yq 사용). n8n은 퍼블릭 n8nio/n8n:latest 이미지를 그대로
+
 # 쓰므로 여기 없습니다 — ECR로 빌드/push하지 않습니다.
 images:
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-ollama
-    newTag: latest
+    newTag: 98596e953bc68bf9a90a28ab9340fbaa17a6d6dc
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-llm-service
-    newTag: latest
+    newTag: 98596e953bc68bf9a90a28ab9340fbaa17a6d6dc
