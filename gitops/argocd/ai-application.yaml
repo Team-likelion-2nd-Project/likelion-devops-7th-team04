@@ -1,0 +1,25 @@
+# gitops/argocd/backend-application.yaml과 같은 방식으로 최초 1회 등록해야 하는
+# Application입니다: kubectl apply -f gitops/argocd/ai-application.yaml
+#
+# backend와 별도 Application으로 분리한 이유: ollama는 GPU node group(기본
+# desired_size=0, 비용 발생)을 쓰는 별도 `ai` 네임스페이스에 있어, backend 배포와
+# 독립적으로 sync/pause할 수 있어야 하기 때문입니다.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: ai
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Team-likelion-2nd-Project/likelion-devops-7th-team04.git
+    targetRevision: develop
+    path: gitops/ai/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=false

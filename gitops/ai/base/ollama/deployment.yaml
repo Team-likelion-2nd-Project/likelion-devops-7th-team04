@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: ai
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ollama
+  template:
+    metadata:
+      labels:
+        app: ollama
+    spec:
+      # infra/terraform/modules/eks/main.tf의 aws_eks_node_group.gpu(라벨
+      # workload=chatbot/accelerator=nvidia, taint nvidia.com/gpu=true:NoSchedule)로만
+      # 스케줄되도록 강제한다. 이 node group은 dev 환경에서 비용 방지를 위해 기본
+      # desired_size=0이므로, GPU를 실제로 켜기 전까지 이 pod는 Pending 상태가 정상이다
+      # (비용 발생 없음).
+      nodeSelector:
+        workload: chatbot
+        accelerator: nvidia
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: ollama
+          image: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-ollama:dev
+          ports:
+            - containerPort: 11434
+          resources:
+            requests:
+              cpu: "2"
+              memory: 8Gi
+            limits:
+              cpu: "4"
+              memory: 12Gi
+              nvidia.com/gpu: "1"

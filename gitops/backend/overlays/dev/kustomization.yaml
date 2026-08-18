@@ -20,3 +20,7 @@ images:
     newTag: 1f58dc439474973e247d58ce22dd2e171cdd67ed
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-user-service
     newTag: 1f58dc439474973e247d58ce22dd2e171cdd67ed
+  # n8n은 퍼블릭 n8nio/n8n:latest 이미지를 그대로 쓰므로(gitops/backend/base/n8n/) 여기
+  # images 리스트에 없습니다 — ECR로 빌드/push하지 않습니다.
+  - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-llm-service
+    newTag: latest

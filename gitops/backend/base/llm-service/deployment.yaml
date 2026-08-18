@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llm-service
+  namespace: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: llm-service
+  template:
+    metadata:
+      labels:
+        app: llm-service
+    spec:
+      containers:
+        - name: llm-service
+          image: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-llm-service:dev
+          ports:
+            - containerPort: 8000
+          env:
+            # ollama는 Fargate가 GPU를 지원하지 않아 별도 `ai` 네임스페이스(GPU node
+            # group 전용, gitops/ai/)에서 돈다 — 네임스페이스를 넘어가므로 짧은 서비스명이
+            # 아니라 FQDN이 필요하다 (gitops/argocd/ai-application.yaml 참고).
+            - name: OLLAMA_BASE_URL
+              value: "http://ollama.ai.svc.cluster.local:11434"
+            - name: OLLAMA_MODEL
+              value: "qwen2.5:7b-instruct"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
