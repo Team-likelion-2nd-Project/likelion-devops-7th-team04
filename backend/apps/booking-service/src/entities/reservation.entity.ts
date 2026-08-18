@@ -43,7 +43,11 @@ export class Reservation {
   @Column({ name: 'total_amount' })
   totalAmount!: number;
 
-  @Column({ type: 'enum', enum: ReservationStatus, default: ReservationStatus.RESERVED })
+  @Column({
+    type: 'enum',
+    enum: ReservationStatus,
+    default: ReservationStatus.RESERVED,
+  })
   status!: ReservationStatus;
 
   @CreateDateColumn()

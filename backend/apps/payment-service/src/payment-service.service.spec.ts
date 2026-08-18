@@ -1,0 +1,158 @@
+import { Test, TestingModule } from '@nestjs/testing';
+import { getRepositoryToken } from '@nestjs/typeorm';
+import { of, throwError } from 'rxjs';
+import { RpcException } from '@nestjs/microservices';
+import { PaymentServiceService } from './payment-service.service';
+import { Payment, PaymentStatus } from './entities/payment.entity';
+import { PgMockClient } from './pg-mock/pg-mock.client';
+
+describe('PaymentServiceService', () => {
+  let service: PaymentServiceService;
+
+  const getBookingByIdMock = jest.fn();
+  const createAndApproveMock = jest.fn();
+  const findOneMock = jest.fn();
+  const createMock = jest.fn();
+  const saveMock = jest.fn();
+
+  const reservedBooking = {
+    reservationId: 1,
+    userId: 10,
+    totalAmount: 50000,
+    status: 'RESERVED',
+  };
+
+  beforeEach(async () => {
+    jest.clearAllMocks();
+
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [
+        PaymentServiceService,
+        {
+          provide: getRepositoryToken(Payment),
+          useValue: {
+            findOne: findOneMock,
+            create: createMock,
+            save: saveMock,
+          },
+        },
+        {
+          provide: 'BOOKING_SERVICE',
+          useValue: {
+            getService: () => ({ getBookingById: getBookingByIdMock }),
+          },
+        },
+        {
+          provide: PgMockClient,
+          useValue: { createAndApprove: createAndApproveMock },
+        },
+      ],
+    }).compile();
+
+    service = module.get<PaymentServiceService>(PaymentServiceService);
+    service.onModuleInit();
+  });
+
+  it('정상 결제 요청을 처리하고 결제내역을 저장한다', async () => {
+    getBookingByIdMock.mockReturnValue(of(reservedBooking));
+    findOneMock.mockResolvedValue(null);
+    createAndApproveMock.mockResolvedValue({
+      approvalNumber: '12345678',
+      approvedAt: '2026-08-18T02:00:05.000Z',
+    });
+    createMock.mockReturnValue({});
+    saveMock.mockResolvedValue({
+      paymentId: 1,
+      reservationId: 1,
+      approvalNumber: '12345678',
+      amount: 50000,
+      paymentMethod: 'CARD',
+      status: PaymentStatus.PAID,
+      paidAt: new Date('2026-08-18T02:00:05.000Z'),
+    });
+
+    const result = await service.requestPayment({
+      reservationId: 1,
+      userId: 10,
+      paymentMethod: 'CARD',
+    });
+
+    expect(createAndApproveMock).toHaveBeenCalledWith({
+      orderId: '1',
+      amount: 50000,
+      orderName: '예약 #1 결제',
+      paymentMethod: 'CARD',
+    });
+    expect(result.status).toBe(PaymentStatus.PAID);
+    expect(result.approvalNumber).toBe('12345678');
+  });
+
+  it('존재하지 않는 예약이면 RpcException을 던진다', async () => {
+    getBookingByIdMock.mockReturnValue(
+      throwError(() => new Error('not found')),
+    );
+
+    await expect(
+      service.requestPayment({
+        reservationId: 999,
+        userId: 10,
+        paymentMethod: 'CARD',
+      }),
+    ).rejects.toThrow(RpcException);
+  });
+
+  it('본인의 예약이 아니면 RpcException을 던진다', async () => {
+    getBookingByIdMock.mockReturnValue(of({ ...reservedBooking, userId: 999 }));
+
+    await expect(
+      service.requestPayment({
+        reservationId: 1,
+        userId: 10,
+        paymentMethod: 'CARD',
+      }),
+    ).rejects.toThrow(RpcException);
+  });
+
+  it('RESERVED 상태가 아니면 RpcException을 던진다', async () => {
+    getBookingByIdMock.mockReturnValue(
+      of({ ...reservedBooking, status: 'CANCELLED' }),
+    );
+
+    await expect(
+      service.requestPayment({
+        reservationId: 1,
+        userId: 10,
+        paymentMethod: 'CARD',
+      }),
+    ).rejects.toThrow(RpcException);
+  });
+
+  it('이미 결제된 예약이면 RpcException을 던진다', async () => {
+    getBookingByIdMock.mockReturnValue(of(reservedBooking));
+    findOneMock.mockResolvedValue({ paymentId: 1 });
+
+    await expect(
+      service.requestPayment({
+        reservationId: 1,
+        userId: 10,
+        paymentMethod: 'CARD',
+      }),
+    ).rejects.toThrow(RpcException);
+  });
+
+  it('PG 승인 실패 시 RpcException이 그대로 전파된다', async () => {
+    getBookingByIdMock.mockReturnValue(of(reservedBooking));
+    findOneMock.mockResolvedValue(null);
+    createAndApproveMock.mockRejectedValue(
+      new RpcException('결제 승인에 실패했습니다.'),
+    );
+
+    await expect(
+      service.requestPayment({
+        reservationId: 1,
+        userId: 10,
+        paymentMethod: 'CARD',
+      }),
+    ).rejects.toThrow(RpcException);
+  });
+});

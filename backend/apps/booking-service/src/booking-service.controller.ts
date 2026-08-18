@@ -1,4 +1,4 @@
-import { Controller, Get } from '@nestjs/common';
+import { Controller } from '@nestjs/common';
 import { GrpcMethod } from '@nestjs/microservices';
 import { BookingServiceService } from './booking-service.service';
 
@@ -21,16 +21,27 @@ export class BookingServiceController {
   // 특정 유저의 예약 목록 조회 (/me, /:userId 양쪽에서 재사용)
   @GrpcMethod('BookingService', 'GetBookingsByUserId')
   async getBookingsByUserId(data: { userId: number }) {
-    const bookings = await this.bookingServiceService.getBookingsByUserId(data.userId);
+    const bookings = await this.bookingServiceService.getBookingsByUserId(
+      data.userId,
+    );
     return { bookings };
   }
 
   // 본인 예약 취소
   @GrpcMethod('BookingService', 'CancelBooking')
   async cancelBooking(data: { reservationId: number; userId: number }) {
-    return this.bookingServiceService.cancelBooking(data.reservationId, data.userId);
+    return this.bookingServiceService.cancelBooking(
+      data.reservationId,
+      data.userId,
+    );
   }
-  
+
+  // 단건 예약 조회 (payment-service가 결제 요청 검증용으로 호출)
+  @GrpcMethod('BookingService', 'GetBookingById')
+  async getBookingById(data: { reservationId: number }) {
+    return this.bookingServiceService.getBookingById(data.reservationId);
+  }
+
   // 신규 예약 생성
   @GrpcMethod('BookingService', 'CreateBooking')
   async createBooking(data: {

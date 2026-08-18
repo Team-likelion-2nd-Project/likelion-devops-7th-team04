@@ -35,7 +35,7 @@ function addDays(dateStr: string, offset: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-// TODO: 편의시설(인도어풀/라운지) 요금을 지금은 상수로 하드코딩해서 계산한다. 
+// TODO: 편의시설(인도어풀/라운지) 요금을 지금은 상수로 하드코딩해서 계산한다.
 // 편의시설 종류가 늘어나거나 가격이 달라져야 한다면, 이 상수를 지우고 별도의 편의시설 전용 DB
 // 테이블(예: facilities/reservation_facilities)을 만들어 가격을 조회하도록 리팩터링해야 한다.
 const INDOOR_POOL_SURCHARGE = 30000;
@@ -89,7 +89,9 @@ export class BookingServiceService implements OnModuleInit {
     hasLounge: boolean;
   }): Promise<BookingGrpcResponse> {
     if (data.checkInDate >= data.checkOutDate) {
-      throw new RpcException('체크아웃 날짜는 체크인 날짜보다 이후여야 합니다.');
+      throw new RpcException(
+        '체크아웃 날짜는 체크인 날짜보다 이후여야 합니다.',
+      );
     }
 
     const lastNightDate = addDays(data.checkOutDate, -1);
@@ -148,13 +150,30 @@ export class BookingServiceService implements OnModuleInit {
     return reservations.map((reservation) => this.toGrpcResponse(reservation));
   }
 
+  // 단건 예약 조회. payment-service가 결제 요청을 검증(금액/소유자/상태)하기 위해 호출한다.
+  // 소유자(userId) 검증은 여기서 하지 않고 호출 측(payment-service)에 맡긴다 — 이 서비스의
+  // 다른 조회 메서드(getBookings, getBookingsByUserId)도 호출자를 신뢰하고 필터링을 호출 측/
+  // api-gateway 권한 검증에 맡기는 것과 같은 원칙이다.
+  async getBookingById(reservationId: number): Promise<BookingGrpcResponse> {
+    const reservation = await this.reservationRepository.findOne({
+      where: { reservationId },
+    });
+    if (!reservation) {
+      throw new RpcException('존재하지 않는 예약입니다.');
+    }
+    return this.toGrpcResponse(reservation);
+  }
+
   // 본인 예약 취소. reservationId가 존재하지 않으면, 혹은 요청자가 예약자 본인이 아니면 RpcException.
   // 이미 취소/완료된 예약도 재취소할 수 없다.
   // 1) Reservation.status를 CANCELLED로 먼저 확정한다 (이 서비스의 소스 오브 트루스).
   // 2) hotel-service에 room_availabilities 복구를 요청한다 — 체크아웃 당일은 다음 손님의 체크인일이므로
   //    막지 않고, 체크인일부터 체크아웃 전날까지만 되돌린다. 이 호출이 실패해도 예약 자체는 이미
   //    취소된 상태이므로 요청을 실패시키지 않고 로그만 남긴다(가용일 동기화는 별도로 복구 가능).
-  async cancelBooking(reservationId: number, userId: number): Promise<BookingGrpcResponse> {
+  async cancelBooking(
+    reservationId: number,
+    userId: number,
+  ): Promise<BookingGrpcResponse> {
     const reservation = await this.reservationRepository.findOne({
       where: { reservationId },
     });
