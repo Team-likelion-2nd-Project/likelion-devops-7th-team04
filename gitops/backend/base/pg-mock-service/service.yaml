@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: pg-mock-service
+  namespace: backend
+spec:
+  type: ClusterIP
+  selector:
+    app: pg-mock-service
+  ports:
+    - port: 3007
+      targetPort: 3007

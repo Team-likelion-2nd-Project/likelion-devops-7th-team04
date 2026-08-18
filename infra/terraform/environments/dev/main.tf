@@ -11,6 +11,12 @@ terraform {
       source  = "hashicorp/awscc"
       version = "~> 1.0"
     }
+
+    # DEV-170: eks 모듈의 OIDC provider(IRSA)용 thumbprint 조회에 필요
+    tls = {
+      source  = "hashicorp/tls"
+      version = "~> 4.0"
+    }
   }
 
   # backend-config/dev.hcl 을 통해 실제 설정 주입
@@ -147,9 +153,6 @@ module "ai_data" {
 
   project_name = "team04"
   environment  = "dev"
-
-  vpc_id             = module.network.vpc_id
-  private_subnet_ids = module.network.private_data_subnet_ids
 }
 
 # =========================
@@ -187,6 +190,12 @@ module "iam" {
 
   # DEV-46 ECR Repository와 Backend CD IAM 연결
   backend_ecr_repository_arns = module.ecr.repository_arns
+
+  # DEV-170: alb_controller role의 신뢰 정책(IRSA)이 eks 모듈의 OIDC provider를 참조.
+  # module.eks가 module.iam의 다른 role ARN들(cluster/node/vpc_cni/chatbot)에 의존하는
+  # 반대 방향 참조와는 별개 리소스 체인이라 순환 의존은 아님(alb_controller role만 해당).
+  eks_oidc_provider_arn = module.eks.oidc_provider_arn
+  eks_oidc_provider_url = module.eks.oidc_provider_url
 }
 
 # =========================
@@ -206,6 +215,7 @@ module "ecr" {
     "chat-bot-service",
     "hotel-service",
     "payment-service",
+    "pg-mock-service",
     "user-service",
     # langchain_rag/ollama, langchain_rag/llm-service 이미지용 (n8n은 퍼블릭
     # n8nio/n8n 이미지를 그대로 쓰므로 ECR repo 불필요)
@@ -225,10 +235,11 @@ module "eks" {
   environment  = "dev"
 
   # DEV-57 IAM Role 연동
-  cluster_role_arn        = module.iam.eks_cluster_role_arn
-  node_role_arn           = module.iam.eks_node_role_arn
-  vpc_cni_role_arn        = module.iam.vpc_cni_role_arn
-  alb_controller_role_arn = module.iam.alb_controller_role_arn
+  # alb_controller_role_arn은 더 이상 넘기지 않음 — DEV-170에서 IRSA로 전환하며
+  # eks 모듈은 이 role을 몰라도 됨(대신 module.iam이 eks의 OIDC provider를 참조함)
+  cluster_role_arn = module.iam.eks_cluster_role_arn
+  node_role_arn    = module.iam.eks_node_role_arn
+  vpc_cni_role_arn = module.iam.vpc_cni_role_arn
 
   chatbot_role_arn = module.iam.chatbot_service_role_arn
 

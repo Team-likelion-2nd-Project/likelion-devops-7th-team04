@@ -138,10 +138,38 @@ resource "aws_route_table_association" "private_app" {
   route_table_id = aws_route_table.private[count.index].id
 }
 
-# Private Data Subnet ↔ Private Route Table
+# Private Data Route Table (3-tier 격리: NAT/인터넷 라우트를 두지 않음)
+# AZ별로 나눌 필요 없이 로컬(VPC 내부) 라우트만 있으면 되므로 단일 테이블로 구성
+resource "aws_route_table" "private_data" {
+  vpc_id = aws_vpc.main.id
+
+  tags = {
+    Name = "${var.project_name}-private-data-rt"
+  }
+}
+
+# Private Data Subnet ↔ Private Data Route Table (완전 격리)
 resource "aws_route_table_association" "private_data" {
   count = length(aws_subnet.private_data)
 
   subnet_id      = aws_subnet.private_data[count.index].id
-  route_table_id = aws_route_table.private[count.index].id
+  route_table_id = aws_route_table.private_data.id
+}
+
+# S3 Gateway VPC Endpoint
+# Private Data 서브넷에서 NAT 라우트를 없앴기 때문에, MariaDB EC2가 부팅 시
+# dnf로 패키지를 설치하려면 인터넷 경로가 필요함. Amazon Linux 저장소가 S3
+# 기반이라 이 엔드포인트만 있으면 NAT/인터넷 없이도 dnf가 동작함.
+data "aws_region" "current" {}
+
+resource "aws_vpc_endpoint" "s3" {
+  vpc_id            = aws_vpc.main.id
+  service_name      = "com.amazonaws.${data.aws_region.current.name}.s3"
+  vpc_endpoint_type = "Gateway"
+
+  route_table_ids = [aws_route_table.private_data.id]
+
+  tags = {
+    Name = "${var.project_name}-s3-endpoint"
+  }
 }

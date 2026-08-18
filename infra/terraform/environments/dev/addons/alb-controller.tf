@@ -29,6 +29,12 @@ resource "helm_release" "aws_load_balancer_controller" {
     {
       name  = "vpcId"
       value = var.vpc_id
+    },
+    {
+      # DEV-170: Pod Identity → IRSA 전환 (Fargate는 eks-pod-identity-agent
+      # DaemonSet을 못 띄워 Pod Identity로는 자격증명을 못 받았음)
+      name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+      value = var.alb_controller_role_arn
     }
   ]
 }

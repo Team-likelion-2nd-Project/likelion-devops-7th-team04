@@ -6,6 +6,7 @@ resources:
   - serviceaccount-chatbot.yaml
   - api-gateway/deployment.yaml
   - api-gateway/service.yaml
+  - api-gateway/ingress.yaml
   - auth-service/deployment.yaml
   - auth-service/service.yaml
   - booking-service/deployment.yaml
@@ -14,6 +15,8 @@ resources:
   - hotel-service/service.yaml
   - payment-service/deployment.yaml
   - payment-service/service.yaml
+  - pg-mock-service/deployment.yaml
+  - pg-mock-service/service.yaml
   - user-service/deployment.yaml
   - user-service/service.yaml
   - chat-bot-service/deployment.yaml
