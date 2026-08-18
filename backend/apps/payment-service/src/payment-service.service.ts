@@ -25,6 +25,7 @@ export interface PaymentGrpcResponse {
   paymentMethod: string;
   status: string;
   paidAt: string;
+  userId: number;
 }
 
 @Injectable()
@@ -101,6 +102,7 @@ export class PaymentServiceService implements OnModuleInit {
 
     const payment = this.paymentRepository.create({
       reservationId: data.reservationId,
+      userId: data.userId,
       approvalNumber: result.approvalNumber,
       amount: booking.totalAmount,
       paymentMethod: data.paymentMethod,
@@ -140,8 +142,22 @@ export class PaymentServiceService implements OnModuleInit {
         return;
       }
       // 동기 흐름이 응답 수신 단계에서 실패했지만 PG는 실제 승인했던 경우의 구제.
+      // userId는 웹훅 페이로드에 없으므로 booking-service에서 예약의 소유자를 조회해 채운다.
+      const booking = await firstValueFrom(
+        this.bookingService.getBookingById({ reservationId }),
+      ).catch(() => {
+        this.logger.error(
+          `웹훅 구제 처리 중 예약(#${reservationId})을 찾을 수 없어 소유자(userId)를 확인하지 못했습니다.`,
+        );
+        return null;
+      });
+      if (!booking) {
+        return;
+      }
+
       const payment = this.paymentRepository.create({
         reservationId,
+        userId: booking.userId,
         approvalNumber: data.approvalNumber,
         amount: data.amount,
         paymentMethod: data.paymentMethod,
@@ -170,6 +186,26 @@ export class PaymentServiceService implements OnModuleInit {
     this.logger.warn(`알 수 없는 웹훅 이벤트 타입: ${data.eventType}`);
   }
 
+  // 단건 결제 상세 조회 (관리자 전용, 권한 검증은 api-gateway에서 수행)
+  async getPaymentById(paymentId: number): Promise<PaymentGrpcResponse> {
+    const payment = await this.paymentRepository.findOne({
+      where: { paymentId },
+    });
+    if (!payment) {
+      throw new RpcException('존재하지 않는 결제내역입니다.');
+    }
+    return this.toGrpcResponse(payment);
+  }
+
+  // 특정 유저의 결제 목록 조회. /me(본인 조회)와 /{userId}(관리자 조회) 양쪽에서 재사용된다.
+  async getPaymentsByUserId(userId: number): Promise<PaymentGrpcResponse[]> {
+    const payments = await this.paymentRepository.find({
+      where: { userId },
+      order: { paidAt: 'DESC' },
+    });
+    return payments.map((payment) => this.toGrpcResponse(payment));
+  }
+
   private toGrpcResponse(payment: Payment): PaymentGrpcResponse {
     return {
       paymentId: payment.paymentId,
@@ -179,6 +215,7 @@ export class PaymentServiceService implements OnModuleInit {
       paymentMethod: payment.paymentMethod,
       status: payment.status,
       paidAt: payment.paidAt.toISOString(),
+      userId: payment.userId,
     };
   }
 }

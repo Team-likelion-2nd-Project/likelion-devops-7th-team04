@@ -11,6 +11,8 @@ import {
   Inject,
   NotFoundException,
   OnModuleInit,
+  Param,
+  ParseIntPipe,
   Post,
   Req,
   UseGuards,
@@ -23,9 +25,16 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
+  ApiParam,
 } from '@nestjs/swagger';
 import { ApiCommonResponses } from '@app/common/decorators/api-response.decorator';
-import { JwtAuthGuard, CurrentUser, AuthenticatedUser } from '@app/common';
+import {
+  JwtAuthGuard,
+  RolesGuard,
+  Roles,
+  CurrentUser,
+  AuthenticatedUser,
+} from '@app/common';
 import { CreatePaymentRequestDto } from './dto/create-payment-request.dto';
 import { PaymentWebhookDto } from './dto/payment-webhook.dto';
 
@@ -40,6 +49,7 @@ interface PaymentDto {
   paymentMethod: string;
   status: string;
   paidAt: string;
+  userId: number;
 }
 
 // proto의 PaymentWebhookRequest 메시지와 1:1 대응 (signature는 여기서 검증만 하고 넘기지 않음)
@@ -65,6 +75,10 @@ interface PaymentService {
   handlePaymentWebhook(
     data: PaymentWebhookRequest,
   ): Observable<Record<string, never>>;
+  getPaymentById(data: { paymentId: number }): Observable<PaymentDto>;
+  getPaymentsByUserId(data: {
+    userId: number;
+  }): Observable<{ payments: PaymentDto[] }>;
 }
 
 // gRPC 클라이언트가 던지는 에러 형태 (nestjs/microservices의 RpcException을 클라이언트가
@@ -204,6 +218,81 @@ export class PaymentController implements OnModuleInit {
     });
 
     return { received: true };
+  }
+
+  /**
+   * GET http://localhost:3000/api/payments/me
+   * 로그인한 사용자 본인의 결제 목록을 조회합니다.
+   */
+  @Get('me')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: '내 결제 목록 조회',
+    description: '유효한 액세스 토큰을 가진 사용자 본인의 결제 목록을 조회합니다.',
+  })
+  @ApiResponse({ status: 200, description: '내 결제 목록 조회 성공' })
+  async getMyPayments(
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ payments: PaymentDto[] }> {
+    return firstValueFrom(
+      this.paymentService.getPaymentsByUserId({ userId: user.userId }),
+    );
+  }
+
+  /**
+   * GET http://localhost:3000/api/payments/users/{userId}
+   * 관리자 전용. 특정 유저의 결제 목록을 조회합니다.
+   * (:paymentId 단건 조회 라우트와 같은 세그먼트 깊이에서 충돌하지 않도록 users/ 접두사로 구분한다.)
+   */
+  @Get('users/:userId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiParam({ name: 'userId', description: '조회할 유저의 ID', type: Number })
+  @ApiOperation({
+    summary: '특정 유저 결제 목록 조회 (관리자 전용)',
+    description:
+      '관리자 권한을 가진 사용자만 호출할 수 있습니다. userId로 특정 유저의 결제 목록을 조회합니다.',
+  })
+  @ApiResponse({ status: 200, description: '결제 목록 조회 성공' })
+  @ApiResponse({ status: 403, description: '관리자 권한이 없음' })
+  async getPaymentsByUserId(
+    @Param('userId', ParseIntPipe) userId: number,
+  ): Promise<{ payments: PaymentDto[] }> {
+    return firstValueFrom(this.paymentService.getPaymentsByUserId({ userId }));
+  }
+
+  /**
+   * GET http://localhost:3000/api/payments/{paymentId}
+   * 관리자 전용. 결제 상세 정보를 조회합니다.
+   */
+  @Get(':paymentId')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiParam({ name: 'paymentId', description: '조회할 결제 PK ID', type: Number })
+  @ApiOperation({
+    summary: '결제 상세 조회 (관리자 전용)',
+    description: '관리자 권한을 가진 사용자만 호출할 수 있습니다. paymentId로 결제 상세 정보를 조회합니다.',
+  })
+  @ApiResponse({ status: 200, description: '결제 상세 조회 성공' })
+  @ApiResponse({ status: 403, description: '관리자 권한이 없음' })
+  @ApiResponse({ status: 404, description: '존재하지 않는 결제내역' })
+  async getPaymentById(
+    @Param('paymentId', ParseIntPipe) paymentId: number,
+  ): Promise<PaymentDto> {
+    return firstValueFrom(
+      this.paymentService.getPaymentById({ paymentId }),
+    ).catch((err: unknown) => {
+      const grpcErr = err as GrpcErrorLike;
+      const message =
+        grpcErr.details || grpcErr.message || '결제 상세 조회에 실패했습니다.';
+      if (message.includes('존재하지 않는 결제내역')) {
+        throw new NotFoundException(message);
+      }
+      throw new BadGatewayException(message);
+    });
   }
 
   // pg-mock-service의 sendWebhook과 동일한 방식(signature 필드를 뺀 나머지를
