@@ -88,9 +88,12 @@ spec:
                   - -c
                   - "N8N_URL=http://localhost:5678 node /config/activate-workflow.js /config/chat-orchestration.json"
           resources:
+            # 512Mi 한도로 실제 클러스터에서 기동 중 OOMKilled(exitCode 137)가
+            # 발생했음(마이그레이션 + Python task runner 시도 + workflow activate가
+            # 기동 시점에 한꺼번에 몰림) — 1Gi로 올림.
             requests:
               cpu: 100m
-              memory: 256Mi
+              memory: 512Mi
             limits:
               cpu: 500m
-              memory: 512Mi
+              memory: 1Gi
