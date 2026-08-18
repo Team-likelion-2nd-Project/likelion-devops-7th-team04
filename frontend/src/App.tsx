@@ -17,6 +17,7 @@ import RoomSelectionPage from './pages/RoomSelectionPage'
 import ReservationOptionsPage from './pages/ReservationOptionsPage'
 import ReservationCompletePage from './pages/ReservationCompletePage'
 import ReservationHistoryPage from './pages/ReservationHistoryPage'
+import ReservationDetailPage from './pages/ReservationDetailPage'
 import MyPage from './pages/MyPage'
 import ChangePasswordPage from './pages/ChangePasswordPage'
 import WithdrawPage from './pages/WithdrawPage'
@@ -58,10 +59,11 @@ function App() {
           <Route path="reservation/complete/:reservationId" element={<ReservationCompletePage />} />
           {/* 예약 내역/마이페이지/결제 내역은 서로 사이드바로 바로 이동할 수 있도록 한 그룹으로 묶는다. */}
           <Route element={<AccountLayout />}>
-            <Route path="reservations" element={<ReservationHistoryPage />} />
             <Route path="mypage" element={<MyPage />} />
             <Route path="mypage/password" element={<ChangePasswordPage />} />
             <Route path="mypage/withdraw" element={<WithdrawPage />} />
+            <Route path="mypage/reservations" element={<ReservationHistoryPage />} />
+            <Route path="mypage/reservations/:reservationId" element={<ReservationDetailPage />} />
             <Route path="payments" element={<PaymentsPage />} />
             <Route path="payments/pending" element={<PaymentsPendingPage />} />
           </Route>

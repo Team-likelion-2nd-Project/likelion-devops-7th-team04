@@ -14,7 +14,7 @@ const ACCOUNT_NAV_GROUPS = [
   },
   {
     label: '예약 현황',
-    items: [{ to: '/reservations', label: '예약내역' }],
+    items: [{ to: '/mypage/reservations', label: '예약내역' }],
   },
   {
     label: '결제',

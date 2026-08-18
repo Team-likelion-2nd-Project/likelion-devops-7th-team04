@@ -1,5 +1,4 @@
-// 예약 검색(호텔/날짜/투숙인원 선택) 단계의 날짜 계산·포맷 유틸.
-// Date 객체를 직접 다루는 순수 함수들만 모아둔다 — 컴포넌트에는 렌더링 로직만 남긴다.
+// 예약 관련 페이지에서 쓰는 날짜 계산·포맷 유틸. Date 객체를 직접 다루는 순수 함수들만 모아둔다.
 
 export const WEEKDAYS_KO = ['일', '월', '화', '수', '목', '금', '토'] as const
 
@@ -50,6 +49,7 @@ export function formatDateWithWeekday(date: Date): string {
   return `${formatDate(date)}(${WEEKDAYS_KO[date.getDay()]})`
 }
 
+/** api-gateway가 쓰는 "YYYY-MM-DD" 형식 문자열을 Date로 변환한다. 형식이 올바르지 않으면 null */
 export function formatMonthTitle(date: Date): string {
   return `${date.getFullYear()}.${String(date.getMonth() + 1).padStart(2, '0')}`
 }
