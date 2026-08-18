@@ -112,6 +112,64 @@ export class PaymentServiceService implements OnModuleInit {
     return this.toGrpcResponse(saved);
   }
 
+  // PG의 웹훅을 처리한다. api-gateway가 서명 검증까지 끝낸 뒤 호출하므로 여기서는 신뢰하고
+  // 처리한다. requestPayment()의 동기 흐름이 이미 대부분을 처리하므로 이 메서드는 보조 역할만
+  // 한다 (클래스 상단 주석/payment.proto의 HandlePaymentWebhook 설명 참고).
+  async handlePaymentWebhook(data: {
+    eventType: string;
+    orderId: string;
+    amount: number;
+    paymentMethod: string;
+    approvalNumber: string;
+  }): Promise<void> {
+    const reservationId = Number(data.orderId);
+    if (!Number.isInteger(reservationId)) {
+      this.logger.warn(
+        `웹훅 orderId가 예약 ID 형식이 아닙니다: ${data.orderId}`,
+      );
+      return;
+    }
+
+    const existing = await this.paymentRepository.findOne({
+      where: { reservationId, status: PaymentStatus.PAID },
+    });
+
+    if (data.eventType === 'PAYMENT.APPROVED') {
+      if (existing) {
+        // 동기 흐름(requestPayment)에서 이미 저장된 건 — 중복 생성 방지.
+        return;
+      }
+      // 동기 흐름이 응답 수신 단계에서 실패했지만 PG는 실제 승인했던 경우의 구제.
+      const payment = this.paymentRepository.create({
+        reservationId,
+        approvalNumber: data.approvalNumber,
+        amount: data.amount,
+        paymentMethod: data.paymentMethod,
+        status: PaymentStatus.PAID,
+        paidAt: new Date(),
+      });
+      await this.paymentRepository.save(payment);
+      this.logger.warn(
+        `동기 흐름에서 누락된 결제를 웹훅으로 구제했습니다 (reservationId=${reservationId})`,
+      );
+      return;
+    }
+
+    if (data.eventType === 'PAYMENT.CANCELED') {
+      if (!existing) {
+        this.logger.warn(
+          `취소 웹훅을 받았지만 대응하는 결제내역이 없습니다 (reservationId=${reservationId})`,
+        );
+        return;
+      }
+      existing.status = PaymentStatus.REFUNDED;
+      await this.paymentRepository.save(existing);
+      return;
+    }
+
+    this.logger.warn(`알 수 없는 웹훅 이벤트 타입: ${data.eventType}`);
+  }
+
   private toGrpcResponse(payment: Payment): PaymentGrpcResponse {
     return {
       paymentId: payment.paymentId,

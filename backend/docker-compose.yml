@@ -115,6 +115,9 @@ services:
       - PAYMENT_SERVICE_HOST=payment-service:3004
       - CHAT_BOT_SERVICE_HOST=chat-bot-service:3005
       - AUTH_SERVICE_HOST=auth-service:3006
+      # pg-mock-service가 보내는 결제 웹훅의 HMAC 서명을 검증하는 데 씁니다. pg-mock-service의
+      # MOCK_PG_SECRET과 반드시 같은 값이어야 합니다.
+      - MOCK_PG_SECRET=${MOCK_PG_SECRET:-mock-pg-secret}
 
     depends_on:
       - user-service
@@ -198,9 +201,9 @@ services:
       - pg-mock-service
 
   # 4-1. PG 목업 서버 — 실제 PG사(토스페이먼츠 등) 서버를 대신하는 목업. payment-service가
-  #      HTTP로 결제 생성/승인/취소를 요청하고, 이 서버는 결과를 웹훅으로 통보합니다.
-  #      payment-service의 웹훅 수신 엔드포인트는 별도 이슈에서 구현되므로, 그전까지는
-  #      PAYMENT_SERVICE_WEBHOOK_URL을 비워두면 됩니다(웹훅 발송만 스킵되고 나머지 API는 정상 동작).
+  #      HTTP로 결제 생성/승인을 요청하고, 이 서버는 결과를 웹훅으로 통보합니다. 웹훅 수신
+  #      엔드포인트는 payment-service가 아니라 api-gateway(POST /api/payments/webhook)에
+  #      있습니다 — payment-service는 gRPC 전용이라 HTTP를 직접 받을 수 없기 때문입니다.
   pg-mock-service:
     build:
       context: .
@@ -209,7 +212,11 @@ services:
       - "3007:3007"
     environment:
       - NODE_ENV=development
-      - PAYMENT_SERVICE_WEBHOOK_URL=${PAYMENT_SERVICE_WEBHOOK_URL:-}
+      - PAYMENT_SERVICE_WEBHOOK_URL=${PAYMENT_SERVICE_WEBHOOK_URL:-http://api-gateway:3000/api/payments/webhook}
+      # api-gateway와 반드시 같은 값이어야 서명 검증이 통과합니다.
+      # ⚠️ api-gateway를 depends_on에 추가하지 않습니다 — api-gateway→payment-service→
+      # pg-mock-service로 이미 의존 관계가 있어서 여기 추가하면 순환 의존이 됩니다. 웹훅은
+      # 결제 처리 시점에만 호출되므로 시작 순서를 강제하지 않아도 실질적인 문제가 없습니다.
       - MOCK_PG_SECRET=${MOCK_PG_SECRET:-mock-pg-secret}
 
   chat-bot-service:

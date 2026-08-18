@@ -155,4 +155,80 @@ describe('PaymentServiceService', () => {
       }),
     ).rejects.toThrow(RpcException);
   });
+
+  describe('handlePaymentWebhook', () => {
+    const webhookBase = {
+      eventType: 'PAYMENT.APPROVED',
+      orderId: '1',
+      amount: 50000,
+      paymentMethod: 'CARD',
+      approvalNumber: '12345678',
+    };
+
+    it('APPROVED 웹훅인데 이미 결제내역이 있으면 무시한다(중복 생성 방지)', async () => {
+      findOneMock.mockResolvedValue({ paymentId: 1 });
+
+      await service.handlePaymentWebhook(webhookBase);
+
+      expect(createMock).not.toHaveBeenCalled();
+    });
+
+    it('APPROVED 웹훅인데 결제내역이 없으면 새로 생성한다(동기 흐름 구제)', async () => {
+      findOneMock.mockResolvedValue(null);
+      createMock.mockReturnValue({});
+      saveMock.mockResolvedValue({ paymentId: 1 });
+
+      await service.handlePaymentWebhook(webhookBase);
+
+      expect(createMock).toHaveBeenCalledWith(
+        expect.objectContaining({
+          reservationId: 1,
+          approvalNumber: '12345678',
+          amount: 50000,
+          paymentMethod: 'CARD',
+          status: PaymentStatus.PAID,
+        }),
+      );
+      expect(saveMock).toHaveBeenCalled();
+    });
+
+    it('CANCELED 웹훅이고 결제내역이 있으면 refunded로 바꾼다', async () => {
+      const existing = { paymentId: 1, status: PaymentStatus.PAID };
+      findOneMock.mockResolvedValue(existing);
+      saveMock.mockResolvedValue({
+        ...existing,
+        status: PaymentStatus.REFUNDED,
+      });
+
+      await service.handlePaymentWebhook({
+        ...webhookBase,
+        eventType: 'PAYMENT.CANCELED',
+      });
+
+      expect(saveMock).toHaveBeenCalledWith(
+        expect.objectContaining({ status: PaymentStatus.REFUNDED }),
+      );
+    });
+
+    it('CANCELED 웹훅인데 대응하는 결제내역이 없으면 아무것도 하지 않는다', async () => {
+      findOneMock.mockResolvedValue(null);
+
+      await service.handlePaymentWebhook({
+        ...webhookBase,
+        eventType: 'PAYMENT.CANCELED',
+      });
+
+      expect(saveMock).not.toHaveBeenCalled();
+      expect(createMock).not.toHaveBeenCalled();
+    });
+
+    it('orderId가 숫자가 아니면 아무것도 하지 않는다', async () => {
+      await service.handlePaymentWebhook({
+        ...webhookBase,
+        orderId: 'not-a-number',
+      });
+
+      expect(findOneMock).not.toHaveBeenCalled();
+    });
+  });
 });
