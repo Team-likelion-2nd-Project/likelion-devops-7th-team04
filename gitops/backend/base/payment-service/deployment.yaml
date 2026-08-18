@@ -18,11 +18,38 @@ spec:
           image: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-payment-service:dev
           ports:
             - containerPort: 3004
-          # payment-service는 현재 코드상 process.env를 전혀 읽지 않아(ConfigModule/TypeORM 미사용)
-          # NODE_ENV 외 추가 환경변수가 없습니다. 값을 추측해서 넣지 않았습니다.
+          # payment-service가 TypeORM(MariaDB)과 booking-service gRPC 클라이언트를 쓰게 되어
+          # hotel-service/booking-service와 동일한 패턴으로 DB 접속 정보(backend-secrets Secret)와
+          # BOOKING_SERVICE_HOST를 추가했습니다.
+          # PG_MOCK_SERVICE_URL은 없습니다 — pg-mock-service는 k8s에 배포하지 않기로 했습니다
+          # (별도 이슈에서 재논의). 그때까지 POST /api/payments는 PG 호출 단계에서 실패합니다.
           env:
             - name: NODE_ENV
               value: "production"
+            - name: BOOKING_SERVICE_HOST
+              value: "booking-service:3003"
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: DB_HOST
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: DB_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: DB_PASSWORD
+            - name: DB_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: DB_DATABASE
           resources:
             requests:
               cpu: 100m
