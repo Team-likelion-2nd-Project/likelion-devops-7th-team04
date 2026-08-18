@@ -60,6 +60,11 @@ variable "db_root_password" {
   type        = string
   sensitive   = true
 }
+
+variable "team_member_arns" {
+  description = "EKS 클러스터 접근을 허용할 팀원 IAM User ARN 목록"
+  type        = list(string)
+}
 # =========================
 # DEV-41 Network Module
 # =========================
