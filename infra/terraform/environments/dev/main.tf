@@ -147,9 +147,6 @@ module "ai_data" {
 
   project_name = "team04"
   environment  = "dev"
-
-  vpc_id             = module.network.vpc_id
-  private_subnet_ids = module.network.private_data_subnet_ids
 }
 
 # =========================
