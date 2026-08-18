@@ -157,6 +157,10 @@ resource "aws_iam_role_policy_attachment" "fargate_pod_execution" {
 # =========================
 # AWS Load Balancer Controller Role
 # =========================
+# DEV-170: Fargate는 DaemonSet(eks-pod-identity-agent)을 스케줄할 수 없어 Pod Identity로는
+# 이 role의 자격증명을 Fargate pod가 받을 수 없었다(실측: kubectl debug + curl로 로컬
+# 자격증명 엔드포인트 타임아웃 확인, CloudTrail에 AssumeRole 이벤트 0건). DaemonSet에
+# 의존하지 않는 IRSA(OIDC federated)로 전환.
 
 resource "aws_iam_role" "alb_controller" {
   name = "${var.project_name}-alb-controller-role"
@@ -169,13 +173,17 @@ resource "aws_iam_role" "alb_controller" {
         Effect = "Allow"
 
         Principal = {
-          Service = "pods.eks.amazonaws.com"
+          Federated = var.eks_oidc_provider_arn
         }
 
-        Action = [
-          "sts:AssumeRole",
-          "sts:TagSession"
-        ]
+        Action = "sts:AssumeRoleWithWebIdentity"
+
+        Condition = {
+          StringEquals = {
+            "${var.eks_oidc_provider_url}:aud" = "sts.amazonaws.com"
+            "${var.eks_oidc_provider_url}:sub" = "system:serviceaccount:kube-system:aws-load-balancer-controller"
+          }
+        }
       }
     ]
   })

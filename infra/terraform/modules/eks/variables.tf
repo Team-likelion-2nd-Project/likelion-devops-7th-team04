@@ -67,10 +67,6 @@ variable "vpc_cni_role_arn" {
   description = "IAM role ARN used by the VPC CNI add-on"
   type        = string
 }
-variable "alb_controller_role_arn" {
-  description = "IAM role ARN used by AWS Load Balancer Controller"
-  type        = string
-}
 variable "chatbot_role_arn" {
   description = "IAM role ARN used by the chatbot service"
   type        = string
