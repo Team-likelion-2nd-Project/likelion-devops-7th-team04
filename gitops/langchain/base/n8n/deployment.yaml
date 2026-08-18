@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: n8n
-  namespace: backend
+  namespace: langchain
 spec:
   replicas: 1
   strategy:
@@ -16,6 +16,10 @@ spec:
     metadata:
       labels:
         app: n8n
+        # infra/terraform/modules/eks/main.tf의 CPU Fargate profile이 langchain
+        # 네임스페이스에서는 이 라벨(compute=fargate)이 붙은 pod만 매칭한다 — 같은
+        # 네임스페이스의 ollama pod는 이 라벨이 없어 대신 GPU node group으로 간다.
+        compute: fargate
     spec:
       volumes:
         # 로컬 docker-compose는 named volume(n8n_data)에 SQLite DB를 영속화하지만,

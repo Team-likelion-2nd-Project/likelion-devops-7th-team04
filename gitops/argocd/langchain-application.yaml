@@ -1,0 +1,27 @@
+# gitops/argocd/backend-application.yaml과 같은 방식으로 최초 1회 등록해야 하는
+# Application입니다: kubectl apply -f gitops/argocd/langchain-application.yaml
+#
+# backend와 별도 Application으로 분리한 이유: 이 네임스페이스(langchain)의 ollama는
+# GPU node group(기본 desired_size=0, 비용 발생)을 쓰므로, backend 배포와 독립적으로
+# sync/pause할 수 있어야 하기 때문입니다. llm-service/n8n도 같은 네임스페이스에
+# 있지만 label(compute=fargate)로 CPU Fargate profile에 걸려 GPU와 무관하게 항상
+# 뜰 수 있습니다 (infra/terraform/modules/eks/main.tf 참고).
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: langchain
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Team-likelion-2nd-Project/likelion-devops-7th-team04.git
+    targetRevision: develop
+    path: gitops/langchain/overlays/dev
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=false

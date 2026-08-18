@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: llm-service
-  namespace: backend
+  namespace: langchain
 spec:
   replicas: 1
   selector:
@@ -12,6 +12,10 @@ spec:
     metadata:
       labels:
         app: llm-service
+        # infra/terraform/modules/eks/main.tf의 CPU Fargate profile이 langchain
+        # 네임스페이스에서는 이 라벨(compute=fargate)이 붙은 pod만 매칭한다 — 같은
+        # 네임스페이스의 ollama pod는 이 라벨이 없어 대신 GPU node group으로 간다.
+        compute: fargate
     spec:
       containers:
         - name: llm-service
@@ -19,11 +23,9 @@ spec:
           ports:
             - containerPort: 8000
           env:
-            # ollama는 Fargate가 GPU를 지원하지 않아 별도 `ai` 네임스페이스(GPU node
-            # group 전용, gitops/ai/)에서 돈다 — 네임스페이스를 넘어가므로 짧은 서비스명이
-            # 아니라 FQDN이 필요하다 (gitops/argocd/ai-application.yaml 참고).
+            # ollama도 같은 langchain 네임스페이스라 짧은 서비스명으로 바로 붙는다.
             - name: OLLAMA_BASE_URL
-              value: "http://ollama.ai.svc.cluster.local:11434"
+              value: "http://ollama:11434"
             - name: OLLAMA_MODEL
               value: "qwen2.5:7b-instruct"
           resources:

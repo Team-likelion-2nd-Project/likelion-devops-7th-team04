@@ -18,8 +18,3 @@ resources:
   - user-service/service.yaml
   - chat-bot-service/deployment.yaml
   - chat-bot-service/service.yaml
-  - llm-service/deployment.yaml
-  - llm-service/service.yaml
-  - n8n/configmap-workflow.yaml
-  - n8n/deployment.yaml
-  - n8n/service.yaml

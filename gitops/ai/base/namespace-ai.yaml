@@ -1,9 +1,0 @@
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: ai
-  # 의도적으로 CPU Fargate profile(infra/terraform/modules/eks/main.tf의
-  # aws_eks_fargate_profile.cpu, kube-system/argocd/backend만 선택)에 이 네임스페이스를
-  # 추가하지 않는다 — Fargate는 GPU를 지원하지 않고, Fargate가 네임스페이스를 매칭하면
-  # 그 안의 모든 pod를 무조건 Fargate로 가로채므로 Ollama(GPU 필요)가 스케줄될 수 없게
-  # 된다. 이 네임스페이스의 pod는 일반 스케줄러를 거쳐 GPU managed node group으로 간다.
