@@ -3,6 +3,7 @@ kind: Kustomization
 
 resources:
   - namespace-langchain.yaml
+  - serviceaccount-llm-service.yaml
   - ollama/deployment.yaml
   - ollama/service.yaml
   - llm-service/deployment.yaml

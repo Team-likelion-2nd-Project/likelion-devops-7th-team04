@@ -3,7 +3,7 @@
   "nodes": [
     {
       "parameters": {
-        "content": "## chat-orchestration\n\nImplements the `N8N_WEBHOOK_URL` contract `backend/apps/chat-bot-service/src/n8n/n8n.client.ts` calls.\n\n**\"Mock RAG (placeholder)\"** stands in for a real S3 Vectors query (`infra/terraform/modules/ai_data`) — nothing locally has a populated vector index, so it returns a fixed string instead. Swap that one node for a real retrieval node once the index has data; nothing else in this workflow needs to change, since `context` already flows through to llm-service either way.\n\nSee `langchain_rag/n8n/README.md` for how to run and test this locally.",
+        "content": "## chat-orchestration\n\nImplements the `N8N_WEBHOOK_URL` contract `backend/apps/chat-bot-service/src/n8n/n8n.client.ts` calls.\n\nRAG retrieval is no longer done here — llm-service does its own S3 Vectors lookup (`langchain_rag/llm-service/app/retrieval.py`) whenever it's called without a `context` field, which is exactly what this workflow now sends. There used to be a \"Mock RAG (placeholder)\" node here standing in for that; it's gone now that the real thing exists on the llm-service side.\n\nSee `langchain_rag/n8n/README.md` for how to run and test this locally.",
         "height": 300,
         "width": 380,
         "color": 5
@@ -40,34 +40,11 @@
     },
     {
       "parameters": {
-        "mode": "manual",
-        "duplicateItem": false,
-        "assignments": {
-          "assignments": [
-            {
-              "id": "b6f2f2a0-4f1a-4a8c-9d1a-7e2f1f7b3c11",
-              "name": "context",
-              "value": "[MOCK RAG CONTEXT — placeholder, not a real S3 Vectors query] 호텔 체크인은 오후 3시, 체크아웃은 오전 11시입니다. 반려동물 동반은 일부 객실에 한해 가능합니다.",
-              "type": "string"
-            }
-          ]
-        },
-        "includeOtherFields": true,
-        "options": {}
-      },
-      "id": "d3edec9a-b38c-48b5-a712-15f9ec59d40c",
-      "name": "Mock RAG (placeholder)",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [280, 120]
-    },
-    {
-      "parameters": {
         "method": "POST",
         "url": "http://llm-service:8000/chat",
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "={{ { message: $json.message, history: $json.history, context: $json.context } }}",
+        "jsonBody": "={{ { message: $json.message, history: $json.history } }}",
         "options": {
           "timeout": 25000
         }
@@ -76,7 +53,7 @@
       "name": "Call llm-service",
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
-      "position": [520, 120]
+      "position": [280, 120]
     },
     {
       "parameters": {
@@ -88,7 +65,7 @@
       "name": "Respond to Webhook",
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.1,
-      "position": [760, 120]
+      "position": [520, 120]
     }
   ],
   "connections": {
@@ -100,13 +77,6 @@
       ]
     },
     "Map to llm-service contract": {
-      "main": [
-        [
-          { "node": "Mock RAG (placeholder)", "type": "main", "index": 0 }
-        ]
-      ]
-    },
-    "Mock RAG (placeholder)": {
       "main": [
         [
           { "node": "Call llm-service", "type": "main", "index": 0 }

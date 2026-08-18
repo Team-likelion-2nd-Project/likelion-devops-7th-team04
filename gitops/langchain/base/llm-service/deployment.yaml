@@ -17,6 +17,10 @@ spec:
         # 네임스페이스의 ollama pod는 이 라벨이 없어 대신 GPU node group으로 간다.
         compute: fargate
     spec:
+      # RAG 검색(app/retrieval.py)이 S3 Vectors를 호출하려면 EKS Pod Identity가 필요 —
+      # serviceaccount-llm-service.yaml 참고. 연결된 Terraform pod identity association이
+      # 아직 없으면(별도 브랜치) 이 SA는 그냥 권한이 없을 뿐, RAG 없이도 정상 동작한다.
+      serviceAccountName: llm-service
       containers:
         - name: llm-service
           image: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-llm-service:dev
@@ -28,6 +32,15 @@ spec:
               value: "http://ollama:11434"
             - name: OLLAMA_MODEL
               value: "qwen2.5:7b-instruct"
+            # RAG 검색(app/retrieval.py) 설정 — infra/terraform/modules/ai_data 참고.
+            - name: OLLAMA_EMBED_MODEL
+              value: "nomic-embed-text"
+            - name: VECTOR_BUCKET_NAME
+              value: "team04-dev-vector-bucket"
+            - name: VECTOR_INDEX_NAME
+              value: "team04-chatbot-vector-index"
+            - name: AWS_REGION
+              value: "us-east-1"
           resources:
             requests:
               cpu: 100m

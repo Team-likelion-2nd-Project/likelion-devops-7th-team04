@@ -23,9 +23,9 @@ class ChatRequest(BaseModel):
     context: str | None = Field(
         default=None,
         description=(
-            "Retrieved context to ground the reply in, supplied by the caller "
-            "(e.g. n8n's RAG step). When omitted, chain.py falls back to its "
-            "own (currently stub) retrieval hook."
+            "Retrieved context to ground the reply in, supplied by the caller. "
+            "Optional override — when omitted, chain.py does its own S3 "
+            "Vectors RAG retrieval (see retrieval.py) instead."
         ),
     )
 
