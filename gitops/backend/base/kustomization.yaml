@@ -6,6 +6,7 @@ resources:
   - serviceaccount-chatbot.yaml
   - api-gateway/deployment.yaml
   - api-gateway/service.yaml
+  - api-gateway/ingress.yaml
   - auth-service/deployment.yaml
   - auth-service/service.yaml
   - booking-service/deployment.yaml

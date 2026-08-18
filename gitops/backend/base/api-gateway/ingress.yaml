@@ -1,0 +1,29 @@
+# api-gateway를 ALB(Application Load Balancer)로 외부에 노출하는 Ingress.
+# backend 네임스페이스 파드는 EKS Fargate에서 뜨므로 target-type은 반드시 ip.
+# 서브넷에는 이미 kubernetes.io/role/elb=1(public)/internal-elb=1(private-app) 태그가
+# 있어(infra/terraform/modules/network/main.tf) auto-discovery로 충분하므로 subnets
+# annotation은 생략. ACM 인증서/도메인이 아직 없어 이번엔 HTTP(80)만 다룬다.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-gateway
+  namespace: backend
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}]'
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/success-codes: '200'
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 3000
