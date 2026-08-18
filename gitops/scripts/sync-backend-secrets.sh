@@ -5,8 +5,8 @@
 # IP/엔드포인트가 매번 바뀝니다. 이 스크립트는 그 두 값만 Terraform state에서 자동으로
 # 읽어오고(root outputs.tf가 없어 `terraform state show`/`terraform show -json`으로 직접
 # 조회 — Terraform 파일은 건드리지 않음), 나머지(DB_USERNAME/DB_PASSWORD/DB_DATABASE/
-# REDIS_PASSWORD/REDIS_TLS/JWT_ACCESS_SECRET/JWT_REFRESH_SECRET)는 git에 커밋되지 않는
-# backend/.env.k8s 파일에서 읽어 kubectl create secret 커맨드를 만듭니다.
+# REDIS_PASSWORD/REDIS_TLS/JWT_ACCESS_SECRET/JWT_REFRESH_SECRET/MOCK_PG_SECRET)는 git에
+# 커밋되지 않는 backend/.env.k8s 파일에서 읽어 kubectl create secret 커맨드를 만듭니다.
 #
 # ⚠️ 이 세션에서 실행/검증하지 않았습니다 — EC2/ElastiCache가 아직 apply되지 않아
 #    terraform state에 해당 리소스가 없습니다. `bash -n`으로 문법만 확인했습니다.
@@ -40,7 +40,8 @@ if [[ ! -f "${ENV_K8S_FILE}" ]]; then
 fi
 
 # DB_USERNAME/DB_PASSWORD/DB_DATABASE/REDIS_PASSWORD/REDIS_TLS/JWT_ACCESS_SECRET/
-# JWT_REFRESH_SECRET을 읽어옵니다 (git에 커밋되지 않는 파일, .gitignore의 .env* 패턴에 포함됨).
+# JWT_REFRESH_SECRET/MOCK_PG_SECRET을 읽어옵니다 (git에 커밋되지 않는 파일, .gitignore의
+# .env* 패턴에 포함됨).
 set -a
 # shellcheck disable=SC1090
 source "${ENV_K8S_FILE}"
@@ -77,6 +78,7 @@ fi
 : "${REDIS_TLS:=false}"
 : "${JWT_ACCESS_SECRET:?backend/.env.k8s에 JWT_ACCESS_SECRET이 필요합니다}"
 : "${JWT_REFRESH_SECRET:?backend/.env.k8s에 JWT_REFRESH_SECRET이 필요합니다}"
+: "${MOCK_PG_SECRET:?backend/.env.k8s에 MOCK_PG_SECRET이 필요합니다}"
 
 KUBECTL_ARGS=(
   create secret generic backend-secrets
@@ -90,6 +92,7 @@ KUBECTL_ARGS=(
   --from-literal="REDIS_TLS=${REDIS_TLS}"
   --from-literal="JWT_ACCESS_SECRET=${JWT_ACCESS_SECRET}"
   --from-literal="JWT_REFRESH_SECRET=${JWT_REFRESH_SECRET}"
+  --from-literal="MOCK_PG_SECRET=${MOCK_PG_SECRET}"
   --dry-run=client
   -o yaml
 )

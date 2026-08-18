@@ -69,6 +69,7 @@ jobs:
           npx nest build chat-bot-service
           npx nest build hotel-service
           npx nest build payment-service
+          npx nest build pg-mock-service
           npx nest build user-service
 
   # 수동 실행(workflow_dispatch)일 때만, 그리고 build-and-test를 통과한 뒤에만 진행됩니다.
@@ -91,6 +92,7 @@ jobs:
           - chat-bot-service
           - hotel-service
           - payment-service
+          - pg-mock-service
           - user-service
 
     steps:
@@ -209,7 +211,7 @@ jobs:
         working-directory: gitops/backend/overlays/dev
         run: |
           REGISTRY="834922934330.dkr.ecr.us-east-1.amazonaws.com"
-          for repo in api-gateway auth-service booking-service chat-bot-service hotel-service payment-service user-service; do
+          for repo in api-gateway auth-service booking-service chat-bot-service hotel-service payment-service pg-mock-service user-service; do
             yq -i "(.images[] | select(.name == \"${REGISTRY}/team04-dev-${repo}\")).newTag = \"${GITHUB_SHA}\"" kustomization.yaml
           done
           cat kustomization.yaml
@@ -254,7 +256,7 @@ jobs:
             echo '```bash'
             echo "gh pr create --base develop --head ${BRANCH} \\"
             echo "  --title \"chore(gitops): backend image tag -> ${GITHUB_SHA}\" \\"
-            echo "  --body \"7개 backend ECR 이미지(gitops/backend/overlays/dev/kustomization.yaml)와 ollama/llm-service 이미지(gitops/langchain/overlays/dev/kustomization.yaml)의 GitOps manifest tag를 ${GITHUB_SHA}로 갱신합니다. merge하면 ArgoCD가 감지해 EKS에 반영합니다.\""
+            echo "  --body \"8개 backend ECR 이미지(gitops/backend/overlays/dev/kustomization.yaml)와 ollama/llm-service 이미지(gitops/langchain/overlays/dev/kustomization.yaml)의 GitOps manifest tag를 ${GITHUB_SHA}로 갱신합니다. merge하면 ArgoCD가 감지해 EKS에 반영합니다.\""
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
