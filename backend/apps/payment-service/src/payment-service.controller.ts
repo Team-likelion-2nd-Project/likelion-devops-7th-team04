@@ -36,4 +36,19 @@ export class PaymentServiceController {
     await this.paymentServiceService.handlePaymentWebhook(data);
     return {};
   }
+
+  // 단건 결제 상세 조회 (관리자 전용, 권한 검증은 api-gateway에서 수행)
+  @GrpcMethod('PaymentService', 'GetPaymentById')
+  async getPaymentById(data: { paymentId: number }) {
+    return this.paymentServiceService.getPaymentById(data.paymentId);
+  }
+
+  // 특정 유저의 결제 목록 조회 (/me, /{userId} 양쪽에서 재사용)
+  @GrpcMethod('PaymentService', 'GetPaymentsByUserId')
+  async getPaymentsByUserId(data: { userId: number }) {
+    const payments = await this.paymentServiceService.getPaymentsByUserId(
+      data.userId,
+    );
+    return { payments };
+  }
 }
