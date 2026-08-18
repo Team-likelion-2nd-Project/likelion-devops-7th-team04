@@ -21,6 +21,12 @@ spec:
         # 네임스페이스의 ollama pod는 이 라벨이 없어 대신 GPU node group으로 간다.
         compute: fargate
     spec:
+      # 이 Service 이름이 "n8n"이라 Kubernetes가 자동 주입하는 서비스 디스커버리
+      # 환경변수(N8N_PORT=tcp://<clusterIP>:5678 등)가 n8n 앱 자신이 기대하는
+      # "리스닝 포트 숫자" N8N_PORT와 이름이 충돌한다 — 실제로
+      # "Invalid number value for N8N_PORT: tcp://..." 에러/재시작을 겪었다.
+      # enableServiceLinks: false로 이 자동 주입 자체를 꺼서 근본적으로 막는다.
+      enableServiceLinks: false
       volumes:
         # 로컬 docker-compose는 named volume(n8n_data)에 SQLite DB를 영속화하지만,
         # 여기선 이 네임스페이스(backend)가 Fargate라 EBS PVC를 못 씁니다(Fargate는
