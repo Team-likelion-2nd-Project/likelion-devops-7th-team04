@@ -1,18 +1,23 @@
+import { createHmac } from 'crypto';
 import {
+  BadGatewayException,
+  BadRequestException,
   Body,
+  ConflictException,
   Controller,
+  ForbiddenException,
   Get,
+  HttpCode,
   Inject,
+  NotFoundException,
   OnModuleInit,
   Post,
+  Req,
   UseGuards,
-  BadGatewayException,
-  ConflictException,
-  ForbiddenException,
-  NotFoundException,
 } from '@nestjs/common';
 import { ClientGrpc } from '@nestjs/microservices';
 import { Observable, firstValueFrom } from 'rxjs';
+import type { Request } from 'express';
 import {
   ApiTags,
   ApiOperation,
@@ -22,6 +27,9 @@ import {
 import { ApiCommonResponses } from '@app/common/decorators/api-response.decorator';
 import { JwtAuthGuard, CurrentUser, AuthenticatedUser } from '@app/common';
 import { CreatePaymentRequestDto } from './dto/create-payment-request.dto';
+import { PaymentWebhookDto } from './dto/payment-webhook.dto';
+
+const DEFAULT_MOCK_PG_SECRET = 'mock-pg-secret';
 
 // proto의 Payment 메시지와 1:1 대응되는 응답 형태
 interface PaymentDto {
@@ -34,6 +42,18 @@ interface PaymentDto {
   paidAt: string;
 }
 
+// proto의 PaymentWebhookRequest 메시지와 1:1 대응 (signature는 여기서 검증만 하고 넘기지 않음)
+interface PaymentWebhookRequest {
+  eventType: string;
+  paymentKey: string;
+  orderId: string;
+  amount: number;
+  paymentMethod: string;
+  approvalNumber: string;
+  status: string;
+  occurredAt: string;
+}
+
 // proto의 PaymentService 스펙과 1:1 대응되는 TS 인터페이스
 interface PaymentService {
   getHello(data: Record<string, never>): Observable<{ message: string }>;
@@ -42,6 +62,9 @@ interface PaymentService {
     userId: number;
     paymentMethod: string;
   }): Observable<PaymentDto>;
+  handlePaymentWebhook(
+    data: PaymentWebhookRequest,
+  ): Observable<Record<string, never>>;
 }
 
 // gRPC 클라이언트가 던지는 에러 형태 (nestjs/microservices의 RpcException을 클라이언트가
@@ -134,5 +157,72 @@ export class PaymentController implements OnModuleInit {
       }
       throw new BadGatewayException(message);
     });
+  }
+
+  /**
+   * POST http://localhost:3000/api/payments/webhook
+   * PG(pg-mock-service, 실제로는 실제 PG사 서버)가 승인/취소 결과를 비동기로 통보하는
+   * 엔드포인트입니다. 호출자가 로그인한 유저가 아니라 PG 서버이므로 JWT 대신 HMAC 서명으로
+   * 신원을 검증합니다.
+   */
+  @Post('webhook')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'PG 결제 결과 웹훅 수신',
+    description:
+      'PG(mock) 서버가 승인/취소 결과를 서버-투-서버로 통보하는 엔드포인트입니다. ' +
+      'JWT 인증 대신 HMAC 서명(MOCK_PG_SECRET)으로 요청 주체를 검증합니다.',
+  })
+  @ApiResponse({ status: 200, description: '정상 수신' })
+  @ApiResponse({ status: 400, description: '서명이 유효하지 않음' })
+  async handleWebhook(
+    @Req() req: Request,
+    @Body() dto: PaymentWebhookDto,
+  ): Promise<{ received: true }> {
+    // req.body는 ValidationPipe의 class-transformer 변환을 거치지 않은, express가 파싱한
+    // 원본 객체라 pg-mock-service가 서명할 때 쓴 JSON 키 순서가 그대로 보존되어 있습니다.
+    // dto(다음 파라미터)는 이미 class로 변환된 값이라 재직렬화 시 키 순서가 보장되지 않으므로
+    // 서명 검증에는 쓰지 않습니다.
+    this.verifySignature(req.body as Record<string, unknown>);
+
+    await firstValueFrom(
+      this.paymentService.handlePaymentWebhook({
+        eventType: dto.eventType,
+        paymentKey: dto.paymentKey,
+        orderId: dto.orderId,
+        amount: dto.amount,
+        paymentMethod: dto.paymentMethod,
+        approvalNumber: dto.approvalNumber,
+        status: dto.status,
+        occurredAt: dto.occurredAt,
+      }),
+    ).catch((err: unknown) => {
+      const grpcErr = err as GrpcErrorLike;
+      throw new BadGatewayException(
+        grpcErr.details || grpcErr.message || '웹훅 처리에 실패했습니다.',
+      );
+    });
+
+    return { received: true };
+  }
+
+  // pg-mock-service의 sendWebhook과 동일한 방식(signature 필드를 뺀 나머지를
+  // JSON.stringify → HMAC-SHA256)으로 서명을 재계산해 비교합니다.
+  private verifySignature(rawBody: Record<string, unknown>) {
+    const { signature, ...payload } = rawBody;
+    if (typeof signature !== 'string' || !signature) {
+      throw new BadRequestException('웹훅 서명이 없습니다.');
+    }
+
+    const expected = createHmac(
+      'sha256',
+      process.env.MOCK_PG_SECRET || DEFAULT_MOCK_PG_SECRET,
+    )
+      .update(JSON.stringify(payload))
+      .digest('hex');
+
+    if (expected !== signature) {
+      throw new BadRequestException('웹훅 서명이 유효하지 않습니다.');
+    }
   }
 }

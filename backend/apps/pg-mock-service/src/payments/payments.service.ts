@@ -117,8 +117,9 @@ export class PaymentsService {
       status: record.status,
       occurredAt: new Date().toISOString(),
     };
-    // 실제 PG의 위변조 방지 서명을 흉내낸 HMAC 서명입니다. 수신 측 검증 로직은 이번 스코프
-    // 밖이라 여기서는 생성만 합니다.
+    // 실제 PG의 위변조 방지 서명을 흉내낸 HMAC 서명입니다. 수신 측(api-gateway의
+    // POST /api/payments/webhook)이 동일한 알고리즘(HMAC-SHA256, 같은 payload 키 순서)으로
+    // 재계산해 검증합니다 — 이 함수의 payload 필드 구성을 바꾸면 수신 측도 같이 바꿔야 합니다.
     const signature = createHmac(
       'sha256',
       process.env.MOCK_PG_SECRET || DEFAULT_MOCK_SECRET,

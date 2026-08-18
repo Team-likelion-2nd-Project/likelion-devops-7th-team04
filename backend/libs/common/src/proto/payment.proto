@@ -10,6 +10,24 @@ service PaymentService {
   // (서버-투-서버, 동기)을 그대로 따른다 — 승인 응답을 그 자리에서 받아 결제내역을 즉시
   // paid 상태로 저장한다. 실패 시(예약 없음/본인 아님/이미 결제됨/PG 승인 실패) gRPC 에러.
   rpc RequestPayment (RequestPaymentRequest) returns (Payment);
+
+  // PG(pg-mock-service)가 승인/취소 결과를 비동기로 통보하는 웹훅을 처리한다. RequestPayment가
+  // 이미 동기로 승인까지 끝내므로 이 RPC는 보조 역할만 한다: (1) 동기 흐름이 응답 수신 단계에서
+  // 실패했지만 PG는 실제 승인했던 경우의 구제(결제내역 뒤늦게 생성), (2) PG 측에서 발생한 취소를
+  // 반영(결제내역을 refunded로 변경). 서명 검증은 원본 요청 바디에 직접 접근 가능한 api-gateway가
+  // 수행하고, 여기 도달하는 시점엔 이미 검증이 끝난 상태다.
+  rpc HandlePaymentWebhook (PaymentWebhookRequest) returns (Empty);
+}
+
+message PaymentWebhookRequest {
+  string eventType = 1; // 'PAYMENT.APPROVED' | 'PAYMENT.CANCELED'
+  string paymentKey = 2;
+  string orderId = 3; // reservationId를 문자열로 인코딩한 값
+  int32 amount = 4;
+  string paymentMethod = 5;
+  string approvalNumber = 6;
+  string status = 7; // PG 자체 상태값 ('DONE' | 'CANCELED')
+  string occurredAt = 8;
 }
 
 message Empty {}

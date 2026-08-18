@@ -20,4 +20,20 @@ export class PaymentServiceController {
   }) {
     return this.paymentServiceService.requestPayment(data);
   }
+
+  // PG 웹훅. 서명 검증은 api-gateway에서 이미 끝난 뒤 호출된다.
+  @GrpcMethod('PaymentService', 'HandlePaymentWebhook')
+  async handlePaymentWebhook(data: {
+    eventType: string;
+    paymentKey: string;
+    orderId: string;
+    amount: number;
+    paymentMethod: string;
+    approvalNumber: string;
+    status: string;
+    occurredAt: string;
+  }) {
+    await this.paymentServiceService.handlePaymentWebhook(data);
+    return {};
+  }
 }
