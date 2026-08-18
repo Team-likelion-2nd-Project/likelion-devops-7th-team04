@@ -81,3 +81,9 @@ variable "chatbot_service_account" {
   type        = string
   default     = "chatbot-service"
 }
+
+variable "langchain_namespace" {
+  description = "Kubernetes namespace used by the langchain AI pipeline (llm-service, n8n, ollama). Only pods labeled compute=fargate in this namespace are matched by the CPU Fargate profile — ollama is scheduled onto the GPU node group instead."
+  type        = string
+  default     = "langchain"
+}

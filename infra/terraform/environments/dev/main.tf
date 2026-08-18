@@ -201,7 +201,11 @@ module "ecr" {
     "chat-bot-service",
     "hotel-service",
     "payment-service",
-    "user-service"
+    "user-service",
+    # langchain_rag/ollama, langchain_rag/llm-service 이미지용 (n8n은 퍼블릭
+    # n8nio/n8n 이미지를 그대로 쓰므로 ECR repo 불필요)
+    "ollama",
+    "llm-service"
   ]
 }
 
@@ -227,6 +231,11 @@ module "eks" {
   chatbot_namespace       = "backend"
   chatbot_service_account = "chatbot-service"
 
+  # langchain AI 파이프라인(llm-service/n8n/ollama, gitops/langchain/)의 Fargate profile
+  # label selector 대상 네임스페이스 — compute=fargate 라벨이 있는 pod(llm-service, n8n)만
+  # 여기서 Fargate로 뜨고, ollama는 GPU node group으로 감(위 CPU Fargate Profile 주석 참고)
+  langchain_namespace = "langchain"
+
   # EKS Cluster / Node는 Private App Subnet에 배치
   subnet_ids = module.network.private_app_subnet_ids
 
@@ -246,8 +255,9 @@ module "eks" {
     "g4dn.xlarge"
   ]
 
-  # 개발 환경에서는 GPU 비용 방지를 위해 기본 0대
-  gpu_desired_size = 0
+  # GPU 노드 실제 기동 테스트를 위해 1대로 설정 (g4dn.xlarge 비용 발생 — 테스트가
+  # 끝나면 다시 0으로 내려서 비용을 막으세요)
+  gpu_desired_size = 1
   gpu_min_size     = 0
   gpu_max_size     = 1
 }
