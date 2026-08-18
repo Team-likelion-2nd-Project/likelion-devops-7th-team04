@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: llm-service
+  namespace: langchain
+spec:
+  type: ClusterIP
+  selector:
+    app: llm-service
+  ports:
+    - port: 8000
+      targetPort: 8000

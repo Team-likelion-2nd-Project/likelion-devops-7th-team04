@@ -1,16 +1,14 @@
 """LangChain chat chain: prompt template + history + Ollama.
 
 This is the "LLM Service" from CLAUDE.md's Chatbot / AI subsystem section —
-it orchestrates one chat turn (prompt assembly, optional retrieved context,
-the Ollama call) behind the HTTP contract in main.py.
+it orchestrates one chat turn (prompt assembly, retrieved context, the
+Ollama call) behind the HTTP contract in main.py.
 
-RAG retrieval (S3 Vectors / Neptune) is not implemented yet. Per the
-intended architecture, retrieval is n8n's job — its workflow (see
-langchain_rag/n8n/) does the lookup and passes the result in as the
-`context` field on POST /chat. `_retrieve_context` below is only a fallback
-for when this service is called directly (curl, no n8n in front) so it stays
-independently testable; swap its body for a real retriever call if this
-service is ever meant to do its own retrieval too.
+RAG retrieval (S3 Vectors) is implemented in `retrieval.py` — this service
+does its own lookup now, via `_retrieve_context` below, rather than relying
+on the caller (n8n) to supply `context`. A caller-supplied `context` (e.g.
+for testing, or a future Neptune-based retriever) still takes priority when
+present — see `generate_reply`.
 """
 
 import os
@@ -19,6 +17,7 @@ from langchain_core.messages import AIMessage, HumanMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain_ollama import ChatOllama
 
+from . import retrieval
 from .schemas import ChatMessage
 
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
@@ -42,9 +41,11 @@ _prompt = ChatPromptTemplate.from_messages(
 _chain = _prompt | _llm
 
 
-def _retrieve_context(message: str) -> str | None:
-    """Stub retrieval hook — real S3 Vectors/Neptune RAG lookup goes here later."""
-    return None
+async def _retrieve_context(message: str) -> str | None:
+    """Real S3 Vectors RAG lookup (see retrieval.py). Returns None — never
+    raises — when retrieval isn't configured or fails, so this service keeps
+    answering (without grounding) rather than erroring out."""
+    return await retrieval.query_context(message)
 
 
 def _to_langchain_messages(history: list[ChatMessage]) -> list[HumanMessage | AIMessage]:
@@ -61,9 +62,9 @@ async def generate_reply(
     message: str, history: list[ChatMessage], context: str | None = None
 ) -> str:
     """Orchestrate one turn: use the caller-supplied context if given, else
-    fall back to the local retrieval stub, then call the LLM."""
+    fall back to this service's own RAG retrieval, then call the LLM."""
     if context is None:
-        context = _retrieve_context(message)
+        context = await _retrieve_context(message)
     prompt_message = message if context is None else f"{message}\n\nContext:\n{context}"
 
     result = await _chain.ainvoke(

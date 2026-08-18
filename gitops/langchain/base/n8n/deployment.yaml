@@ -1,0 +1,90 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: n8n
+  namespace: langchain
+spec:
+  replicas: 1
+  strategy:
+    # emptyDir(아래 참고)라 rolling update로 두 pod가 동시에 뜨면 워크플로가 새 pod에서
+    # 다시 import/activate 되어야 하니 Recreate가 더 안전합니다.
+    type: Recreate
+  selector:
+    matchLabels:
+      app: n8n
+  template:
+    metadata:
+      labels:
+        app: n8n
+        # infra/terraform/modules/eks/main.tf의 CPU Fargate profile이 langchain
+        # 네임스페이스에서는 이 라벨(compute=fargate)이 붙은 pod만 매칭한다 — 같은
+        # 네임스페이스의 ollama pod는 이 라벨이 없어 대신 GPU node group으로 간다.
+        compute: fargate
+    spec:
+      volumes:
+        # 로컬 docker-compose는 named volume(n8n_data)에 SQLite DB를 영속화하지만,
+        # 여기선 이 네임스페이스(backend)가 Fargate라 EBS PVC를 못 씁니다(Fargate는
+        # EFS만 지원, 이번 범위에서 EFS는 새로 안 만듭니다). 대신 pod 하나짜리
+        # emptyDir로 두고, 아래 initContainer + postStart hook이 매번(pod 재시작 시마다)
+        # "워크플로 import + activate"를 새로 수행해서 GitOps스럽게 재현합니다 —
+        # 사용자 데이터/자격증명은 어차피 없고 워크플로 정의 자체가 소스(이 ConfigMap)에서
+        # 나오므로 영속성이 없어도 상태를 잃지 않습니다.
+        - name: n8n-data
+          emptyDir: {}
+        - name: n8n-workflow
+          configMap:
+            name: n8n-workflow
+      initContainers:
+        # 로컬 docker-compose의 n8n-init 서비스 1단계(`n8n import:workflow`)와 동일 —
+        # 같은 pod 안의 emptyDir을 공유하므로 메인 컨테이너가 뜨기 전에 워크플로가
+        # SQLite DB에 먼저 들어갑니다(항상 비활성 상태로 import됨 — 2단계는 아래
+        # postStart hook).
+        - name: import-workflow
+          image: n8nio/n8n:latest
+          command: ["sh", "-c"]
+          args:
+            - "n8n import:workflow --input=/config/chat-orchestration.json"
+          volumeMounts:
+            - name: n8n-data
+              mountPath: /home/node/.n8n
+            - name: n8n-workflow
+              mountPath: /config
+              readOnly: true
+      containers:
+        - name: n8n
+          image: n8nio/n8n:latest
+          ports:
+            - containerPort: 5678
+          env:
+            - name: WEBHOOK_URL
+              value: "http://n8n:5678/"
+            - name: N8N_SECURE_COOKIE
+              value: "false"
+          volumeMounts:
+            - name: n8n-data
+              mountPath: /home/node/.n8n
+            - name: n8n-workflow
+              mountPath: /config
+              readOnly: true
+          lifecycle:
+            # 로컬 docker-compose의 n8n-init 서비스 2단계(activate-workflow.js) —
+            # 여기선 별도 컨테이너/Job이 아니라 이 컨테이너 자신의 postStart hook으로
+            # 실행합니다(localhost로 자기 자신을 호출). 스크립트 자체에 헬스체크
+            # 대기 + 재시도 로직이 있어 "메인 프로세스가 아직 요청을 못 받는" 시점에
+            # 걸려도 괜찮도록 되어 있습니다(로컬 n8n-init README의 알려진 race와 동일 이유).
+            # ⚠️ 이 pod 내부 postStart 방식은 이번 세션에서 실제 클러스터에 대해
+            # 검증하지 않았습니다 — postStart가 반복 실패하면 컨테이너가 재시작될 수
+            # 있으니 최초 배포 후 `kubectl logs`로 꼭 확인하세요.
+            postStart:
+              exec:
+                command:
+                  - sh
+                  - -c
+                  - "N8N_URL=http://localhost:5678 node /config/activate-workflow.js /config/chat-orchestration.json"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

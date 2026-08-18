@@ -6,12 +6,16 @@ on:
       - develop
     paths:
       - "backend/**"
+      - "langchain_rag/ollama/**"
+      - "langchain_rag/llm-service/**"
       - ".github/workflows/backend-ci-cd.yml"
   push:
     branches:
       - develop
     paths:
       - "backend/**"
+      - "langchain_rag/ollama/**"
+      - "langchain_rag/llm-service/**"
       - ".github/workflows/backend-ci-cd.yml"
   # 수동 CD 트리거
   workflow_dispatch:
@@ -121,6 +125,67 @@ jobs:
           echo "${{ matrix.service }}"
           echo "${{ steps.login-ecr.outputs.registry }}/${REPOSITORY}:${IMAGE_TAG}"
 
+  # langchain_rag/ollama, langchain_rag/llm-service 이미지 push. backend의 7개 서비스와
+  # Dockerfile 경로/빌드 컨텍스트 규칙이 달라(backend/apps/<svc>/Dockerfile 고정 컨텍스트
+  # backend 대신 langchain_rag/<svc>/Dockerfile + 자기 자신 디렉터리가 컨텍스트) 같은
+  # matrix에 얹지 않고 별도 job으로 뒀습니다. n8n은 퍼블릭 n8nio/n8n 이미지를 그대로 쓰므로
+  # 여기 없습니다 (ECR repo 자체가 없음).
+  #
+  # ⚠️ ECR repo(team04-dev-ollama, team04-dev-llm-service)는 별도 Terraform 브랜치에서
+  # module.ecr.repository_names에 추가하는 작업이 선행되어야 이 job의 push 단계가
+  # 성공합니다 — 아직 apply 전이라면 이 job은 실패하는 게 정상입니다.
+  #
+  # ⚠️ ollama 이미지는 langchain_rag/ollama/Dockerfile이 빌드 시점에 7B 모델 가중치를
+  # 통째로 이미지에 굽기 때문에 용량이 크고 빌드/push 모두 오래 걸립니다 — self-hosted
+  # 러너 디스크 용량을 미리 확인하세요.
+  deploy-langchain:
+    name: Build and Push langchain Pipeline Images
+    needs: build-and-test
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/develop'
+    runs-on: [self-hosted, backend-cd]
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: ollama
+            dockerfile: langchain_rag/ollama/Dockerfile
+            context: langchain_rag/ollama
+          - service: llm-service
+            dockerfile: langchain_rag/llm-service/Dockerfile
+            context: langchain_rag/llm-service
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image variables
+        shell: bash
+        run: |
+          echo "REPOSITORY=${PROJECT_NAME}-${ENVIRONMENT}-${{ matrix.service }}" >> "$GITHUB_ENV"
+          echo "IMAGE_TAG=${GITHUB_SHA}" >> "$GITHUB_ENV"
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -f ${{ matrix.dockerfile }} \
+            -t ${{ steps.login-ecr.outputs.registry }}/${REPOSITORY}:${IMAGE_TAG} \
+            ${{ matrix.context }}
+
+      - name: Push Docker image to ECR
+        run: |
+          docker push \
+            ${{ steps.login-ecr.outputs.registry }}/${REPOSITORY}:${IMAGE_TAG}
+
+      - name: Print pushed image
+        run: |
+          echo "${{ matrix.service }}"
+          echo "${{ steps.login-ecr.outputs.registry }}/${REPOSITORY}:${IMAGE_TAG}"
+
   # 7개 이미지가 모두 push된 뒤 1회만 실행됩니다 (matrix job마다 실행하면 같은 파일을
   # 동시에 고쳐서 충돌합니다). GitOps manifest는 이 워크플로우가 직접 develop에 push하지
   # 않고 새 브랜치만 만듭니다 — develop 브랜치가 GitHub에서 Protected이기 때문입니다.
@@ -129,7 +194,7 @@ jobs:
   # Job Summary에 안내합니다 — 사람이 그 링크를 눌러(또는 CLI로) 직접 PR을 만듭니다.
   update-gitops-manifest:
     name: Update GitOps Manifest (PR)
-    needs: deploy
+    needs: [deploy, deploy-langchain]
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
 
@@ -149,6 +214,18 @@ jobs:
           done
           cat kustomization.yaml
 
+      # ollama/llm-service는 별도 ArgoCD Application(gitops/argocd/langchain-application.yaml)이
+      # 관리하는 gitops/langchain/overlays/dev/kustomization.yaml 쪽 태그입니다. n8n은 퍼블릭
+      # 이미지라 여기 없습니다.
+      - name: Update image tags in langchain dev overlay
+        working-directory: gitops/langchain/overlays/dev
+        run: |
+          REGISTRY="834922934330.dkr.ecr.us-east-1.amazonaws.com"
+          for repo in ollama llm-service; do
+            yq -i "(.images[] | select(.name == \"${REGISTRY}/team04-dev-${repo}\")).newTag = \"${GITHUB_SHA}\"" kustomization.yaml
+          done
+          cat kustomization.yaml
+
       - name: Create branch and commit
         run: |
           git config user.name "github-actions[bot]"
@@ -156,8 +233,8 @@ jobs:
 
           BRANCH="gitops-update-${GITHUB_SHA}"
           git checkout -b "$BRANCH"
-          git add gitops/backend/overlays/dev/kustomization.yaml
-          git commit -m "chore(gitops): update backend image tags to ${GITHUB_SHA}"
+          git add gitops/backend/overlays/dev/kustomization.yaml gitops/langchain/overlays/dev/kustomization.yaml
+          git commit -m "chore(gitops): update backend/langchain image tags to ${GITHUB_SHA}"
           git push origin "$BRANCH"
 
       - name: Print PR instructions
@@ -177,7 +254,7 @@ jobs:
             echo '```bash'
             echo "gh pr create --base develop --head ${BRANCH} \\"
             echo "  --title \"chore(gitops): backend image tag -> ${GITHUB_SHA}\" \\"
-            echo "  --body \"7개 backend ECR 이미지의 GitOps manifest(gitops/backend/overlays/dev/kustomization.yaml) tag를 ${GITHUB_SHA}로 갱신합니다. merge하면 ArgoCD가 감지해 EKS에 반영합니다.\""
+            echo "  --body \"7개 backend ECR 이미지(gitops/backend/overlays/dev/kustomization.yaml)와 ollama/llm-service 이미지(gitops/langchain/overlays/dev/kustomization.yaml)의 GitOps manifest tag를 ${GITHUB_SHA}로 갱신합니다. merge하면 ArgoCD가 감지해 EKS에 반영합니다.\""
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 

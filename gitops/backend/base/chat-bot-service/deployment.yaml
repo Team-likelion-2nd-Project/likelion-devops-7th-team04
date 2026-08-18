@@ -37,13 +37,11 @@ spec:
             # DYNAMODB_ENDPOINT / AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY는 의도적으로 설정하지
             # 않습니다. backend/.env.example 주석대로 운영에서는 비워두면 EKS Pod Identity로
             # 실제 AWS DynamoDB에 인증됩니다.
-            # chatbot-secrets Secret은 이제 backend 네임스페이스에 있어야 합니다 (Secret 참조는
-            # 항상 같은 네임스페이스 안에서만 됩니다).
+            # n8n(gitops/langchain/base/n8n/)은 별도 langchain 네임스페이스에 있어 FQDN이
+            # 필요하다. 민감정보가 아닌 고정 내부 URL이라 Secret으로 뺄 필요가 없다(그래서
+            # chatbot-secrets Secret 자체가 존재하지 않는다).
             - name: N8N_WEBHOOK_URL
-              valueFrom:
-                secretKeyRef:
-                  name: chatbot-secrets
-                  key: N8N_WEBHOOK_URL
+              value: "http://n8n.langchain.svc.cluster.local:5678/webhook/chat"
           resources:
             requests:
               cpu: 100m

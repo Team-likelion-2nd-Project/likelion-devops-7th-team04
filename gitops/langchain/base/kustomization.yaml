@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - namespace-langchain.yaml
+  - serviceaccount-llm-service.yaml
+  - ollama/deployment.yaml
+  - ollama/service.yaml
+  - llm-service/deployment.yaml
+  - llm-service/service.yaml
+  - n8n/configmap-workflow.yaml
+  - n8n/deployment.yaml
+  - n8n/service.yaml

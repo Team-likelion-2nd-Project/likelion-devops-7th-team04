@@ -73,7 +73,7 @@ fi
 : "${DB_USERNAME:?backend/.env.k8s에 DB_USERNAME이 필요합니다}"
 : "${DB_PASSWORD:?backend/.env.k8s에 DB_PASSWORD가 필요합니다}"
 : "${DB_DATABASE:?backend/.env.k8s에 DB_DATABASE가 필요합니다}"
-: "${REDIS_PASSWORD:?backend/.env.k8s에 REDIS_PASSWORD가 필요합니다 (없으면 빈 문자열로 명시)}"
+: "${REDIS_PASSWORD?backend/.env.k8s에 REDIS_PASSWORD가 필요합니다 (없으면 빈 문자열로 명시)}"
 : "${REDIS_TLS:=false}"
 : "${JWT_ACCESS_SECRET:?backend/.env.k8s에 JWT_ACCESS_SECRET이 필요합니다}"
 : "${JWT_REFRESH_SECRET:?backend/.env.k8s에 JWT_REFRESH_SECRET이 필요합니다}"
