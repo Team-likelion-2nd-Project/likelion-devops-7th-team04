@@ -255,8 +255,9 @@ module "eks" {
     "g4dn.xlarge"
   ]
 
-  # 개발 환경에서는 GPU 비용 방지를 위해 기본 0대
-  gpu_desired_size = 0
+  # GPU 노드 실제 기동 테스트를 위해 1대로 설정 (g4dn.xlarge 비용 발생 — 테스트가
+  # 끝나면 다시 0으로 내려서 비용을 막으세요)
+  gpu_desired_size = 1
   gpu_min_size     = 0
   gpu_max_size     = 1
 }
