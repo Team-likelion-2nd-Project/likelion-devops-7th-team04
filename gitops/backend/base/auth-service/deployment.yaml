@@ -31,6 +31,8 @@ spec:
               value: "15m"
             - name: JWT_REFRESH_EXPIRES_IN
               value: "7d"
+            - name: JWT_REFRESH_ABSOLUTE_MAX_DAYS
+              value: "30"
             # DB_HOST/REDIS_HOST는 실제 EC2 MariaDB/ElastiCache 엔드포인트(런타임에만 알 수 있음),
             # 나머지는 실제 시크릿 값이라 이 저장소에 하드코딩하지 않고 backend-secrets Secret을
             # 클러스터에 out-of-band로 미리 생성해두었다고 가정하고 참조만 합니다.
