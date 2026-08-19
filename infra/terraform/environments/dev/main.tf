@@ -199,6 +199,10 @@ module "database" {
   ebs_volume_size = 20
   ebs_volume_type = "gp3"
 
+  # DEV-102: MariaDB 데이터(/var/lib/mysql) 전용 영구 볼륨 — 인스턴스 replace와 무관하게 보존됨
+  data_volume_size = 20
+  data_volume_type = "gp3"
+
   db_root_password = var.db_root_password
 
   # DEV-102: backend/scripts/seed.ts를 user_data 부팅 시 그대로 실행

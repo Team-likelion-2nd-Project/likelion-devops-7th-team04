@@ -1,3 +1,10 @@
+# DEV-102: 데이터 전용 EBS 볼륨을 인스턴스와 같은 AZ에 만들어야 해서, 인스턴스 자체가 아니라
+# 서브넷에서 AZ를 조회한다 (aws_instance.mariadb.availability_zone을 직접 참조하면 볼륨이
+# 인스턴스 생성을 기다려야 하는 순환 관계가 생길 수 있어 이렇게 분리함).
+data "aws_subnet" "mariadb" {
+  id = var.private_data_subnet_ids[0]
+}
+
 # 최신 Amazon Linux 2023 AMI 조회 (ami_id가 지정되지 않은 경우 사용)
 data "aws_ami" "amazon_linux_2023" {
   most_recent = true
@@ -46,9 +53,12 @@ resource "aws_instance" "mariadb" {
     }
   }
 
-  # 사용자 데이터: MariaDB 자동 설치 + 최초 부팅 시 1회 root 비밀번호/DB 초기화.
-  # 영구 볼륨이 없어 인스턴스가 재생성될 때마다 처음부터 다시 실행되므로, 매번 수동으로
-  # SSM 접속해 설정할 필요가 없도록 자동화합니다.
+  # 사용자 데이터: MariaDB 자동 설치 + 부팅 시마다 root 비밀번호/DB 초기화(idempotent).
+  # 인스턴스가 재생성될 때마다(루트 볼륨은 매번 새로 시작) 처음부터 다시 실행되므로, 매번
+  # 수동으로 SSM 접속해 설정할 필요가 없도록 자동화합니다. 단, 실제 DB 데이터(/var/lib/mysql)는
+  # DEV-102부터 아래 aws_ebs_volume.mariadb_data(별도 영구 볼륨)에 저장되어 인스턴스 재생성과
+  # 무관하게 보존됩니다 — 이 SQL/시딩 블록은 매번 재실행되지만 idempotent라 기존 데이터가
+  # 있으면 스킵되고, 진짜로 비어있는(최초 생성된) 볼륨일 때만 실제로 새로 초기화/시딩됩니다.
   #
   # DEV-183: mariadb105-server의 서버 기본 charset이 latin1(latin1_swedish_ci)이라, DB/테이블을
   # charset 지정 없이 만들면 한글 같은 멀티바이트 문자를 저장할 때
@@ -65,6 +75,28 @@ resource "aws_instance" "mariadb" {
               set -e
               dnf update -y
               dnf install -y mariadb105-server
+
+              # DEV-102: /var/lib/mysql을 루트 볼륨이 아니라 별도 영구 EBS 볼륨(/dev/sdf,
+              # aws_volume_attachment.mariadb_data)에 마운트한다. mariadb 패키지 설치
+              # 직후, 서비스를 시작하기 전에(=데이터 디렉터리가 아직 초기화되기 전에)
+              # 마운트해야 mariadb-install-db가 이 볼륨 위에서 실행된다.
+              #
+              # - 처음 만들어진(빈) 볼륨이면: blkid가 파일시스템을 못 찾으므로 새로 mkfs.
+              # - 이미 데이터가 있는 볼륨(인스턴스 replace로 재부팅된 경우)이면: 포맷하지
+              #   않고 그대로 마운트 — 기존 DB 데이터가 그대로 보존된다.
+              for i in $(seq 1 60); do
+                [ -e /dev/sdf ] && break
+                sleep 2
+              done
+              if ! blkid /dev/sdf > /dev/null 2>&1; then
+                mkfs.ext4 /dev/sdf
+              fi
+              mkdir -p /var/lib/mysql
+              DATA_UUID=$(blkid -s UUID -o value /dev/sdf)
+              grep -q "$DATA_UUID" /etc/fstab || echo "UUID=$DATA_UUID /var/lib/mysql ext4 defaults,nofail 0 2" >> /etc/fstab
+              mount /var/lib/mysql
+              chown mysql:mysql /var/lib/mysql
+              chmod 755 /var/lib/mysql
 
               # VPC 내부(EKS pod)에서 접속 가능하도록 (기본은 localhost만 허용)
               sed -i 's/^bind-address.*/bind-address = 0.0.0.0/' /etc/my.cnf.d/mariadb-server.cnf
@@ -115,4 +147,31 @@ resource "aws_instance" "mariadb" {
   tags = {
     Name = "team04-${var.environment}-mariadb-ec2"
   }
+}
+
+# DEV-102: MariaDB 데이터(/var/lib/mysql) 전용 영구 볼륨. aws_instance.mariadb의 root_block_device와
+# 달리 독립된 리소스라, 인스턴스가 replace(AMI taint, user_data 변경으로 인한 재생성 등)되어도
+# 이 볼륨은 그대로 남아 새 인스턴스에 다시 붙는다 — 즉 인스턴스 replace가 더 이상 DB 데이터를
+# 지우지 않는다. terraform destroy 시에는 다른 리소스와 동일하게 정상 삭제된다(의도적으로
+# lifecycle 보호를 걸지 않음 — 환경을 통째로 지울 땐 같이 지워져야 하므로).
+resource "aws_ebs_volume" "mariadb_data" {
+  availability_zone = data.aws_subnet.mariadb.availability_zone
+  size              = var.data_volume_size
+  type              = var.data_volume_type
+  encrypted         = true
+
+  tags = {
+    Name = "team04-${var.environment}-mariadb-data"
+  }
+}
+
+resource "aws_volume_attachment" "mariadb_data" {
+  device_name = "/dev/sdf"
+  volume_id   = aws_ebs_volume.mariadb_data.id
+  instance_id = aws_instance.mariadb.id
+
+  # 인스턴스가 replace될 때(이 볼륨이 붙어있던 옛 인스턴스가 destroy될 때) 볼륨을 먼저
+  # 안전하게 분리할 수 있도록 인스턴스를 stop한 뒤 detach — 그냥 destroy를 시도하면 OS가
+  # 마운트 중인 볼륨이라 detach가 걸려 apply가 멈추는 경우가 있어 이를 방지한다.
+  stop_instance_before_detaching = true
 }
