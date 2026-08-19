@@ -161,6 +161,23 @@ export async function fetchAdminHotelRooms(hotelId: string | number): Promise<Ad
   return data.rooms ?? []
 }
 
+// api-gateway의 GET /api/bookings/hotels/:hotelId/stats 응답과 1:1 대응. 점유율 분모(총 객실 수)는
+// 여기 포함되지 않으므로 fetchAdminHotelRooms의 결과와 함께 조합해서 써야 한다.
+export interface AdminHotelStats {
+  checkInsToday: number
+  checkOutsToday: number
+  occupiedRoomsToday: number
+  newReservationsToday: number
+  cancellationsToday: number
+  revenueToday: number
+}
+
+// GET /api/bookings/hotels/:hotelId/stats - 호텔의 오늘자 예약 지표
+export async function fetchAdminHotelStats(hotelId: string | number): Promise<AdminHotelStats> {
+  const res = await authedFetch(`/api/bookings/hotels/${hotelId}/stats`)
+  return parseJson<AdminHotelStats>(res)
+}
+
 // GET /api/hotels/:hotelId/rooms/:roomId - 객실 상세
 export async function fetchAdminRoomById(
   hotelId: string | number,

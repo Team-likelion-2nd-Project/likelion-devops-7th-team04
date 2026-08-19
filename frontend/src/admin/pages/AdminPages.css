@@ -23,6 +23,17 @@
   margin-bottom: 8px;
 }
 
+/* .admin-card + .admin-card 규칙은 형제가 둘 다 .admin-card일 때만 매칭되는데, 호텔 상세 페이지처럼
+   .admin-card 사이에 .admin-stat-grid(호텔별 지표 섹션)가 끼어들면 그 규칙이 끊겨서 카드 간 16px
+   간격이 사라져 버린다 — 앞뒤 모두 명시적으로 같은 간격을 준다. */
+.admin-card + .admin-stat-grid {
+  margin-top: 16px;
+}
+
+.admin-stat-grid + .admin-card {
+  margin-top: 16px;
+}
+
 /* .admin-card + .admin-card 규칙(상세 페이지의 세로 카드 간격용)이 그리드 안의 형제 카드에도
    적용되어 버리므로, 그보다 명시도가 높은 선택자로 다시 무효화한다. */
 .admin-stat-grid .admin-card + .admin-card {
@@ -100,6 +111,23 @@
   font-size: 13px;
 }
 
+/* 대시보드의 호텔별 요약 테이블 전용 — 값을 크게/굵게 강조. 다른 관리자 테이블(유저/호텔/객실
+   목록)은 .admin-table 기본 크기 그대로 유지하고 이 테이블에만 적용한다. */
+.admin-dashboard-stat-table th,
+.admin-dashboard-stat-table td {
+  padding: 16px 20px;
+}
+
+.admin-dashboard-stat-table thead th {
+  font-size: 15px;
+}
+
+/* 첫 번째 열(호텔명)은 라벨이라 원래 크기 그대로 두고, 나머지 지표 값 칸만 크게/굵게 강조한다. */
+.admin-dashboard-stat-table tbody td:not(:first-child) {
+  font-size: 30px;
+  font-weight: 700;
+}
+
 .admin-table tbody tr:last-child td {
   border-bottom: none;
 }
@@ -168,6 +196,11 @@
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   align-items: stretch;
   gap: 16px;
+}
+
+/* 대시보드의 호텔별 요약 테이블 바로 아래에 퀵링크 카드가 붙을 때 다른 섹션 간격(16px)과 맞춘다. */
+.admin-table-wrap + .admin-dashboard-grid {
+  margin-top: 16px;
 }
 
 /* .admin-card + .admin-card 규칙(상세 페이지의 세로 카드 간격용, 클래스 2개짜리라 명시도가 더 높다)이

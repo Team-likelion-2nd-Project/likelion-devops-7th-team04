@@ -78,4 +78,14 @@ export class BookingServiceController {
       );
     return { reservationFacilities };
   }
+
+  // 관리자 호텔 상세 페이지의 "호텔별 지표" 섹션용 집계 조회. date를 생략(빈 문자열)하면
+  // 서버 기준 오늘로 계산한다.
+  @GrpcMethod('BookingService', 'GetHotelBookingStats')
+  async getHotelBookingStats(data: { hotelId: number; date?: string }) {
+    return this.bookingServiceService.getHotelBookingStats(
+      data.hotelId,
+      data.date || undefined,
+    );
+  }
 }

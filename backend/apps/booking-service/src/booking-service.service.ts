@@ -58,6 +58,11 @@ function addDays(dateStr: string, offset: number): string {
   return date.toISOString().slice(0, 10);
 }
 
+// 서버 기준 오늘 날짜를 'YYYY-MM-DD'로 반환한다 (UTC 기준 — addDays/dayBefore와 동일한 원칙).
+function today(): string {
+  return new Date().toISOString().slice(0, 10);
+}
+
 // 편의시설은 종류가 호텔마다 자유롭게 늘어날 수 있는 일반적인 카탈로그(hotel-service의 facilities
 // 테이블)로 분리되어 있지만, 프론트/이 서비스는 아직 수영장·라운지 두 가지 고정 옵션만 지원한다.
 // 호텔별 facilities 테이블에 아래 이름과 정확히 일치하는 row가 있어야 예약 시 해당 옵션을 선택할 수 있다.
@@ -71,11 +76,24 @@ export interface BookingGrpcResponse {
   reservationId: number;
   userId: number;
   roomId: number;
+  hotelId?: number;
   checkInDate: string;
   checkOutDate: string;
   guestCount: number;
   totalAmount: number;
   status: string;
+}
+
+// 호텔 상세 페이지의 "호텔별 지표" 섹션이 사용하는 응답. hotelId 스냅샷 컬럼 덕분에
+// hotel-service 호출 없이 이 서비스의 reservations 테이블만으로 계산된다. proto의
+// HotelBookingStats 메시지와 1:1 대응.
+export interface HotelBookingStatsGrpcResponse {
+  checkInsToday: number;
+  checkOutsToday: number;
+  occupiedRoomsToday: number;
+  newReservationsToday: number;
+  cancellationsToday: number;
+  revenueToday: number;
 }
 
 @Injectable()
@@ -184,6 +202,7 @@ export class BookingServiceService implements OnModuleInit {
     const reservation = this.reservationRepository.create({
       userId: data.userId,
       roomId: data.roomId,
+      hotelId: data.hotelId,
       checkInDate: data.checkInDate,
       checkOutDate: data.checkOutDate,
       guestCount: data.guestCount,
@@ -332,11 +351,98 @@ export class BookingServiceService implements OnModuleInit {
       reservationId: reservation.reservationId,
       userId: reservation.userId,
       roomId: reservation.roomId,
+      hotelId: reservation.hotelId,
       checkInDate: reservation.checkInDate,
       checkOutDate: reservation.checkOutDate,
       guestCount: reservation.guestCount,
       totalAmount: reservation.totalAmount,
       status: reservation.status,
+    };
+  }
+
+  // 관리자 호텔 상세 페이지의 "호텔별 지표" 섹션용 집계. hotelId 스냅샷 컬럼 덕분에 이 서비스의
+  // DB만으로 계산되고, hotel-service 호출은 필요 없다 (점유율의 분모인 "총 객실 수"는 프론트가
+  // 이미 갖고 있는 hotel-service의 GetRooms 결과를 그대로 재사용한다 — 이 메서드는 분자만 반환).
+  // date를 생략하면 서버 기준 오늘로 계산한다.
+  // newReservationsToday는 오늘 생성된 예약 전체가 아니라 "오늘 생성되고 결제까지 확정된"(status=RESERVED)
+  // 건만 센다 — PENDING_PAYMENT(결제 대기 중)는 아직 확정된 예약이 아니므로 제외.
+  // cancellationsToday는 오늘 취소된(status=CANCELLED) 예약만 센다.
+  async getHotelBookingStats(
+    hotelId: number,
+    date?: string,
+  ): Promise<HotelBookingStatsGrpcResponse> {
+    const targetDate = date || today();
+    // TypeORM QueryBuilder는 'alias.property' 표현에서 엔티티의 TS 프로퍼티명(camelCase)을
+    // 기대한다 (실제 DB 컬럼명인 snake_case가 아님) — Reservation 엔티티의 프로퍼티명을 그대로 사용.
+    const base = () =>
+      this.reservationRepository
+        .createQueryBuilder('reservation')
+        .where('reservation.hotelId = :hotelId', { hotelId });
+
+    const [
+      checkInsToday,
+      checkOutsToday,
+      occupiedRoomsToday,
+      newReservationsToday,
+      cancellationsToday,
+      revenueResult,
+    ] = await Promise.all([
+      base()
+        .andWhere('reservation.checkInDate = :targetDate', { targetDate })
+        .andWhere('reservation.status = :status', {
+          status: ReservationStatus.RESERVED,
+        })
+        .getCount(),
+      base()
+        .andWhere('reservation.checkOutDate = :targetDate', { targetDate })
+        .andWhere('reservation.status = :status', {
+          status: ReservationStatus.RESERVED,
+        })
+        .getCount(),
+      base()
+        .andWhere('reservation.status = :status', {
+          status: ReservationStatus.RESERVED,
+        })
+        .andWhere('reservation.checkInDate <= :targetDate', { targetDate })
+        .andWhere('reservation.checkOutDate > :targetDate', { targetDate })
+        .select('COUNT(DISTINCT reservation.roomId)', 'count')
+        .getRawOne<{ count: string }>(),
+      base()
+        .andWhere('reservation.status = :status', {
+          status: ReservationStatus.RESERVED,
+        })
+        .andWhere('DATE(reservation.createdAt) = :targetDate', {
+          targetDate,
+        })
+        .getCount(),
+      base()
+        .andWhere('reservation.status = :status', {
+          status: ReservationStatus.CANCELLED,
+        })
+        .andWhere('DATE(reservation.updatedAt) = :targetDate', {
+          targetDate,
+        })
+        .getCount(),
+      base()
+        .andWhere('reservation.status = :status', {
+          status: ReservationStatus.RESERVED,
+        })
+        .andWhere('DATE(reservation.createdAt) = :targetDate', {
+          targetDate,
+        })
+        .select('SUM(reservation.totalAmount)', 'sum')
+        .getRawOne<{ sum: string | null }>(),
+    ]);
+
+    return {
+      checkInsToday,
+      checkOutsToday,
+      occupiedRoomsToday: Number(
+        (occupiedRoomsToday as { count: string })?.count ?? 0,
+      ),
+      newReservationsToday,
+      cancellationsToday,
+      revenueToday: Number((revenueResult as { sum: string | null })?.sum ?? 0),
     };
   }
 }
