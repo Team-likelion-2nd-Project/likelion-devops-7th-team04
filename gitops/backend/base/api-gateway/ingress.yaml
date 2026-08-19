@@ -6,6 +6,7 @@
 # DEV-171: api.team04hotel.kro.kr용 ACM 인증서(*.team04hotel.kro.kr)가 발급되어 HTTPS(443)를
 # 추가하고 HTTP(80)는 ssl-redirect 액션으로 강제 리다이렉트한다(AWS Load Balancer Controller
 # 표준 패턴 — ssl-redirect라는 가상 서비스를 첫 rule로 두고 port: use-annotation으로 연결).
+# DEV-185: ALB 액세스 로그를 modules/logging의 로그 버킷(team04-dev-access-logs)에 저장.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -21,6 +22,7 @@ metadata:
     alb.ingress.kubernetes.io/healthcheck-path: /
     alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
     alb.ingress.kubernetes.io/success-codes: '200'
+    alb.ingress.kubernetes.io/load-balancer-attributes: access_logs.s3.enabled=true,access_logs.s3.bucket=team04-dev-access-logs,access_logs.s3.prefix=alb
 spec:
   ingressClassName: alb
   rules:

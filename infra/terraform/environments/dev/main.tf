@@ -147,6 +147,20 @@ module "s3_frontend" {
   # 별도로 CNAME 등록 — 여기서는 CloudFront/ACM 쪽만 처리.
   domain_name        = "www.team04hotel.kro.kr"
   certificate_domain = "*.team04hotel.kro.kr"
+
+  # DEV-185: CloudFront 액세스 로그를 modules/logging의 로그 버킷에 저장
+  log_bucket_domain_name = module.logging.log_bucket_domain_name
+}
+
+# =========================
+# DEV-185 Logging Module (CloudFront + ALB 액세스 로그)
+# =========================
+
+module "logging" {
+  source = "../../modules/logging"
+
+  project_name = "team04"
+  environment  = "dev"
 }
 
 # =========================
