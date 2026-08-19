@@ -41,12 +41,19 @@ spec:
           configMap:
             name: n8n-workflow
       initContainers:
+        # DEV-181: 원래 n8nio/n8n:latest를 Docker Hub에서 직접 pull했으나, Fargate pod는
+        # 매번 새 micro-VM이라 캐시가 없고 latest 태그라 pull policy가 Always라서 매번
+        # Docker Hub에서 새로 받아와 pod 기동이 느리고 rate limit 대상이 됨 — VPC 내부
+        # ECR로 미러링(.github/workflows/backend-ci-cd.yml의 mirror-n8n job)해 pull
+        # 속도를 개선했다. 태그는 kustomize(gitops/langchain/overlays/dev/kustomization.yaml)가
+        # N8N_VERSION 고정 버전으로 덮어쓴다.
+        #
         # 로컬 docker-compose의 n8n-init 서비스 1단계(`n8n import:workflow`)와 동일 —
         # 같은 pod 안의 emptyDir을 공유하므로 메인 컨테이너가 뜨기 전에 워크플로가
         # SQLite DB에 먼저 들어갑니다(항상 비활성 상태로 import됨 — 2단계는 아래
         # postStart hook).
         - name: import-workflow
-          image: n8nio/n8n:latest
+          image: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-n8n:dev
           command: ["sh", "-c"]
           args:
             - "n8n import:workflow --input=/config/chat-orchestration.json"
@@ -58,7 +65,7 @@ spec:
               readOnly: true
       containers:
         - name: n8n
-          image: n8nio/n8n:latest
+          image: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-n8n:dev
           ports:
             - containerPort: 5678
           env:
