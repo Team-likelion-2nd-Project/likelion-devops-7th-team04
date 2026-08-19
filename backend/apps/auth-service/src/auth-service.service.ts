@@ -24,6 +24,17 @@ const INVALID_CURRENT_PASSWORD_MESSAGE = '현재 비밀번호가 일치하지 �
 const refreshTokenKey = (type: PrincipalType, id: number) =>
   `refresh:${type.toLowerCase()}:${id}`;
 
+// 로테이션 직후 "방금 버려진" 직전 리프레시 토큰을 잠시 보관하는 키(TTL: REFRESH_GRACE_TTL_SECONDS).
+// 브라우저가 로테이션 응답(Set-Cookie)을 받기 전에 페이지가 새로고침되어 요청이 끊기면, 브라우저
+// 쿠키는 구 토큰(직전 값)에 머무르게 됩니다. 이 짧은 유예 구간 안에 그 구 토큰으로 재시도가 들어오면
+// 공격이 아니라 이 경쟁 상태로 보고, 재로테이션 없이 현재 유효한 토큰을 그대로 돌려줍니다(refresh()
+// 참고, 연쇄 로테이션 방지). SALT_ROUNDS와 마찬가지로 배포 환경별로 달라질 값이 아니라 보안 로직에
+// 고정된 튜닝값이라 env가 아닌 상수로 관리합니다.
+const REFRESH_GRACE_TTL_SECONDS = 20;
+
+const refreshGraceKey = (type: PrincipalType, id: number) =>
+  `refresh:grace:${type.toLowerCase()}:${id}`;
+
 // libs/common/src/proto/user.proto의 User 메시지와 1:1 대응
 interface UserGrpcResponse {
   id: number;
@@ -198,35 +209,48 @@ export class AuthServiceService implements OnModuleInit {
     }
 
     const storedToken = await this.redis.get(refreshTokenKey(payload.type, payload.sub));
-    if (!storedToken || storedToken !== data.refreshToken) {
-      throw new RpcException(INVALID_REFRESH_TOKEN_MESSAGE);
+
+    if (storedToken && storedToken === data.refreshToken) {
+      // 최신 프로필(이름/권한 변경 등)을 반영해 토큰을 재발급(로테이션)합니다.
+      const principal = await this.resolvePrincipal(payload);
+      return this.issueTokens(principal, { previousToken: storedToken });
     }
 
+    // 새로고침 연타 등으로 이미 로테이션되어 버려진 "직전" 토큰이 뒤늦게 재시도로 들어온 경우입니다.
+    // grace 키에 남아있다면 공격이 아니라 이 경쟁 상태로 보고, 재로테이션 없이(연쇄 로테이션 방지)
+    // 이미 로테이션된 현재 유효한 리프레시 토큰을 그대로 돌려줍니다. 액세스 토큰만 새로 발급합니다.
+    if (storedToken) {
+      const graceToken = await this.redis.get(refreshGraceKey(payload.type, payload.sub));
+      if (graceToken === data.refreshToken) {
+        const principal = await this.resolvePrincipal(payload);
+        return {
+          accessToken: this.signAccessToken(principal),
+          refreshToken: storedToken,
+          userId: principal.id,
+          email: principal.email,
+          name: principal.name,
+          role: principal.role,
+        };
+      }
+    }
+
+    throw new RpcException(INVALID_REFRESH_TOKEN_MESSAGE);
+  }
+
+  // refresh()의 정상 로테이션 경로와 grace 경로 양쪽에서 공통으로 쓰는, payload → 최신 프로필 조회.
+  // 탈퇴/삭제 등으로 프로필을 더 이상 찾을 수 없으면 리프레시 토큰도 무효로 취급합니다.
+  private async resolvePrincipal(payload: JwtPayload): Promise<Principal> {
     if (payload.type === 'ADMIN') {
       const admin = await firstValueFrom(this.adminService.getAdminByEmail({ email: payload.email })).catch(() => {
         throw new RpcException(INVALID_REFRESH_TOKEN_MESSAGE);
       });
-      return this.issueTokens({
-        id: admin.id,
-        email: admin.email,
-        name: admin.name,
-        role: 'ADMIN',
-        type: 'ADMIN',
-      });
+      return { id: admin.id, email: admin.email, name: admin.name, role: 'ADMIN', type: 'ADMIN' };
     }
 
-    // 최신 프로필(이름/권한 변경 등)을 반영해 토큰을 재발급합니다.
     const user = await firstValueFrom(this.userService.getUserByEmail({ email: payload.email })).catch(() => {
       throw new RpcException(INVALID_REFRESH_TOKEN_MESSAGE);
     });
-
-    return this.issueTokens({
-      id: user.id,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      type: 'USER',
-    });
+    return { id: user.id, email: user.email, name: user.name, role: user.role, type: 'USER' };
   }
 
   // 로그아웃: Redis에서 리프레시 토큰을 삭제합니다. JWT는 무상태이므로 이미 발급된 액세스 토큰은
@@ -234,6 +258,9 @@ export class AuthServiceService implements OnModuleInit {
   // type으로 고객/관리자 중 어느 쪽 리프레시 토큰을 지울지 구분합니다(Redis 키 네임스페이싱).
   async logout(data: { userId: number; type: PrincipalType }): Promise<{ success: boolean }> {
     await this.redis.del(refreshTokenKey(data.type, data.userId));
+    // grace 키도 같이 지웁니다 — 안 지우면 로그아웃 직후 도착한 지연된 구 토큰이 grace 구간 동안은
+    // 여전히 통과되어 로그아웃이 즉시 반영되지 않는 구멍이 생깁니다.
+    await this.redis.del(refreshGraceKey(data.type, data.userId));
     return { success: true };
   }
 
@@ -258,6 +285,7 @@ export class AuthServiceService implements OnModuleInit {
 
     // 비밀번호가 바뀌었으므로 기존에 발급된 리프레시 토큰은 무효화합니다(다른 기기/세션은 재로그인 필요).
     await this.redis.del(refreshTokenKey('USER', data.userId));
+    await this.redis.del(refreshGraceKey('USER', data.userId));
 
     return { success: true };
   }
@@ -271,11 +299,33 @@ export class AuthServiceService implements OnModuleInit {
 
     await this.credentialRepository.delete({ userId: data.userId });
     await this.redis.del(refreshTokenKey('USER', data.userId));
+    await this.redis.del(refreshGraceKey('USER', data.userId));
 
     return { success: true };
   }
 
-  private async issueTokens(principal: Principal): Promise<AuthTokens> {
+  private signAccessToken(principal: Principal): string {
+    const payload: JwtPayload = {
+      sub: principal.id,
+      email: principal.email,
+      role: principal.role,
+      type: principal.type,
+    };
+    return this.jwtService.sign(payload, {
+      secret: getRequiredEnv('JWT_ACCESS_SECRET'),
+      expiresIn: getRequiredEnv(
+        'JWT_ACCESS_EXPIRES_IN',
+      ) as JwtSignOptions['expiresIn'],
+    });
+  }
+
+  // previousToken이 있으면(= refresh()의 정상 로테이션 경로) 덮어쓰기 전에 그 값을 grace 키로
+  // 옮겨둡니다. login()/register()는 previousToken 없이 호출해, 이전 세션이 즉시 무효화되는
+  // 기존 동작을 그대로 유지합니다.
+  private async issueTokens(
+    principal: Principal,
+    options?: { previousToken?: string },
+  ): Promise<AuthTokens> {
     const payload: JwtPayload = {
       sub: principal.id,
       email: principal.email,
@@ -283,18 +333,22 @@ export class AuthServiceService implements OnModuleInit {
       type: principal.type,
     };
 
-    const accessToken = this.jwtService.sign(payload, {
-      secret: getRequiredEnv('JWT_ACCESS_SECRET'),
-      expiresIn: getRequiredEnv(
-        'JWT_ACCESS_EXPIRES_IN',
-      ) as JwtSignOptions['expiresIn'],
-    });
+    const accessToken = this.signAccessToken(principal);
     const refreshToken = this.jwtService.sign(payload, {
       secret: getRequiredEnv('JWT_REFRESH_SECRET'),
       expiresIn: getRequiredEnv(
         'JWT_REFRESH_EXPIRES_IN',
       ) as JwtSignOptions['expiresIn'],
     });
+
+    if (options?.previousToken) {
+      await this.redis.set(
+        refreshGraceKey(principal.type, principal.id),
+        options.previousToken,
+        'EX',
+        REFRESH_GRACE_TTL_SECONDS,
+      );
+    }
 
     // 리프레시 토큰의 TTL을 JWT의 실제 만료 시각(exp)에 맞춰 Redis에 저장합니다
     // (principal당 1개, 재로그인 시 덮어씀. 키는 principal 타입별로 네임스페이싱되어 있음).

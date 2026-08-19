@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { fetchMyBookings, refreshAccessToken, type Booking } from '../api/gateway'
+import { fetchMyBookings, isUnauthorized, refreshAccessToken, type Booking } from '../api/gateway'
 import { toImageDataUrl, type Room } from '../api/hotels'
 import type { Hotel } from '../data/hotels'
 import { fetchMyPayments, type Payment } from '../api/payments'
@@ -30,6 +30,8 @@ function PaymentDetailPage() {
   )
   const [isLoading, setIsLoading] = useState(!payment)
   const [notFound, setNotFound] = useState(false)
+  const [loadError, setLoadError] = useState('')
+  const [retryTick, setRetryTick] = useState(0)
 
   // 결제와 연결된 예약/객실 정보는 참고용이라, 조회에 실패해도 결제 상세 자체는 그대로 보여준다.
   const [booking, setBooking] = useState<Booking | null>(null)
@@ -42,6 +44,7 @@ function PaymentDetailPage() {
     const load = async () => {
       setIsLoading(true)
       setNotFound(false)
+      setLoadError('')
       const findMine = (payments: Payment[]) =>
         payments.find((p) => String(p.paymentId) === paymentId) ?? null
 
@@ -51,7 +54,15 @@ function PaymentDetailPage() {
         const found = findMine(data)
         if (found) setPayment(found)
         else setNotFound(true)
-      } catch {
+      } catch (err) {
+        if (cancelled) return
+        // fetchMyPayments()는 429 등을 이미 내부에서(요청 자체) 예산껏 재시도했다. 진짜 로그인이
+        // 필요한 상태(401)가 아니면 재발급을 또 시도하지 않는다 — 안 그러면 이미 몰린 요청에
+        // 부하만 배가된다.
+        if (!isUnauthorized(err)) {
+          setLoadError('일시적으로 결제 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
+          return
+        }
         // 새로고침 직후에는 액세스 토큰이 메모리에서 아직 복구되지 않았을 수 있으니
         // 리프레시 토큰(쿠키)으로 한 번 재발급을 시도한 뒤 다시 조회한다.
         try {
@@ -61,8 +72,13 @@ function PaymentDetailPage() {
           const found = findMine(data)
           if (found) setPayment(found)
           else setNotFound(true)
-        } catch {
-          if (!cancelled) navigate('/login')
+        } catch (err2) {
+          if (cancelled) return
+          if (isUnauthorized(err2)) {
+            navigate('/login')
+          } else {
+            setLoadError('일시적으로 결제 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
+          }
         }
       } finally {
         if (!cancelled) setIsLoading(false)
@@ -73,7 +89,7 @@ function PaymentDetailPage() {
     return () => {
       cancelled = true
     }
-  }, [payment, paymentId, navigate])
+  }, [payment, paymentId, navigate, retryTick])
 
   useEffect(() => {
     if (!payment) return
@@ -90,10 +106,18 @@ function PaymentDetailPage() {
       try {
         const [bookings, lookup] = await Promise.all([fetchMyBookings(), fetchRoomLookup()])
         applyBookings(bookings, lookup)
-      } catch {
+      } catch (err) {
+        // fetchMyBookings()는 429 등을 이미 내부에서 예산껏 재시도했다. 진짜 401이 아니면 재발급을
+        // 또 시도하지 않는다 — 이 정보(이용 기간/객실 썸네일)는 참고용이라 실패해도 조용히 비워둔다.
+        if (!isUnauthorized(err)) {
+          if (!cancelled) {
+            setBooking(null)
+            setRoomInfo(null)
+          }
+          return
+        }
         // 새로고침 직후에는 액세스 토큰이 메모리에서 아직 복구되지 않았을 수 있으니
-        // 리프레시 토큰(쿠키)으로 한 번 재발급을 시도한 뒤 다시 조회한다. 이 정보(이용 기간/
-        // 객실 썸네일)는 참고용이라, 재시도까지 실패하면 조용히 비워두고 결제 상세 자체는 그대로 보여준다.
+        // 리프레시 토큰(쿠키)으로 한 번 재발급을 시도한 뒤 다시 조회한다.
         try {
           await refreshAccessToken()
           const [bookings, lookup] = await Promise.all([fetchMyBookings(), fetchRoomLookup()])
@@ -132,6 +156,15 @@ function PaymentDetailPage() {
           </Link>
 
           {isLoading && <p className="mypage-status">불러오는 중...</p>}
+
+          {!isLoading && loadError && (
+            <div className="mypage-status">
+              <p className="mypage-error">{loadError}</p>
+              <button type="button" className="mypage-ghost-btn" onClick={() => setRetryTick((t) => t + 1)}>
+                다시 시도
+              </button>
+            </div>
+          )}
 
           {!isLoading && notFound && <p className="mypage-status">결제 정보를 찾을 수 없습니다.</p>}
 

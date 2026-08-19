@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchMyBookings, refreshAccessToken, type Booking } from '../api/gateway'
+import { fetchMyBookings, isUnauthorized, refreshAccessToken, type Booking } from '../api/gateway'
 import { toImageDataUrl } from '../api/hotels'
 import type { Payment } from '../api/payments'
 import PaymentModal from '../components/reservation/PaymentModal'
@@ -26,6 +26,8 @@ function PaymentsPendingPage() {
 
   const [bookings, setBookings] = useState<Booking[] | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [retryTick, setRetryTick] = useState(0)
 
   // roomId -> {hotel, room} 맵. ReservationHistoryPage와 동일한 이유로 필요하다 (fetchRoomLookup 주석 참고).
   const [roomLookup, setRoomLookup] = useState<Map<number, RoomWithHotel> | null>(null)
@@ -38,18 +40,32 @@ function PaymentsPendingPage() {
 
     const load = async () => {
       setIsLoading(true)
+      setLoadError('')
       try {
         const data = await fetchMyBookings()
         if (!cancelled) setBookings(data)
-      } catch {
+      } catch (err) {
+        if (cancelled) return
+        // fetchMyBookings()는 429 등을 이미 내부에서(요청 자체) 예산껏 재시도했다. 진짜 로그인이
+        // 필요한 상태(401)가 아니면 재발급을 또 시도하지 않는다 — 안 그러면 이미 몰린 요청에
+        // 부하만 배가된다.
+        if (!isUnauthorized(err)) {
+          setLoadError('일시적으로 결제 대기 내역을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
+          return
+        }
         // 새로고침 직후에는 액세스 토큰이 메모리에서 아직 복구되지 않았을 수 있으니
         // 리프레시 토큰(쿠키)으로 한 번 재발급을 시도한 뒤 다시 조회한다.
         try {
           await refreshAccessToken()
           const data = await fetchMyBookings()
           if (!cancelled) setBookings(data)
-        } catch {
-          if (!cancelled) navigate('/login')
+        } catch (err2) {
+          if (cancelled) return
+          if (isUnauthorized(err2)) {
+            navigate('/login')
+          } else {
+            setLoadError('일시적으로 결제 대기 내역을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
+          }
         }
       } finally {
         if (!cancelled) setIsLoading(false)
@@ -60,7 +76,7 @@ function PaymentsPendingPage() {
     return () => {
       cancelled = true
     }
-  }, [navigate])
+  }, [navigate, retryTick])
 
   useEffect(() => {
     let cancelled = false
@@ -98,6 +114,15 @@ function PaymentsPendingPage() {
           </div>
 
           {isLoading && <p className="mypage-status">불러오는 중...</p>}
+
+          {!isLoading && loadError && (
+            <div className="mypage-status">
+              <p className="mypage-error">{loadError}</p>
+              <button type="button" className="mypage-ghost-btn" onClick={() => setRetryTick((t) => t + 1)}>
+                다시 시도
+              </button>
+            </div>
+          )}
 
           {!isLoading && pendingBookings && pendingBookings.length === 0 && (
             <p className="mypage-status">결제 대기 중인 예약이 없습니다.</p>
