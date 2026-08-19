@@ -28,6 +28,11 @@ output "alb_controller_role_arn" {
   value       = aws_iam_role.alb_controller.arn
 }
 
+output "cloudwatch_observability_role_arn" {
+  description = "ARN of the CloudWatch Observability (Container Insights) IAM role"
+  value       = aws_iam_role.cloudwatch_observability.arn
+}
+
 output "chatbot_service_role_arn" {
   description = "ARN of the Chatbot Service IAM role"
   value       = aws_iam_role.chatbot_service.arn

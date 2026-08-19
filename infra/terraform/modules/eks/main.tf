@@ -70,6 +70,13 @@ resource "aws_eks_fargate_profile" "cpu" {
       compute = "fargate"
     }
   }
+  selector {
+    # DEV-177: amazon-cloudwatch-observability addon(Container Insights)이 이 네임스페이스에
+    # 배포됨. 우리 클러스터엔 태인트 없는 일반 EC2 노드가 없어(GPU 노드 그룹은
+    # nvidia.com/gpu:NoSchedule 태인트만 감내), Fargate profile에 포함시키지 않으면 파드가
+    # 영원히 Pending 상태로 남는다.
+    namespace = "amazon-cloudwatch"
+  }
 
   tags = {
     Name        = "${var.project_name}-${var.environment}-cpu-fargate"
@@ -187,6 +194,25 @@ resource "aws_eks_addon" "vpc_cni" {
 
   depends_on = [
     aws_eks_addon.pod_identity_agent
+  ]
+}
+
+# DEV-177: Container Insights. Fargate 파드(api-gateway 등 대부분의 워크로드)에서 지표를
+# 걷어오려면 이 addon이 쓰는 ServiceAccount가 IRSA로 자격증명을 받아야 한다
+# (eks-pod-identity-agent는 DaemonSet이라 Fargate에서 못 뜬다 — DEV-170에서 alb_controller로
+# 실측 확인된 것과 동일한 제약). service_account_role_arn을 지정하면 addon이 자기 기본
+# ServiceAccount에 자동으로 IRSA annotation을 달아준다.
+resource "aws_eks_addon" "cloudwatch_observability" {
+  cluster_name = aws_eks_cluster.main.name
+  addon_name   = "amazon-cloudwatch-observability"
+
+  resolve_conflicts_on_create = "OVERWRITE"
+  resolve_conflicts_on_update = "PRESERVE"
+
+  service_account_role_arn = var.cloudwatch_observability_role_arn
+
+  depends_on = [
+    aws_eks_fargate_profile.cpu
   ]
 }
 
