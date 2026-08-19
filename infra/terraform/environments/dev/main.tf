@@ -203,8 +203,9 @@ module "dynamodb" {
 module "cloudwatch" {
   source = "../../modules/cloudwatch"
 
-  environment = "dev"
-  alarm_email = var.alarm_email
+  environment  = "dev"
+  alarm_email  = var.alarm_email
+  cluster_name = module.eks.cluster_name
 
   # 실제 EC2 모니터링 연동 시 사용
   # ec2_instance_id = module.database.db_instance_id

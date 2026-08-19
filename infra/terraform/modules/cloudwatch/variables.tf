@@ -14,3 +14,8 @@ variable "ec2_instance_id" {
   default     = ""
   description = "모니터링할 EC2 인스턴스 ID (선택 사항)"
 }
+
+variable "cluster_name" {
+  type        = string
+  description = "DEV-177 대시보드가 조회할 EKS 클러스터 이름 (Container Insights 메트릭의 ClusterName 차원)"
+}
