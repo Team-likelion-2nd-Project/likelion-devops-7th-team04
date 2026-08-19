@@ -361,10 +361,15 @@ module "ecr" {
     "payment-service",
     "pg-mock-service",
     "user-service",
-    # langchain_rag/ollama, langchain_rag/llm-service 이미지용 (n8n은 퍼블릭
-    # n8nio/n8n 이미지를 그대로 쓰므로 ECR repo 불필요)
+    # langchain_rag/ollama, langchain_rag/llm-service 이미지용
     "ollama",
-    "llm-service"
+    "llm-service",
+    # DEV-181: n8n은 자체 Dockerfile 없이 퍼블릭 n8nio/n8n 이미지를 그대로 쓰지만,
+    # Fargate pod는 이미지 캐시가 없고 :latest 태그라 pull policy가 Always라 매번
+    # Docker Hub에서 새로 받아와 pod 기동이 느리고 rate limit 대상이 됨 — VPC 내부
+    # ECR로 미러링해 pull 속도를 개선한다 (.github/workflows/backend-ci-cd.yml의
+    # mirror-n8n job 참고).
+    "n8n"
   ]
 }
 

@@ -27,6 +27,10 @@ env:
   AWS_REGION: us-east-1
   PROJECT_NAME: team04
   ENVIRONMENT: dev
+  # DEV-181: n8n은 build 대상이 아니라 미러링 대상이라 GITHUB_SHA로 태깅할 수 없음 —
+  # mirror-n8n job과 update-gitops-manifest job이 항상 같은 버전을 참조하도록 여기
+  # 한 곳에서만 관리한다. 올릴 때 이 값만 바꾸면 됨.
+  N8N_VERSION: "2.35.3"
 
 jobs:
   build-and-test:
@@ -188,6 +192,40 @@ jobs:
           echo "${{ matrix.service }}"
           echo "${{ steps.login-ecr.outputs.registry }}/${REPOSITORY}:${IMAGE_TAG}"
 
+  # DEV-181: n8n은 자체 Dockerfile 없이 퍼블릭 n8nio/n8n 이미지를 그대로 쓰는데, Fargate
+  # pod는 매번 새 micro-VM이라 이미지 캐시가 없고 원래 태그가 latest라 pull policy가
+  # Always라서 매번 Docker Hub에서 새로 받아와 pod 기동이 느리고 rate limit 대상이 됨.
+  # 빌드가 아니라 "받아서 그대로 미러링"이라 deploy-langchain의 build matrix에는 안
+  # 얹고(도커 build 컨텍스트/Dockerfile이 없음) 별도 job으로 둔다. N8N_VERSION(위 env)
+  # 고정 태그로 push — latest를 그대로 미러링하면 "언제 새 버전이 왔는지 모르는" 문제가
+  # 그대로 남기 때문에 다른 이미지들처럼 태그를 명시적으로 관리한다.
+  mirror-n8n:
+    name: Mirror n8n Image to ECR
+    needs: build-and-test
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/develop'
+    runs-on: [self-hosted, backend-cd]
+
+    steps:
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Pull public n8n image
+        run: docker pull n8nio/n8n:${N8N_VERSION}
+
+      - name: Tag and push to ECR
+        run: |
+          REPOSITORY="${PROJECT_NAME}-${ENVIRONMENT}-n8n"
+          docker tag n8nio/n8n:${N8N_VERSION} \
+            ${{ steps.login-ecr.outputs.registry }}/${REPOSITORY}:${N8N_VERSION}
+          docker push \
+            ${{ steps.login-ecr.outputs.registry }}/${REPOSITORY}:${N8N_VERSION}
+
+      - name: Print pushed image
+        run: |
+          echo "n8n"
+          echo "${{ steps.login-ecr.outputs.registry }}/${PROJECT_NAME}-${ENVIRONMENT}-n8n:${N8N_VERSION}"
+
   # 7개 이미지가 모두 push된 뒤 1회만 실행됩니다 (matrix job마다 실행하면 같은 파일을
   # 동시에 고쳐서 충돌합니다). GitOps manifest는 이 워크플로우가 직접 develop에 push하지
   # 않고 새 브랜치만 만듭니다 — develop 브랜치가 GitHub에서 Protected이기 때문입니다.
@@ -196,7 +234,7 @@ jobs:
   # Job Summary에 안내합니다 — 사람이 그 링크를 눌러(또는 CLI로) 직접 PR을 만듭니다.
   update-gitops-manifest:
     name: Update GitOps Manifest (PR)
-    needs: [deploy, deploy-langchain]
+    needs: [deploy, deploy-langchain, mirror-n8n]
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/develop'
     runs-on: ubuntu-latest
 
@@ -216,9 +254,12 @@ jobs:
           done
           cat kustomization.yaml
 
-      # ollama/llm-service는 별도 ArgoCD Application(gitops/argocd/langchain-application.yaml)이
-      # 관리하는 gitops/langchain/overlays/dev/kustomization.yaml 쪽 태그입니다. n8n은 퍼블릭
-      # 이미지라 여기 없습니다.
+      # ollama/llm-service/n8n 모두 별도 ArgoCD Application(gitops/argocd/langchain-application.yaml)이
+      # 관리하는 gitops/langchain/overlays/dev/kustomization.yaml 쪽 태그입니다. n8n은
+      # ollama/llm-service처럼 이번 커밋에서 새로 빌드된 게 아니라 mirror-n8n job이 미러링한
+      # 고정 버전(N8N_VERSION, 위 workflow env)이라 GITHUB_SHA가 아니라 그 값으로 맞춰야
+      # 합니다 — 안 그러면 kustomize가 가리키는 태그와 실제 ECR에 push된 태그가 어긋나
+      # ImagePullBackOff가 납니다.
       - name: Update image tags in langchain dev overlay
         working-directory: gitops/langchain/overlays/dev
         run: |
@@ -226,6 +267,7 @@ jobs:
           for repo in ollama llm-service; do
             yq -i "(.images[] | select(.name == \"${REGISTRY}/team04-dev-${repo}\")).newTag = \"${GITHUB_SHA}\"" kustomization.yaml
           done
+          yq -i "(.images[] | select(.name == \"${REGISTRY}/team04-dev-n8n\")).newTag = \"${N8N_VERSION}\"" kustomization.yaml
           cat kustomization.yaml
 
       - name: Create branch and commit
@@ -256,7 +298,7 @@ jobs:
             echo '```bash'
             echo "gh pr create --base develop --head ${BRANCH} \\"
             echo "  --title \"chore(gitops): backend image tag -> ${GITHUB_SHA}\" \\"
-            echo "  --body \"8개 backend ECR 이미지(gitops/backend/overlays/dev/kustomization.yaml)와 ollama/llm-service 이미지(gitops/langchain/overlays/dev/kustomization.yaml)의 GitOps manifest tag를 ${GITHUB_SHA}로 갱신합니다. merge하면 ArgoCD가 감지해 EKS에 반영합니다.\""
+            echo "  --body \"8개 backend ECR 이미지(gitops/backend/overlays/dev/kustomization.yaml)와 ollama/llm-service 이미지(GITHUB_SHA)/n8n 이미지(N8N_VERSION=${N8N_VERSION}, gitops/langchain/overlays/dev/kustomization.yaml)의 GitOps manifest tag를 갱신합니다. merge하면 ArgoCD가 감지해 EKS에 반영합니다.\""
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 

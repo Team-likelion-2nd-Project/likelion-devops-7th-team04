@@ -47,4 +47,14 @@ resource "aws_instance" "github_runner" {
   tags = {
     Name = "team04-${var.environment}-github-runner-ec2"
   }
+
+  # DEV-181: most_recent = true라 AWS가 새 AL2023 AMI를 배포할 때마다 이 인스턴스가
+  # 매 plan에서 불필요하게 destroy+recreate 대상이 됐다(ami는 in-place 변경이 안 되는
+  # forces-replacement 속성) — 실행 중인 CI 러너가 날아가고(진행 중이던 job 중단), GitHub
+  # runner 등록 토큰이 일회성이라 재등록도 수동으로 해야 함. ami 변경만 무시해서, 최초
+  # 생성 시점의 AMI로 계속 떠 있게 고정한다. 의도적으로 AMI를 올리고 싶으면 이 줄을
+  # 잠깐 지우고 apply(또는 -replace)하면 됨.
+  lifecycle {
+    ignore_changes = [ami]
+  }
 }
