@@ -3,3 +3,9 @@ db_root_password = "REPLACE_ME"
 team_member_arns = [
   "arn:aws:iam::<ACCOUNT_ID>:user/<username>"
 ]
+
+# DEV-102: backend/.env.example의 SEED_ADMIN_*와 동일한 역할 — mariadb user_data가
+# backend/scripts/seed.ts를 실행할 때 그대로 넘겨받는다.
+seed_admin_email    = "admin@example.com"
+seed_admin_password = "REPLACE_ME"
+seed_admin_name     = "관리자"

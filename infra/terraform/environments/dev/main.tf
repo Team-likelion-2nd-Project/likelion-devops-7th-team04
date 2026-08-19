@@ -17,6 +17,12 @@ terraform {
       source  = "hashicorp/tls"
       version = "~> 4.0"
     }
+
+    # DEV-102: null_resource.seed_bundle(local-exec로 build-seed-bundle.sh 자동 실행)에 필요
+    null = {
+      source  = "hashicorp/null"
+      version = "~> 3.0"
+    }
   }
 
   # backend-config/dev.hcl 을 통해 실제 설정 주입
@@ -67,6 +73,25 @@ variable "db_root_password" {
   sensitive   = true
 }
 
+# DEV-102: backend/scripts/seed.ts의 SEED_ADMIN_* 환경변수와 동일한 역할 — mariadb user_data가
+# 그대로 넘겨받아 admin 계정을 시딩한다.
+variable "seed_admin_email" {
+  description = "관리자 계정으로 시딩할 이메일"
+  type        = string
+}
+
+variable "seed_admin_password" {
+  description = "관리자 계정으로 시딩할 비밀번호"
+  type        = string
+  sensitive   = true
+}
+
+variable "seed_admin_name" {
+  description = "관리자 계정 이름"
+  type        = string
+  default     = "관리자"
+}
+
 variable "team_member_arns" {
   description = "EKS 클러스터 접근을 허용할 팀원 IAM User ARN 목록"
   type        = list(string)
@@ -97,6 +122,65 @@ module "security" {
 }
 
 # =========================
+# DEV-102 DB Seed Artifacts Bucket
+# =========================
+# backend/scripts/build-seed-bundle.sh로 빌드한 시딩 번들(node_modules + seed.ts 등)을
+# 올려두는 버킷. mariadb는 private_data 서브넷이라 인터넷/NAT가 없고 S3 Gateway Endpoint만
+# 뚫려 있어, 시딩 산출물은 반드시 S3를 거쳐 전달해야 한다(module.database 참고).
+
+resource "aws_s3_bucket" "db_seed_artifacts" {
+  bucket        = "team04-dev-db-seed-artifacts"
+  force_destroy = true
+
+  tags = {
+    Name        = "team04-dev-db-seed-artifacts"
+    Environment = "dev"
+  }
+}
+
+resource "aws_s3_bucket_public_access_block" "db_seed_artifacts" {
+  bucket                  = aws_s3_bucket.db_seed_artifacts.id
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
+}
+
+# DEV-102: build-seed-bundle.sh를 사람이 순서를 기억해 수동으로 돌려야 했던 문제를 없애기
+# 위해, 이 스크립트 실행 자체를 terraform apply 안으로 편입시킨다. seed 관련 소스가 실제로
+# 바뀌었을 때만(triggers.source_hash 변경) Docker로 재빌드+S3 업로드가 실행되고, 이 값은
+# module.database에도 그대로 흘러들어가 mariadb user_data를 바꿔 재시딩을 트리거한다.
+locals {
+  backend_dir = "${path.module}/../../../../backend"
+
+  seed_source_files = concat(
+    [
+      "${local.backend_dir}/scripts/seed.ts",
+      "${local.backend_dir}/package.json",
+      "${local.backend_dir}/package-lock.json",
+    ],
+    [for f in fileset("${local.backend_dir}/apps/hotel-service/src/entities", "*.ts") : "${local.backend_dir}/apps/hotel-service/src/entities/${f}"],
+    [for f in fileset("${local.backend_dir}/apps/user-service/src/admin/entities", "*.ts") : "${local.backend_dir}/apps/user-service/src/admin/entities/${f}"],
+    [for f in fileset("${local.backend_dir}/apps/auth-service/src/entities", "*.ts") : "${local.backend_dir}/apps/auth-service/src/entities/${f}"],
+  )
+
+  seed_bundle_hash = sha1(join("", [for f in local.seed_source_files : filesha1(f)]))
+}
+
+resource "null_resource" "seed_bundle" {
+  triggers = {
+    source_hash = local.seed_bundle_hash
+  }
+
+  provisioner "local-exec" {
+    interpreter = ["bash", "-c"]
+    command     = "bash '${local.backend_dir}/scripts/build-seed-bundle.sh' '${aws_s3_bucket.db_seed_artifacts.bucket}'"
+  }
+
+  depends_on = [aws_s3_bucket_public_access_block.db_seed_artifacts]
+}
+
+# =========================
 # DEV-43 Database Module
 # =========================
 
@@ -116,6 +200,17 @@ module "database" {
   ebs_volume_type = "gp3"
 
   db_root_password = var.db_root_password
+
+  # DEV-102: backend/scripts/seed.ts를 user_data 부팅 시 그대로 실행
+  seed_admin_email    = var.seed_admin_email
+  seed_admin_password = var.seed_admin_password
+  seed_admin_name     = var.seed_admin_name
+  seed_bundle_s3_uri  = "s3://${aws_s3_bucket.db_seed_artifacts.bucket}/seed/seed-bundle.tar.gz"
+  seed_bundle_hash    = local.seed_bundle_hash
+
+  # null_resource.seed_bundle이 S3에 번들을 실제로 올려둔 뒤에만 mariadb가 생성/재생성되도록
+  # Terraform 의존성 그래프로 순서를 강제한다 (사람이 순서를 기억할 필요 없음).
+  depends_on = [null_resource.seed_bundle]
 }
 
 # =========================
@@ -238,6 +333,9 @@ module "iam" {
   # 반대 방향 참조와는 별개 리소스 체인이라 순환 의존은 아님(alb_controller role만 해당).
   eks_oidc_provider_arn = module.eks.oidc_provider_arn
   eks_oidc_provider_url = module.eks.oidc_provider_url
+
+  # DEV-102: mariadb EC2(cloudwatch_agent instance profile)가 시딩 번들을 S3에서 받아올 수 있게
+  db_seed_bucket_arn = aws_s3_bucket.db_seed_artifacts.arn
 }
 
 # =========================
