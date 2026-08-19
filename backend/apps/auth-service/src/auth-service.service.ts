@@ -24,6 +24,16 @@ const INVALID_CURRENT_PASSWORD_MESSAGE = '현재 비밀번호가 일치하지 �
 const refreshTokenKey = (type: PrincipalType, id: number) =>
   `refresh:${type.toLowerCase()}:${id}`;
 
+// 절대 만료 판단용 "최초 로그인 시각"(epoch seconds)을 저장하는 키. 로그인/회원가입 시에만
+// 새로 세팅되고, refresh()에 의한 로테이션에서는 건드리지 않는다 — 그래야 로테이션을 반복해도
+// 세션이 무한정 연장되지 않고 최초 로그인으로부터 JWT_REFRESH_ABSOLUTE_MAX_DAYS가 지나면 끊긴다.
+// TTL을 절대 상한과 동일하게 주면 슬라이딩(refresh)으로 refreshTokenKey는 계속 살아있는데 이 키만
+// 먼저 자연 소멸해버려 "누락 = 관대하게 재세팅"과 구분이 안 되고 상한이 무한정 밀리는 문제가 생긴다.
+// 그래서 TTL을 두지 않고(영구), 상한 도달 시 assertWithinAbsoluteLifetime()이 명시적으로 지우거나
+// logout/withdraw/changePassword에서 refreshTokenKey와 함께 정리한다.
+const issuedAtKey = (type: PrincipalType, id: number) =>
+  `refresh:issuedAt:${type.toLowerCase()}:${id}`;
+
 // 로테이션 직후 "방금 버려진" 직전 리프레시 토큰을 잠시 보관하는 키(TTL: REFRESH_GRACE_TTL_SECONDS).
 // 브라우저가 로테이션 응답(Set-Cookie)을 받기 전에 페이지가 새로고침되어 요청이 끊기면, 브라우저
 // 쿠키는 구 토큰(직전 값)에 머무르게 됩니다. 이 짧은 유예 구간 안에 그 구 토큰으로 재시도가 들어오면
@@ -208,6 +218,9 @@ export class AuthServiceService implements OnModuleInit {
       throw new RpcException(INVALID_REFRESH_TOKEN_MESSAGE);
     }
 
+    // 로테이션/grace 어느 경로든 절대 만료 상한을 넘긴 세션은 여기서 끊는다(강제 재로그인 유도).
+    await this.assertWithinAbsoluteLifetime(payload.type, payload.sub);
+
     const storedToken = await this.redis.get(refreshTokenKey(payload.type, payload.sub));
 
     if (storedToken && storedToken === data.refreshToken) {
@@ -237,6 +250,40 @@ export class AuthServiceService implements OnModuleInit {
     throw new RpcException(INVALID_REFRESH_TOKEN_MESSAGE);
   }
 
+  // 최초 로그인으로부터 JWT_REFRESH_ABSOLUTE_MAX_DAYS가 지났으면 로테이션/grace를 막고 세션을 끊는다.
+  // issuedAt이 없는 경우(이 기능 배포 이전에 이미 로그인해 있던 세션 등)는 관대하게 지금을 기준으로
+  // 새로 세팅하고 통과시킨다 — 배포 직후 기존 세션이 전부 강제 로그아웃되는 것을 피하기 위함이다.
+  private async assertWithinAbsoluteLifetime(type: PrincipalType, id: number): Promise<void> {
+    const issuedAtRaw = await this.redis.get(issuedAtKey(type, id));
+    if (!issuedAtRaw) {
+      await this.recordIssuedAt(type, id);
+      return;
+    }
+
+    const ageSeconds = Math.floor(Date.now() / 1000) - Number(issuedAtRaw);
+    if (ageSeconds <= this.getAbsoluteMaxAgeSeconds()) {
+      return;
+    }
+
+    await this.redis.del(refreshTokenKey(type, id));
+    await this.redis.del(refreshGraceKey(type, id));
+    await this.redis.del(issuedAtKey(type, id));
+    throw new RpcException(INVALID_REFRESH_TOKEN_MESSAGE);
+  }
+
+  private getAbsoluteMaxAgeSeconds(): number {
+    const days = Number(getRequiredEnv('JWT_REFRESH_ABSOLUTE_MAX_DAYS'));
+    if (!Number.isFinite(days) || days <= 0) {
+      throw new Error('JWT_REFRESH_ABSOLUTE_MAX_DAYS 형식이 올바르지 않습니다.');
+    }
+    return days * 24 * 60 * 60;
+  }
+
+  // 로그인/회원가입(최초 세션) 시에만 호출됩니다 — 절대 만료의 기준 시각을 지금으로 새로 세팅합니다.
+  private async recordIssuedAt(type: PrincipalType, id: number): Promise<void> {
+    await this.redis.set(issuedAtKey(type, id), String(Math.floor(Date.now() / 1000)));
+  }
+
   // refresh()의 정상 로테이션 경로와 grace 경로 양쪽에서 공통으로 쓰는, payload → 최신 프로필 조회.
   // 탈퇴/삭제 등으로 프로필을 더 이상 찾을 수 없으면 리프레시 토큰도 무효로 취급합니다.
   private async resolvePrincipal(payload: JwtPayload): Promise<Principal> {
@@ -261,6 +308,9 @@ export class AuthServiceService implements OnModuleInit {
     // grace 키도 같이 지웁니다 — 안 지우면 로그아웃 직후 도착한 지연된 구 토큰이 grace 구간 동안은
     // 여전히 통과되어 로그아웃이 즉시 반영되지 않는 구멍이 생깁니다.
     await this.redis.del(refreshGraceKey(data.type, data.userId));
+    // issuedAt(절대 만료 기준 시각)도 같이 지웁니다. TTL이 없는 키라 로그아웃 후 재로그인하지
+    // 않으면 계속 남아있으므로, 다른 키들과 마찬가지로 세션 종료 시점에 명시적으로 정리합니다.
+    await this.redis.del(issuedAtKey(data.type, data.userId));
     return { success: true };
   }
 
@@ -286,6 +336,7 @@ export class AuthServiceService implements OnModuleInit {
     // 비밀번호가 바뀌었으므로 기존에 발급된 리프레시 토큰은 무효화합니다(다른 기기/세션은 재로그인 필요).
     await this.redis.del(refreshTokenKey('USER', data.userId));
     await this.redis.del(refreshGraceKey('USER', data.userId));
+    await this.redis.del(issuedAtKey('USER', data.userId));
 
     return { success: true };
   }
@@ -300,6 +351,7 @@ export class AuthServiceService implements OnModuleInit {
     await this.credentialRepository.delete({ userId: data.userId });
     await this.redis.del(refreshTokenKey('USER', data.userId));
     await this.redis.del(refreshGraceKey('USER', data.userId));
+    await this.redis.del(issuedAtKey('USER', data.userId));
 
     return { success: true };
   }
@@ -342,12 +394,17 @@ export class AuthServiceService implements OnModuleInit {
     });
 
     if (options?.previousToken) {
+      // 로테이션 경로: issuedAt(절대 만료 기준 시각)은 여기서 건드리지 않는다 — 최초 로그인
+      // 시각을 그대로 유지해야 로테이션을 반복해도 절대 상한이 계속 밀리지 않는다.
       await this.redis.set(
         refreshGraceKey(principal.type, principal.id),
         options.previousToken,
         'EX',
         REFRESH_GRACE_TTL_SECONDS,
       );
+    } else {
+      // 최초 로그인/재로그인 경로: 절대 만료 기준 시각을 지금으로 새로 세팅한다.
+      await this.recordIssuedAt(principal.type, principal.id);
     }
 
     // 리프레시 토큰의 TTL을 JWT의 실제 만료 시각(exp)에 맞춰 Redis에 저장합니다
