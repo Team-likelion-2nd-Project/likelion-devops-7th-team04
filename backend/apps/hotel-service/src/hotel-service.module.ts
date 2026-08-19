@@ -4,6 +4,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { HotelServiceController } from './hotel-service.controller';
 import { HotelServiceService } from './hotel-service.service';
 import { RoomService } from './room.service';
+import { FacilityService } from './facility.service';
 import { Hotel } from './entities/hotel.entity';
 import { Room } from './entities/room.entity';
 import { RoomAvailability } from './entities/room-availability.entity';
@@ -47,6 +48,6 @@ import { Facility } from './entities/facility.entity';
     ]),
   ],
   controllers: [HotelServiceController],
-  providers: [HotelServiceService, RoomService],
+  providers: [HotelServiceService, RoomService, FacilityService],
 })
 export class HotelServiceModule {}

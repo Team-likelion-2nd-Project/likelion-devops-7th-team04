@@ -32,6 +32,9 @@ service BookingService {
   // 결제 승인 완료 후 payment-service가 호출: 예약을 PENDING_PAYMENT -> RESERVED로 전환한다.
   // PENDING_PAYMENT 상태가 아니면(이미 확정됐거나 취소된 예약) 에러.
   rpc ConfirmBooking (ConfirmBookingRequest) returns (Booking);
+
+  // 특정 예약에 연결된 편의시설 이용 내역 목록 조회. reservationId가 존재하지 않으면 에러.
+  rpc GetReservationFacilitiesByReservationId (GetReservationFacilitiesByReservationIdRequest) returns (ReservationFacilityListResponse);
 }
 
 message Empty {}
@@ -82,4 +85,20 @@ message Booking {
 
 message BookingListResponse {
   repeated Booking bookings = 1;
+}
+
+message GetReservationFacilitiesByReservationIdRequest {
+  int32 reservationId = 1;
+}
+
+message ReservationFacilityItem {
+  int32 reservationFacilityId = 1;
+  int32 reservationId = 2;
+  int32 facilityId = 3;
+  int32 guestCount = 4;
+  int32 totalAmount = 5;
+}
+
+message ReservationFacilityListResponse {
+  repeated ReservationFacilityItem reservationFacilities = 1;
 }

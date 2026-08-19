@@ -5,6 +5,7 @@ import { ClientsModule } from '@nestjs/microservices';
 import { getGrpcOptions } from '@app/common';
 import { BookingServiceController } from './booking-service.controller';
 import { BookingServiceService } from './booking-service.service';
+import { ReservationFacilityService } from './reservation-facility.service';
 import { Reservation } from './entities/reservation.entity';
 import { ReservationFacility } from './entities/reservation-facility.entity';
 
@@ -65,6 +66,6 @@ import { ReservationFacility } from './entities/reservation-facility.entity';
     ]),
   ],
   controllers: [BookingServiceController],
-  providers: [BookingServiceService],
+  providers: [BookingServiceService, ReservationFacilityService],
 })
 export class BookingServiceModule {}
