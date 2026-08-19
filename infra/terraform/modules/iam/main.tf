@@ -288,17 +288,20 @@ resource "aws_iam_role_policy_attachment" "chatbot_s3_vectors" {
 # SessionService/MessageService(ChatSessions/ChatMessages에 PutItem·Query만 사용,
 # apps/chat-bot-service/src/session/session.service.ts, message.service.ts 참고)가
 # AccessDeniedException으로 막혀 로그인 사용자 챗봇 호출이 계속 503이었다. 실제 사용
-# 커맨드에 맞춰 최소 권한만 부여. DynamoDB 테이블은 Terraform 관리 대상이 아니라서(앱
-# 레벨 dynamodb-init 스크립트가 생성) 테이블 ARN을 다른 모듈 output으로 받을 수 없어,
-# 이 모듈 안에서 계정ID를 직접 조회해 조립한다. 리전은 이 root module의 AWS provider
-# 리전(us-east-1)과 무관하게 ChatSessions/ChatMessages 테이블이 실제로 있는
-# ap-northeast-2로 하드코딩한다 — gitops/backend/base/chat-bot-service/deployment.yaml의
-# DYNAMODB_REGION 값과 반드시 맞춰야 한다.
+# 커맨드에 맞춰 최소 권한만 부여. 테이블 자체는 DEV-187에서 infra/terraform/modules/dynamodb로
+# 프로비저닝하지만, 그 모듈은 형제 모듈이라 output을 여기서 직접 참조할 수 없어(둘 다
+# environments/dev/main.tf에서만 조립됨) 이 모듈 안에서 계정ID/리전을 조회해 ARN을 조립한다.
+# DEV-187: 리전은 원래 ap-northeast-2로 하드코딩했었으나, 이 프로젝트의 다른 인프라
+# (EKS/ECR/VPC)가 전부 있는 root module의 기본 provider 리전(us-east-1)으로 테이블도
+# 통일하기로 하여 data.aws_region.current로 그 리전을 그대로 따라가게 바꿨다 —
+# gitops/backend/base/chat-bot-service/deployment.yaml의 DYNAMODB_REGION도 같이
+# us-east-1로 맞춰야 한다(별도 GitOps PR).
 
 data "aws_caller_identity" "current" {}
+data "aws_region" "current" {}
 
 locals {
-  chatbot_dynamodb_region = "ap-northeast-2"
+  chatbot_dynamodb_region = data.aws_region.current.name
 }
 
 resource "aws_iam_policy" "chatbot_dynamodb" {
