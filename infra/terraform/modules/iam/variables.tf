@@ -58,3 +58,9 @@ variable "eks_oidc_provider_url" {
   description = "EKS cluster OIDC issuer URL without the https:// scheme (used as the Condition key prefix in IRSA trust policies)"
   type        = string
 }
+
+# DEV-102: mariadb EC2가 user_data 부팅 시 시딩 번들(tar.gz)을 받아오기 위한 S3 read 권한 범위
+variable "db_seed_bucket_arn" {
+  description = "ARN of the S3 bucket holding the DB seed bundle (build-seed-bundle.sh output)"
+  type        = string
+}

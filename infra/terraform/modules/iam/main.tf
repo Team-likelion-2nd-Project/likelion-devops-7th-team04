@@ -119,6 +119,30 @@ resource "aws_iam_instance_profile" "cloudwatch_agent" {
   role = aws_iam_role.cloudwatch_agent.name
 }
 
+# DEV-102: mariadb EC2가 cloudwatch_agent instance profile을 그대로 쓰고 있어(위 profile),
+# user_data가 부팅 시 시딩 번들을 받아올 수 있도록 이 role에 S3 read 권한을 최소 범위로 추가.
+resource "aws_iam_policy" "db_seed_s3_read" {
+  name        = "${var.project_name}-db-seed-s3-read-policy"
+  description = "Read-only access to the DB seed bundle for the MariaDB EC2 instance"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect   = "Allow"
+        Action   = ["s3:GetObject"]
+        Resource = "${var.db_seed_bucket_arn}/seed/*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "db_seed_s3_read" {
+  role       = aws_iam_role.cloudwatch_agent.name
+  policy_arn = aws_iam_policy.db_seed_s3_read.arn
+}
+
 
 # =========================
 # EKS Fargate Pod Execution Role
