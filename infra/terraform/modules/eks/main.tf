@@ -216,14 +216,9 @@ resource "aws_iam_openid_connect_provider" "eks" {
 # =========================
 # Chatbot Pod Identity
 # =========================
-
-resource "aws_eks_pod_identity_association" "chatbot" {
-  cluster_name    = aws_eks_cluster.main.name
-  namespace       = var.chatbot_namespace
-  service_account = var.chatbot_service_account
-  role_arn        = var.chatbot_role_arn
-
-  depends_on = [
-    aws_eks_addon.pod_identity_agent
-  ]
-}
+# DEV-184: chatbot_service도 alb_controller와 같은 DEV-170 문제(Fargate는 DaemonSet인
+# eks-pod-identity-agent를 못 띄움)를 겪어 IRSA(OIDC)로 전환했다(module.iam의
+# aws_iam_role.chatbot_service 참고). 이 Pod Identity Association은 더 이상 쓰이지
+# 않으므로 제거 — chatbot_role_arn/chatbot_namespace/chatbot_service_account 변수는
+# gitops/langchain/base/serviceaccount-llm-service.yaml에 문서화된 llm-service용
+# 향후 작업(그것도 IRSA로 해야 함, Pod Identity 아님)을 위해 그대로 남겨둔다.

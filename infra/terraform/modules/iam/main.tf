@@ -209,6 +209,12 @@ resource "aws_iam_role_policy_attachment" "alb_controller" {
 # =========================
 # Chatbot Service Role
 # =========================
+# DEV-184: chatbot_service도 alb_controller와 동일한 DEV-170 문제를 겪었다 —
+# chat-bot-service는 backend 네임스페이스 전체와 함께 Fargate에서 도는데(Fargate는
+# DaemonSet을 못 띄우므로 eks-pod-identity-agent가 응답할 수 없음), Pod Identity로
+# 자격증명을 받으려다 DynamoDB 호출이 CredentialsProviderError로 매번 실패해 챗봇이
+# 503을 반환했다(실측: kubectl logs). alb_controller와 동일하게 DaemonSet에 의존하지
+# 않는 IRSA(OIDC federated)로 전환.
 
 resource "aws_iam_role" "chatbot_service" {
   name = "${var.project_name}-chatbot-service-role"
@@ -221,13 +227,17 @@ resource "aws_iam_role" "chatbot_service" {
         Effect = "Allow"
 
         Principal = {
-          Service = "pods.eks.amazonaws.com"
+          Federated = var.eks_oidc_provider_arn
         }
 
-        Action = [
-          "sts:AssumeRole",
-          "sts:TagSession"
-        ]
+        Action = "sts:AssumeRoleWithWebIdentity"
+
+        Condition = {
+          StringEquals = {
+            "${var.eks_oidc_provider_url}:aud" = "sts.amazonaws.com"
+            "${var.eks_oidc_provider_url}:sub" = "system:serviceaccount:backend:chatbot-service"
+          }
+        }
       }
     ]
   })
