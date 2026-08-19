@@ -23,3 +23,11 @@ variable "certificate_domain" {
   type        = string
   default     = ""
 }
+
+# DEV-185: CloudFront 액세스 로그를 저장할 S3 버킷 (modules/logging). 빈 문자열이면
+# logging_config 블록 자체를 생략해 로깅을 비활성화한다.
+variable "log_bucket_domain_name" {
+  description = "액세스 로그를 저장할 S3 버킷의 도메인 이름"
+  type        = string
+  default     = ""
+}

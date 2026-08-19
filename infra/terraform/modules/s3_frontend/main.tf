@@ -73,6 +73,16 @@ resource "aws_cloudfront_distribution" "frontend" {
     }
   }
 
+  # log_bucket_domain_name이 빈 문자열이면 로깅 비활성화 (domain_name과 동일한 옵션 패턴)
+  dynamic "logging_config" {
+    for_each = var.log_bucket_domain_name != "" ? [1] : []
+    content {
+      include_cookies = false
+      bucket          = var.log_bucket_domain_name
+      prefix          = "cloudfront/"
+    }
+  }
+
   viewer_certificate {
     cloudfront_default_certificate = var.domain_name == ""
     acm_certificate_arn            = var.domain_name != "" ? data.aws_acm_certificate.frontend[0].arn : null
