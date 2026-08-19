@@ -2,6 +2,7 @@ import { Outlet } from 'react-router-dom'
 import Header from '../components/Header'
 import Footer from '../components/Footer'
 import MobileDock from '../components/MobileDock'
+import ChatWidget from '../components/ChatWidget'
 import './RootLayout.css'
 
 function RootLayout() {
@@ -13,6 +14,7 @@ function RootLayout() {
       </main>
       <Footer />
       <MobileDock />
+      <ChatWidget />
     </div>
   )
 }
