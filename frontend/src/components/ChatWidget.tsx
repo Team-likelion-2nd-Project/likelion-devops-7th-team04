@@ -65,12 +65,14 @@ function ChatWidget() {
   // 응답을 기다리는 동안 위젯이 닫히거나(언마운트) 라우트가 바뀌어도 그 이후 setState를 호출하지 않도록 막는 가드.
   const isMountedRef = useRef(true)
 
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // StrictMode(dev)가 mount -> cleanup -> mount를 한 번 더 시뮬레이션하므로, cleanup에서
+    // false로 내린 뒤 재마운트 시 다시 true로 되돌려야 실제 마운트 상태와 어긋나지 않는다.
+    isMountedRef.current = true
+    return () => {
       isMountedRef.current = false
-    },
-    [],
-  )
+    }
+  }, [])
 
   const appendMessage = (message: Omit<ChatMessage, 'id' | 'time'>) => {
     setMessages((prev) => [...prev, { ...message, id: nextId.current++, time: formatTime() }])
