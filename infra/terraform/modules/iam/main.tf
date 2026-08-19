@@ -281,6 +281,58 @@ resource "aws_iam_role_policy_attachment" "chatbot_s3_vectors" {
 }
 
 # =========================
+# Chatbot DynamoDB Policy
+# =========================
+# DEV-186: chatbot_service role에 DynamoDB 권한이 애초에 없었다 — S3 Vectors 정책만
+# 붙어 있어서, Fargate/Pod Identity 문제(DEV-184, IRSA로 전환)를 해결해도
+# SessionService/MessageService(ChatSessions/ChatMessages에 PutItem·Query만 사용,
+# apps/chat-bot-service/src/session/session.service.ts, message.service.ts 참고)가
+# AccessDeniedException으로 막혀 로그인 사용자 챗봇 호출이 계속 503이었다. 실제 사용
+# 커맨드에 맞춰 최소 권한만 부여. DynamoDB 테이블은 Terraform 관리 대상이 아니라서(앱
+# 레벨 dynamodb-init 스크립트가 생성) 테이블 ARN을 다른 모듈 output으로 받을 수 없어,
+# 이 모듈 안에서 계정ID를 직접 조회해 조립한다. 리전은 이 root module의 AWS provider
+# 리전(us-east-1)과 무관하게 ChatSessions/ChatMessages 테이블이 실제로 있는
+# ap-northeast-2로 하드코딩한다 — gitops/backend/base/chat-bot-service/deployment.yaml의
+# DYNAMODB_REGION 값과 반드시 맞춰야 한다.
+
+data "aws_caller_identity" "current" {}
+
+locals {
+  chatbot_dynamodb_region = "ap-northeast-2"
+}
+
+resource "aws_iam_policy" "chatbot_dynamodb" {
+  name        = "${var.project_name}-chatbot-dynamodb-policy"
+  description = "DynamoDB read/write permissions for chatbot service (ChatSessions/ChatMessages)"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Action = [
+          "dynamodb:PutItem",
+          "dynamodb:Query"
+        ]
+
+        Resource = [
+          "arn:aws:dynamodb:${local.chatbot_dynamodb_region}:${data.aws_caller_identity.current.account_id}:table/ChatSessions",
+          "arn:aws:dynamodb:${local.chatbot_dynamodb_region}:${data.aws_caller_identity.current.account_id}:table/ChatSessions/index/userId-index",
+          "arn:aws:dynamodb:${local.chatbot_dynamodb_region}:${data.aws_caller_identity.current.account_id}:table/ChatMessages"
+        ]
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "chatbot_dynamodb" {
+  role       = aws_iam_role.chatbot_service.name
+  policy_arn = aws_iam_policy.chatbot_dynamodb.arn
+}
+
+# =========================
 # GitHub Actions OIDC
 # =========================
 
