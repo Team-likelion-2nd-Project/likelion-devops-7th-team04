@@ -4,6 +4,7 @@ import {
   cancelBooking,
   fetchMyBookings,
   fetchReservationFacilities,
+  isUnauthorized,
   refreshAccessToken,
   type Booking,
   type ReservationFacility,
@@ -37,6 +38,8 @@ function ReservationDetailPage() {
   )
   const [isLoading, setIsLoading] = useState(!booking)
   const [notFound, setNotFound] = useState(false)
+  const [loadError, setLoadError] = useState('')
+  const [retryTick, setRetryTick] = useState(0)
 
   const [isCancelling, setIsCancelling] = useState(false)
   const [cancelError, setCancelError] = useState('')
@@ -56,6 +59,7 @@ function ReservationDetailPage() {
     const load = async () => {
       setIsLoading(true)
       setNotFound(false)
+      setLoadError('')
       const findMine = (bookings: Booking[]) =>
         bookings.find((b) => String(b.reservationId) === reservationId) ?? null
 
@@ -65,7 +69,15 @@ function ReservationDetailPage() {
         const found = findMine(data)
         if (found) setBooking(found)
         else setNotFound(true)
-      } catch {
+      } catch (err) {
+        if (cancelled) return
+        // fetchMyBookings()는 429 등을 이미 내부에서(요청 자체) 예산껏 재시도했다. 진짜 로그인이
+        // 필요한 상태(401)가 아니면 재발급을 또 시도하지 않는다 — 안 그러면 이미 몰린 요청에
+        // 부하만 배가된다.
+        if (!isUnauthorized(err)) {
+          setLoadError('일시적으로 예약 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
+          return
+        }
         // 새로고침 직후에는 액세스 토큰이 메모리에서 아직 복구되지 않았을 수 있으니
         // 리프레시 토큰(쿠키)으로 한 번 재발급을 시도한 뒤 다시 조회한다.
         try {
@@ -75,8 +87,13 @@ function ReservationDetailPage() {
           const found = findMine(data)
           if (found) setBooking(found)
           else setNotFound(true)
-        } catch {
-          if (!cancelled) navigate('/login')
+        } catch (err2) {
+          if (cancelled) return
+          if (isUnauthorized(err2)) {
+            navigate('/login')
+          } else {
+            setLoadError('일시적으로 예약 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
+          }
         }
       } finally {
         if (!cancelled) setIsLoading(false)
@@ -87,7 +104,7 @@ function ReservationDetailPage() {
     return () => {
       cancelled = true
     }
-  }, [booking, reservationId, navigate])
+  }, [booking, reservationId, navigate, retryTick])
 
   // 예약이 확정되면 그제서야 어느 호텔/객실인지 조회한다 (booking.roomId만으로는 hotelId를 알 수 없어서
   // fetchRoomLookup이 등록된 호텔들의 객실을 전부 불러와 roomId로 찾는다. 자세한 내용은 해당 함수 주석 참고).
@@ -125,7 +142,13 @@ function ReservationDetailPage() {
       try {
         const data = await fetchReservationFacilities(booking.reservationId)
         if (!cancelled) setFacilities(data)
-      } catch {
+      } catch (err) {
+        // fetchReservationFacilities()는 429 등을 이미 내부에서 예산껏 재시도했다. 진짜 401이
+        // 아니면 재발급을 또 시도하지 않는다 — 이 정보는 참고용이라 실패해도 조용히 비워둔다.
+        if (!isUnauthorized(err)) {
+          if (!cancelled) setFacilities([])
+          return
+        }
         try {
           await refreshAccessToken()
           const data = await fetchReservationFacilities(booking.reservationId)
@@ -188,6 +211,15 @@ function ReservationDetailPage() {
           </Link>
 
           {isLoading && <p className="mypage-status">불러오는 중...</p>}
+
+          {!isLoading && loadError && (
+            <div className="mypage-status">
+              <p className="mypage-error">{loadError}</p>
+              <button type="button" className="mypage-ghost-btn" onClick={() => setRetryTick((t) => t + 1)}>
+                다시 시도
+              </button>
+            </div>
+          )}
 
           {!isLoading && notFound && <p className="mypage-status">예약 정보를 찾을 수 없습니다.</p>}
 

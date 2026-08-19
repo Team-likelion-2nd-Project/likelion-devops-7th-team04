@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { fetchMe, refreshAccessToken, updateMe, type UserProfile } from '../api/gateway'
+import { fetchMe, isUnauthorized, refreshAccessToken, updateMe, type UserProfile } from '../api/gateway'
 import './MyPage.css'
 
 // 비밀번호 변경(/mypage/password)·회원 탈퇴(/mypage/withdraw)는 각각 별도 페이지로 분리돼 있다.
@@ -14,6 +14,8 @@ function MyPage() {
 
   const [profile, setProfile] = useState<UserProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
+  const [retryTick, setRetryTick] = useState(0)
 
   const [isEditing, setIsEditing] = useState(false)
   const [editName, setEditName] = useState('')
@@ -26,18 +28,31 @@ function MyPage() {
 
     const load = async () => {
       setIsLoading(true)
+      setLoadError('')
       try {
         const data = await fetchMe()
         if (!cancelled) setProfile(data)
-      } catch {
+      } catch (err) {
+        if (cancelled) return
+        // fetchMe()는 429 등을 이미 내부에서(요청 자체) 예산껏 재시도했다. 진짜 로그인이 필요한
+        // 상태(401)가 아니면 재발급을 또 시도하지 않는다 — 안 그러면 이미 몰린 요청에 부하만 배가된다.
+        if (!isUnauthorized(err)) {
+          setLoadError('일시적으로 내 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
+          return
+        }
         // 새로고침 직후에는 액세스 토큰이 메모리에서 아직 복구되지 않았을 수 있으니
         // 리프레시 토큰(쿠키)으로 한 번 재발급을 시도한 뒤 다시 조회한다.
         try {
           await refreshAccessToken()
           const data = await fetchMe()
           if (!cancelled) setProfile(data)
-        } catch {
-          if (!cancelled) navigate('/login')
+        } catch (err2) {
+          if (cancelled) return
+          if (isUnauthorized(err2)) {
+            navigate('/login')
+          } else {
+            setLoadError('일시적으로 내 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.')
+          }
         }
       } finally {
         if (!cancelled) setIsLoading(false)
@@ -48,7 +63,7 @@ function MyPage() {
     return () => {
       cancelled = true
     }
-  }, [navigate])
+  }, [navigate, retryTick])
 
   const startEditing = () => {
     if (!profile) return
@@ -87,6 +102,15 @@ function MyPage() {
           </div>
 
           {isLoading && <p className="mypage-status">불러오는 중...</p>}
+
+          {!isLoading && loadError && (
+            <div className="mypage-status">
+              <p className="mypage-error">{loadError}</p>
+              <button type="button" className="mypage-ghost-btn" onClick={() => setRetryTick((t) => t + 1)}>
+                다시 시도
+              </button>
+            </div>
+          )}
 
           {!isLoading &&
             profile &&

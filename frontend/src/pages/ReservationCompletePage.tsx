@@ -6,7 +6,7 @@ import { fetchRoom, toImageDataUrl } from '../api/hotels'
 import type { Room } from '../api/hotels'
 import { fetchMyBookings, fetchReservationFacilities } from '../api/bookings'
 import type { Booking, ReservationFacility } from '../api/bookings'
-import { refreshAccessToken } from '../api/gateway'
+import { isUnauthorized, refreshAccessToken } from '../api/gateway'
 import { customerAuth } from '../api/tokenStore'
 import ReservationSteps from '../components/reservation/ReservationSteps'
 import { sumGuests } from '../components/reservation/guestTypes'
@@ -87,7 +87,13 @@ function ReservationCompletePage() {
 
     fetchMyBookings()
       .then(applyFound)
-      .catch(async () => {
+      .catch(async (err) => {
+        // fetchMyBookings()는 429 등을 이미 내부에서 예산껏 재시도했다. 진짜 401이 아니면 재발급을
+        // 또 시도하지 않는다 — 안 그러면 이미 몰린 요청에 부하만 배가된다.
+        if (!isUnauthorized(err)) {
+          if (!cancelled) setStatus('error')
+          return
+        }
         // 새로고침 직후에는 액세스 토큰이 메모리에서 아직 복구되지 않았을 수 있으니
         // 리프레시 토큰(쿠키)으로 한 번 재발급을 시도한 뒤 다시 조회한다.
         try {
@@ -117,7 +123,13 @@ function ReservationCompletePage() {
       try {
         const data = await fetchReservationFacilities(booking.reservationId)
         if (!cancelled) setFacilities(data)
-      } catch {
+      } catch (err) {
+        // fetchReservationFacilities()는 429 등을 이미 내부에서 예산껏 재시도했다. 진짜 401이
+        // 아니면 재발급을 또 시도하지 않는다 — 이 정보는 참고용이라 실패해도 조용히 비워둔다.
+        if (!isUnauthorized(err)) {
+          if (!cancelled) setFacilities([])
+          return
+        }
         try {
           await refreshAccessToken()
           const data = await fetchReservationFacilities(booking.reservationId)

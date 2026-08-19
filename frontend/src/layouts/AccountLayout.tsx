@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
-import { fetchMyBookings, refreshAccessToken } from '../api/gateway'
+import { fetchMyBookings, isUnauthorized, refreshAccessToken } from '../api/gateway'
 import './AccountLayout.css'
 
 // 마이페이지/예약 내역/결제 내역처럼 "내 정보"에 속한 페이지들이 공유하는 좌측 사이드바.
@@ -43,7 +43,13 @@ function AccountLayout() {
       try {
         const bookings = await fetchMyBookings()
         if (!cancelled) setPendingCount(countPending(bookings))
-      } catch {
+      } catch (err) {
+        // fetchMyBookings()는 429 등을 이미 내부에서 예산껏 재시도했다. 진짜 401이 아니면 재발급을
+        // 또 시도하지 않는다 — 뱃지는 부가 정보라 실패하면 조용히 숨긴다.
+        if (!isUnauthorized(err)) {
+          if (!cancelled) setPendingCount(null)
+          return
+        }
         // 새로고침 직후에는 액세스 토큰이 메모리에서 아직 복구되지 않았을 수 있으니
         // 리프레시 토큰(쿠키)으로 한 번 재발급을 시도한 뒤 다시 조회한다. 뱃지는 부가 정보라
         // 재시도까지 실패하면 조용히 숨긴다(로그인 여부는 각 페이지가 자체적으로 처리한다).

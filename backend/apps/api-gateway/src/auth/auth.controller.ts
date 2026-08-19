@@ -13,6 +13,7 @@ import {
 } from '@nestjs/common';
 import { ClientGrpc } from '@nestjs/microservices';
 import { Observable, firstValueFrom } from 'rxjs';
+import { Throttle } from '@nestjs/throttler';
 import {
   ApiTags,
   ApiOperation,
@@ -261,6 +262,11 @@ export class AuthController implements OnModuleInit {
    * 리프레시 토큰은 요청 바디가 아닌 httpOnly 쿠키(refreshToken, 고객 전용)에서 읽습니다.
    */
   @Post('refresh')
+  // 전역 기본(100회/60초)보다 창을 짧게 잡아 회복 시간(Retry-After)을 줄인다. limit도 창 길이에
+  // 비례해서 같이 줄여야(100/60s → 20/10s) 초당 허용 처리량이 그대로 유지된다 — limit은 그대로 두고
+  // ttl만 줄이면 처리량이 그만큼 늘어나 버려 의도(회복 속도만 개선)와 어긋난다. 새로고침마다 반드시
+  // 호출되는 라우트라 F5 연타에 가장 먼저 걸리는데, 다른 라우트는 이 짧은 창의 영향을 받지 않는다.
+  @Throttle({ default: { limit: 20, ttl: 10_000 } })
   @ApiOperation({
     summary: '토큰 재발급 (고객)',
     description:
@@ -291,6 +297,8 @@ export class AuthController implements OnModuleInit {
    * 고객 페이지에서 로그인(또는 그 반대)해도 서로의 세션을 덮어쓰지 않습니다.
    */
   @Post('admin/refresh')
+  // 고객용 refresh와 동일한 이유로 짧은 창을 둔다 (위 refresh() 주석 참고).
+  @Throttle({ default: { limit: 20, ttl: 10_000 } })
   @ApiOperation({
     summary: '토큰 재발급 (관리자)',
     description:
