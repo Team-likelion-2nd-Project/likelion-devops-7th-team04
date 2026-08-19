@@ -13,10 +13,11 @@ spec:
       labels:
         app: chat-bot-service
     spec:
-      # backend 네임스페이스의 chatbot-service ServiceAccount를 통해 EKS Pod Identity로
+      # backend 네임스페이스의 chatbot-service ServiceAccount를 통해 IRSA(OIDC)로
       # DynamoDB/S3Vectors 권한을 받습니다 (infra/terraform/modules/iam/main.tf의
-      # aws_iam_role.chatbot_service, chatbot_namespace = "backend"). 이름을 바꾸면 권한
-      # 연결이 끊깁니다.
+      # aws_iam_role.chatbot_service — DEV-184에서 Pod Identity는 Fargate에서 동작하지
+      # 않아 IRSA로 전환됨, gitops/backend/base/serviceaccount-chatbot.yaml의
+      # eks.amazonaws.com/role-arn 어노테이션 참고). 이름을 바꾸면 권한 연결이 끊깁니다.
       serviceAccountName: chatbot-service
       containers:
         - name: chat-bot-service
@@ -26,8 +27,12 @@ spec:
           env:
             - name: NODE_ENV
               value: "production"
+            # DEV-187/190: ChatSessions/ChatMessages 테이블을 원래 ap-northeast-2로
+            # 잘못 쓰고 있었으나, EKS/ECR/VPC 등 이 프로젝트의 다른 인프라가 전부
+            # us-east-1이라 그쪽으로 통일 — infra/terraform/modules/dynamodb에서 실제
+            # 테이블도 us-east-1에 생성됨.
             - name: DYNAMODB_REGION
-              value: "ap-northeast-2"
+              value: "us-east-1"
             - name: DYNAMODB_CHAT_SESSIONS_TABLE
               value: "ChatSessions"
             - name: DYNAMODB_CHAT_MESSAGES_TABLE
