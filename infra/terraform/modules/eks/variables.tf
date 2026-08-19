@@ -89,3 +89,8 @@ variable "langchain_namespace" {
   type        = string
   default     = "langchain"
 }
+
+variable "cloudwatch_observability_role_arn" {
+  description = "IRSA role ARN for the amazon-cloudwatch-observability addon (Container Insights)"
+  type        = string
+}

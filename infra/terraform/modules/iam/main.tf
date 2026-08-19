@@ -205,6 +205,50 @@ resource "aws_iam_role_policy_attachment" "alb_controller" {
   policy_arn = aws_iam_policy.alb_controller.arn
 }
 
+# =========================
+# CloudWatch Observability (Container Insights) Role
+# =========================
+# DEV-177: alb_controller와 동일한 이유(Fargate는 eks-pod-identity-agent DaemonSet을 못
+# 띄워 Pod Identity 자격증명을 못 받음)로 Pod Identity 대신 IRSA 사용. sub 조건의
+# ServiceAccount 이름(amazon-cloudwatch/cloudwatch-agent)은 addon 기본값 기준 — 실제
+# 적용 후 `kubectl get sa -n amazon-cloudwatch`로 확인 필요.
+
+resource "aws_iam_role" "cloudwatch_observability" {
+  name = "${var.project_name}-cloudwatch-observability-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Principal = {
+          Federated = var.eks_oidc_provider_arn
+        }
+
+        Action = "sts:AssumeRoleWithWebIdentity"
+
+        Condition = {
+          StringEquals = {
+            "${var.eks_oidc_provider_url}:aud" = "sts.amazonaws.com"
+            "${var.eks_oidc_provider_url}:sub" = "system:serviceaccount:amazon-cloudwatch:cloudwatch-agent"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.project_name}-cloudwatch-observability-role"
+  }
+}
+
+resource "aws_iam_role_policy_attachment" "cloudwatch_observability" {
+  role       = aws_iam_role.cloudwatch_observability.name
+  policy_arn = "arn:aws:iam::aws:policy/CloudWatchAgentServerPolicy"
+}
+
 
 # =========================
 # Chatbot Service Role

@@ -281,6 +281,9 @@ module "eks" {
   gpu_desired_size = 1
   gpu_min_size     = 0
   gpu_max_size     = 1
+
+  # DEV-177: Container Insights addon의 IRSA role
+  cloudwatch_observability_role_arn = module.iam.cloudwatch_observability_role_arn
 }
 
 # =========================
