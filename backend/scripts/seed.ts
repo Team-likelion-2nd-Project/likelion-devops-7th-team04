@@ -44,9 +44,32 @@ const SEED_ADMIN_NAME = process.env.SEED_ADMIN_NAME ?? '관리자';
 
 interface HotelSeed {
   hotel: Pick<Hotel, 'name' | 'address' | 'phoneNumber' | 'description'>;
-  room: Pick<Room, 'name' | 'capacity' | 'description'>;
+  rooms: Pick<Room, 'name' | 'capacity' | 'description'>[];
 }
 
+// 객실 설명에 소개 문구 + 침실/침대 구성 + 최대 인원 + 제공 어메니티를 한 항목씩 줄바꿈해서 정리한다.
+// 프론트의 room-detail-description/room-detail-modal-description 둘 다 white-space: pre-line이라
+// 이 \n 줄바꿈이 그대로 화면에 반영된다(RoomDetailPage.css, RoomDetailModal.css).
+function describeRoom(opts: {
+  intro: string;
+  bedroomCount: number;
+  bedConfig: string;
+  maxGuests: number;
+  amenities: string[];
+}): string {
+  return [
+    opts.intro,
+    '',
+    `- 침실: ${opts.bedroomCount}개 (${opts.bedConfig})`,
+    `- 최대 인원: ${opts.maxGuests}명`,
+    `- 제공 어메니티: ${opts.amenities.join(', ')}`,
+  ].join('\n');
+}
+
+// 호텔당 객실을 여러 개(4개) 두는 이유: 관리자 대시보드의 "객실 점유율"이 호텔의 총 객실 수 대비
+// 오늘 점유된 객실 수로 계산되는데, 호텔당 객실이 1개뿐이면 점유율이 항상 0% 아니면 100%로만
+// 나와서 지표를 제대로 확인할 수 없다.
+//
 // hotelId가 1/2/3 순서로 생성되도록(빈 테이블 기준 auto_increment) 배열 순서를 유지합니다.
 // frontend/src/data/hotels.ts의 하드코딩 배열(서울점=1, 부산점=2, 제주점=3)과 맞물립니다.
 const HOTEL_SEEDS: HotelSeed[] = [
@@ -57,11 +80,78 @@ const HOTEL_SEEDS: HotelSeed[] = [
       phoneNumber: '02-1234-5678',
       description: '도심 속에서 누리는 조용한 휴식',
     },
-    room: {
-      name: '디럭스 더블룸',
-      capacity: 2,
-      description: '시티뷰를 갖춘 넓은 더블룸입니다.',
-    },
+    rooms: [
+      {
+        name: '디럭스 더블룸',
+        capacity: 2,
+        description: describeRoom({
+          intro: '시티뷰를 갖춘 넓은 더블룸입니다.',
+          bedroomCount: 1,
+          bedConfig: '킹사이즈 베드 1개',
+          maxGuests: 2,
+          amenities: [
+            '무료 Wi-Fi',
+            '43인치 스마트 TV',
+            '미니바',
+            '캡슐 커피머신',
+            '헤어드라이어',
+            '다리미',
+            '전자 금고',
+            '욕실 어메니티(샴푸·린스·바디워시)',
+          ],
+        }),
+      },
+      {
+        name: '스탠다드 트윈룸',
+        capacity: 2,
+        description: describeRoom({
+          intro: '실용적인 구성의 스탠다드 트윈룸입니다.',
+          bedroomCount: 1,
+          bedConfig: '싱글사이즈 베드 2개',
+          maxGuests: 2,
+          amenities: ['무료 Wi-Fi', '32인치 TV', '냉장고', '전기 주전자', '헤어드라이어', '욕실 어메니티'],
+        }),
+      },
+      {
+        name: '프리미어 스위트룸',
+        capacity: 3,
+        description: describeRoom({
+          intro: '넓은 거실 공간을 갖춘 프리미어 스위트룸입니다.',
+          bedroomCount: 1,
+          bedConfig: '킹사이즈 베드 1개 + 별도 거실의 소파베드 1개',
+          maxGuests: 3,
+          amenities: [
+            '무료 Wi-Fi',
+            '55인치 스마트 TV',
+            '미니바',
+            '네스프레소 머신',
+            '욕조',
+            '가운 & 슬리퍼',
+            '전자 금고',
+            '다리미',
+          ],
+        }),
+      },
+      {
+        name: '패밀리룸',
+        capacity: 4,
+        description: describeRoom({
+          intro: '가족 단위 투숙객을 위한 넉넉한 패밀리룸입니다.',
+          bedroomCount: 2,
+          bedConfig: '퀸사이즈 베드 1개 + 싱글사이즈 베드 2개',
+          maxGuests: 4,
+          amenities: [
+            '무료 Wi-Fi',
+            '객실별 TV 2대',
+            '냉장고',
+            '전자레인지',
+            '헤어드라이어',
+            '아기 침대 요청 가능',
+            '욕실 어메니티',
+          ],
+        }),
+      },
+    ],
   },
   {
     hotel: {
@@ -70,11 +160,75 @@ const HOTEL_SEEDS: HotelSeed[] = [
       phoneNumber: '051-1234-5678',
       description: '오션뷰와 함께하는 여유로운 시간',
     },
-    room: {
-      name: '오션뷰 스위트룸',
-      capacity: 2,
-      description: '탁 트인 오션뷰를 자랑하는 스위트룸입니다.',
-    },
+    rooms: [
+      {
+        name: '오션뷰 스위트룸',
+        capacity: 2,
+        description: describeRoom({
+          intro: '탁 트인 오션뷰를 자랑하는 스위트룸입니다.',
+          bedroomCount: 1,
+          bedConfig: '킹사이즈 베드 1개 + 별도 거실',
+          maxGuests: 2,
+          amenities: [
+            '오션뷰 발코니',
+            '무료 Wi-Fi',
+            '스마트 TV',
+            '미니바',
+            '욕조',
+            '캡슐 커피머신',
+            '가운 & 슬리퍼',
+          ],
+        }),
+      },
+      {
+        name: '스탠다드 더블룸',
+        capacity: 2,
+        description: describeRoom({
+          intro: '아늑한 구성의 스탠다드 더블룸입니다.',
+          bedroomCount: 1,
+          bedConfig: '더블사이즈 베드 1개',
+          maxGuests: 2,
+          amenities: ['무료 Wi-Fi', 'TV', '냉장고', '헤어드라이어', '욕실 어메니티'],
+        }),
+      },
+      {
+        name: '프리미엄 오션뷰룸',
+        capacity: 3,
+        description: describeRoom({
+          intro: '파노라마 오션뷰를 즐길 수 있는 프리미엄룸입니다.',
+          bedroomCount: 1,
+          bedConfig: '킹사이즈 베드 1개 + 싱글 소파베드 1개',
+          maxGuests: 3,
+          amenities: [
+            '통유리 오션뷰 창',
+            '전용 발코니',
+            '무료 Wi-Fi',
+            '스마트 TV',
+            '미니바',
+            '캡슐 커피머신',
+            '욕조',
+          ],
+        }),
+      },
+      {
+        name: '패밀리 트윈룸',
+        capacity: 4,
+        description: describeRoom({
+          intro: '가족 여행객을 위한 넓은 패밀리 트윈룸입니다.',
+          bedroomCount: 2,
+          bedConfig: '더블사이즈 베드 1개 + 싱글사이즈 베드 2개',
+          maxGuests: 4,
+          amenities: [
+            '오션뷰 발코니',
+            '무료 Wi-Fi',
+            '객실별 TV 2대',
+            '냉장고',
+            '전자레인지',
+            '욕실 어메니티',
+          ],
+        }),
+      },
+    ],
   },
   {
     hotel: {
@@ -83,11 +237,66 @@ const HOTEL_SEEDS: HotelSeed[] = [
       phoneNumber: '064-1234-5678',
       description: '자연 속 프라이빗한 힐링 스테이',
     },
-    room: {
-      name: '가든뷰 트윈룸',
-      capacity: 2,
-      description: '아늑한 정원 전망의 트윈룸입니다.',
-    },
+    rooms: [
+      {
+        name: '가든뷰 트윈룸',
+        capacity: 2,
+        description: describeRoom({
+          intro: '아늑한 정원 전망의 트윈룸입니다.',
+          bedroomCount: 1,
+          bedConfig: '싱글사이즈 베드 2개',
+          maxGuests: 2,
+          amenities: ['정원뷰 창', '무료 Wi-Fi', 'TV', '냉장고', '헤어드라이어', '욕실 어메니티'],
+        }),
+      },
+      {
+        name: '스탠다드 더블룸',
+        capacity: 2,
+        description: describeRoom({
+          intro: '제주의 자연을 가까이 느낄 수 있는 스탠다드룸입니다.',
+          bedroomCount: 1,
+          bedConfig: '더블사이즈 베드 1개',
+          maxGuests: 2,
+          amenities: ['무료 Wi-Fi', 'TV', '냉장고', '전기 주전자', '욕실 어메니티'],
+        }),
+      },
+      {
+        name: '프라이빗 풀빌라룸',
+        capacity: 3,
+        description: describeRoom({
+          intro: '독립적인 야외 풀을 갖춘 프라이빗 풀빌라룸입니다.',
+          bedroomCount: 1,
+          bedConfig: '킹사이즈 베드 1개',
+          maxGuests: 3,
+          amenities: [
+            '프라이빗 야외 수영장',
+            '전용 테라스',
+            '무료 Wi-Fi',
+            '스마트 TV',
+            '미니바',
+            '가운 & 슬리퍼',
+          ],
+        }),
+      },
+      {
+        name: '패밀리 스위트룸',
+        capacity: 4,
+        description: describeRoom({
+          intro: '넓은 공간의 패밀리 스위트룸입니다.',
+          bedroomCount: 2,
+          bedConfig: '퀸사이즈 베드 1개 + 싱글사이즈 베드 2개',
+          maxGuests: 4,
+          amenities: [
+            '정원뷰 테라스',
+            '무료 Wi-Fi',
+            '객실별 TV 2대',
+            '냉장고',
+            '전자레인지 & 전기 주전자',
+            '욕실 어메니티',
+          ],
+        }),
+      },
+    ],
   },
 ];
 
@@ -174,10 +383,12 @@ async function seedHotelsAndRooms(dataSource: DataSource): Promise<void> {
       hotelRepository.create(seed.hotel),
     );
     await roomRepository.save(
-      roomRepository.create({ hotelId: hotel.hotelId, ...seed.room }),
+      seed.rooms.map((room) =>
+        roomRepository.create({ hotelId: hotel.hotelId, ...room }),
+      ),
     );
     console.log(
-      `[seed] 호텔/객실 생성 완료: ${seed.hotel.name} (hotelId=${hotel.hotelId})`,
+      `[seed] 호텔/객실 생성 완료: ${seed.hotel.name} (hotelId=${hotel.hotelId}, 객실 ${seed.rooms.length}개)`,
     );
   }
 }
