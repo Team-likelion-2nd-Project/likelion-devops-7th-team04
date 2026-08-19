@@ -6,9 +6,10 @@ import { AdminCredential } from '../apps/auth-service/src/entities/admin-credent
 import { Hotel } from '../apps/hotel-service/src/entities/hotel.entity';
 import { Room } from '../apps/hotel-service/src/entities/room.entity';
 import { RoomAvailability } from '../apps/hotel-service/src/entities/room-availability.entity';
+import { Facility } from '../apps/hotel-service/src/entities/facility.entity';
 
 // docker compose 기동 시(db-seed 서비스, scripts/Dockerfile.seed) 1회 실행되는 시딩 스크립트입니다.
-// NestFactory 대신 TypeORM DataSource를 직접 열어 admins/admin_credentials/hotels/rooms에
+// NestFactory 대신 TypeORM DataSource를 직접 열어 admins/admin_credentials/hotels/rooms/facilities에
 // 필요한 초기 데이터를 넣습니다 — hotel-service에는 CreateHotel API가, auth-service에는
 // 관리자 자격증명을 만드는 API가 아직 없어서(테스트 편의를 위한 시딩 목적상) 직접 DB에
 // insert하는 방식을 택했습니다. 기존 서비스가 소유한 엔티티 클래스를 그대로 재사용합니다.
@@ -29,6 +30,13 @@ const DEFAULT_ROOM_PRICE = 100000;
 
 // room_availabilities에 채워 넣을 기간(오늘부터 며칠간)
 const AVAILABILITY_DAYS = 30;
+
+// booking-service.service.ts의 FACILITY_NAME_INDOOR_POOL/FACILITY_NAME_LOUNGE 상수와
+// name이 정확히 일치해야 createBooking의 편의시설 요금 조회(이름 매칭)가 성공합니다.
+const FACILITY_SEEDS: Pick<Facility, 'name' | 'price'>[] = [
+  { name: '수영장', price: 30000 },
+  { name: '라운지', price: 50000 },
+];
 
 const SEED_ADMIN_EMAIL = process.env.SEED_ADMIN_EMAIL;
 const SEED_ADMIN_PASSWORD = process.env.SEED_ADMIN_PASSWORD;
@@ -95,7 +103,7 @@ async function createDataSourceWithRetry(
     username: DB_USERNAME,
     password: DB_PASSWORD,
     database: DB_DATABASE,
-    entities: [Admin, AdminCredential, Hotel, Room, RoomAvailability],
+    entities: [Admin, AdminCredential, Hotel, Room, RoomAvailability, Facility],
     synchronize: true, // ⚠️ 개발 환경(Dev)에서만 사용 — 기존 서비스 모듈들과 동일한 패턴
   });
 
@@ -228,11 +236,45 @@ async function seedRoomAvailabilities(dataSource: DataSource): Promise<void> {
   }
 }
 
+async function seedFacilities(dataSource: DataSource): Promise<void> {
+  const hotelRepository = dataSource.getRepository(Hotel);
+  const facilityRepository = dataSource.getRepository(Facility);
+
+  const hotels = await hotelRepository.find();
+  if (hotels.length === 0) {
+    console.log(
+      '[seed] 호텔(hotels) 데이터가 없어 편의시설 시딩을 건너뜁니다.',
+    );
+    return;
+  }
+
+  for (const hotel of hotels) {
+    const existingCount = await facilityRepository.count({
+      where: { hotelId: hotel.hotelId },
+    });
+    if (existingCount > 0) {
+      console.log(
+        `[seed] hotelId=${hotel.hotelId}의 편의시설이 이미 존재합니다 — 건너뜁니다.`,
+      );
+      continue;
+    }
+
+    const facilities = FACILITY_SEEDS.map((seed) =>
+      facilityRepository.create({ hotelId: hotel.hotelId, ...seed }),
+    );
+    await facilityRepository.save(facilities);
+    console.log(
+      `[seed] hotelId=${hotel.hotelId} 편의시설 생성 완료: ${FACILITY_SEEDS.map((f) => `${f.name}(${f.price}원)`).join(', ')}`,
+    );
+  }
+}
+
 async function main(): Promise<void> {
   const dataSource = await createDataSourceWithRetry();
   try {
     await seedAdmin(dataSource);
     await seedHotelsAndRooms(dataSource);
+    await seedFacilities(dataSource);
     await seedRoomAvailabilities(dataSource);
     console.log('[seed] 시딩 완료');
   } finally {

@@ -65,9 +65,12 @@ message CreateBookingRequest {
   int32 roomId = 2;
   string checkInDate = 3;
   string checkOutDate = 4;
-  bool hasIndoorPool = 5;
-  bool hasLounge = 6;
   int32 guestCount = 7;
+  // 편의시설 요금(hotel-service의 facilities) 조회에만 사용되고 Reservation에는 저장되지 않는다
+  // (서비스 간 DB 분리 원칙 — roomId만 저장).
+  int32 hotelId = 8;
+  int32 poolGuestCount = 9; // 인도어풀 이용 인원수. 0 또는 미지정이면 미이용.
+  int32 loungeGuestCount = 10; // 라운지 이용 인원수. 0 또는 미지정이면 미이용.
 }
 
 message Booking {

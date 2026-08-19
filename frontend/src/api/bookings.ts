@@ -5,11 +5,12 @@ const BASE_URL = import.meta.env.VITE_API_URL
 // gateway CreateBookingDto와 1:1 대응. userId는 서버가 Authorization 헤더의 JWT에서 추출하므로 실어 보내지 않는다.
 export interface CreateBookingRequest {
   roomId: number
+  hotelId: number
   checkInDate: string
   checkOutDate: string
   guestCount: number
-  hasIndoorPool?: boolean
-  hasLounge?: boolean
+  poolGuestCount?: number
+  loungeGuestCount?: number
 }
 
 // proto의 Booking 메시지 / gateway BookingDto와 1:1 대응

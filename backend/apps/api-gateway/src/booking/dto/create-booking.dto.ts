@@ -1,4 +1,4 @@
-import { IsBoolean, IsDateString, IsInt, IsOptional, Min } from 'class-validator';
+import { IsDateString, IsInt, IsOptional, Min } from 'class-validator';
 
 export class CreateBookingDto {
   /**
@@ -8,6 +8,15 @@ export class CreateBookingDto {
   @IsInt()
   @Min(1)
   roomId: number;
+
+  /**
+   * 예약할 객실이 속한 호텔 PK ID. 편의시설(수영장/라운지) 요금을 조회하는 데에만 쓰이고
+   * 예약(Reservation)에는 저장되지 않는다 (서비스 간 DB 분리 원칙 — roomId만 저장).
+   * @example 1
+   */
+  @IsInt()
+  @Min(1)
+  hotelId: number;
 
   /**
    * 체크인 날짜 (해당 날짜부터 숙박)
@@ -32,18 +41,20 @@ export class CreateBookingDto {
   guestCount: number;
 
   /**
-   * 실내 수영장 이용 옵션 추가 여부
-   * @example false
+   * 실내 수영장 이용 인원수. 0 또는 미지정이면 미이용.
+   * @example 0
    */
   @IsOptional()
-  @IsBoolean()
-  hasIndoorPool?: boolean;
+  @IsInt()
+  @Min(0)
+  poolGuestCount?: number;
 
   /**
-   * 라운지 이용 옵션 추가 여부
-   * @example false
+   * 라운지 이용 인원수. 0 또는 미지정이면 미이용.
+   * @example 0
    */
   @IsOptional()
-  @IsBoolean()
-  hasLounge?: boolean;
+  @IsInt()
+  @Min(0)
+  loungeGuestCount?: number;
 }
