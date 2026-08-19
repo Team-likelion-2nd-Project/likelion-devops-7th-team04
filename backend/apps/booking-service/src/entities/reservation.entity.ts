@@ -26,6 +26,13 @@ export class Reservation {
   @Column({ name: 'room_id' })
   roomId!: number;
 
+  // hotel-service의 Room.hotelId 스냅샷. 예약 생성 시점의 값을 그대로 복사해서 저장한다
+  // (totalAmount/reservation_facilities.facilityName과 같은 스냅샷 원칙) — 호텔별 집계(대시보드
+  // 지표 등)를 hotel-service 호출 없이 이 테이블만으로 계산하기 위함. nullable인 이유는 이 컬럼
+  // 추가 이전에 생성된 기존 예약에는 값이 없기 때문.
+  @Column({ name: 'hotel_id', nullable: true })
+  hotelId?: number;
+
   @Column({ name: 'check_in_date', type: 'date' })
   checkInDate!: string;
 

@@ -40,11 +40,22 @@ interface BookingDto {
   reservationId: number;
   userId: number;
   roomId: number;
+  hotelId: number;
   checkInDate: string;
   checkOutDate: string;
   guestCount: number;
   totalAmount: number;
   status: string;
+}
+
+// proto의 HotelBookingStats 메시지와 1:1 대응되는 응답 형태
+interface HotelBookingStatsDto {
+  checkInsToday: number;
+  checkOutsToday: number;
+  occupiedRoomsToday: number;
+  newReservationsToday: number;
+  cancellationsToday: number;
+  revenueToday: number;
 }
 
 // proto의 ReservationFacilityItem 메시지와 1:1 대응되는 응답 형태
@@ -82,6 +93,9 @@ interface BookingService {
   getReservationFacilitiesByReservationId(data: {
     reservationId: number;
   }): Observable<{ reservationFacilities: ReservationFacilityDto[] }>;
+  getHotelBookingStats(data: {
+    hotelId: number;
+  }): Observable<HotelBookingStatsDto>;
 }
 
 @ApiTags('BookingService')
@@ -163,6 +177,28 @@ export class BookingController implements OnModuleInit {
     return firstValueFrom(
       this.bookingService.getBookingsByUserId({ userId: user.userId }),
     );
+  }
+
+  /**
+   * GET http://localhost:3000/api/bookings/hotels/{hotelId}/stats
+   * 관리자 전용. 호텔 상세 페이지의 "호텔별 지표" 섹션이 사용하는 오늘자 집계를 조회합니다.
+   */
+  @Get('hotels/:hotelId/stats')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles('ADMIN')
+  @ApiBearerAuth()
+  @ApiParam({ name: 'hotelId', description: '조회할 호텔의 ID', type: Number })
+  @ApiOperation({
+    summary: '호텔별 오늘자 예약 지표 조회 (관리자 전용)',
+    description:
+      '관리자 권한을 가진 사용자만 호출할 수 있습니다. gRPC를 통해 booking-service에서 이 호텔의 오늘자 체크인/체크아웃/점유 객실 수/신규 예약/취소/매출을 집계해 가져옵니다. 점유율 계산에 필요한 총 객실 수는 이 응답에 포함되지 않으므로 GET /api/hotels/:hotelId/rooms 결과와 함께 사용해야 합니다.',
+  })
+  @ApiResponse({ status: 200, description: '호텔별 지표 조회 성공' })
+  @ApiResponse({ status: 403, description: '관리자 권한이 없음' })
+  async getHotelBookingStats(
+    @Param('hotelId', ParseIntPipe) hotelId: number,
+  ): Promise<HotelBookingStatsDto> {
+    return firstValueFrom(this.bookingService.getHotelBookingStats({ hotelId }));
   }
 
   /**

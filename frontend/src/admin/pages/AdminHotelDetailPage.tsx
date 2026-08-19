@@ -5,10 +5,11 @@ import {
   createAdminRoom,
   fetchAdminHotelById,
   fetchAdminHotelRooms,
+  fetchAdminHotelStats,
   readImageFileAsInput,
   toAdminImageDataUrl,
 } from '../../api/adminApi'
-import type { AdminHotel, AdminRoom, AdminRoomImageInput } from '../../api/adminApi'
+import type { AdminHotel, AdminHotelStats, AdminRoom, AdminRoomImageInput } from '../../api/adminApi'
 import './AdminPages.css'
 
 // 이미지 하나당 허용하는 최대 용량. 오브젝트 스토리지 없이 DB에 Base64로 직접 저장하는 구조라
@@ -21,6 +22,7 @@ function AdminHotelDetailPage() {
   const [loadedFor, setLoadedFor] = useState<string | undefined>(undefined)
   const [hotel, setHotel] = useState<AdminHotel | null>(null)
   const [rooms, setRooms] = useState<AdminRoom[] | null>(null)
+  const [stats, setStats] = useState<AdminHotelStats | null>(null)
   const [error, setError] = useState('')
 
   const [isAdding, setIsAdding] = useState(false)
@@ -38,6 +40,7 @@ function AdminHotelDetailPage() {
     setLoadedFor(hotelId)
     setHotel(null)
     setRooms(null)
+    setStats(null)
     setError('')
     setIsAdding(false)
   }
@@ -46,11 +49,12 @@ function AdminHotelDetailPage() {
     if (!hotelId) return
     let ignore = false
 
-    Promise.all([fetchAdminHotelById(hotelId), fetchAdminHotelRooms(hotelId)])
-      .then(([hotelData, roomsData]) => {
+    Promise.all([fetchAdminHotelById(hotelId), fetchAdminHotelRooms(hotelId), fetchAdminHotelStats(hotelId)])
+      .then(([hotelData, roomsData, statsData]) => {
         if (ignore) return
         setHotel(hotelData)
         setRooms(roomsData)
+        setStats(statsData)
       })
       .catch((err) => {
         if (!ignore) setError(err instanceof Error ? err.message : '호텔 정보를 불러오지 못했습니다.')
@@ -151,6 +155,35 @@ function AdminHotelDetailPage() {
             <dt>설명</dt>
             <dd>{hotel.description || '-'}</dd>
           </dl>
+        </div>
+      )}
+
+      {!error && stats && (
+        <div className="admin-stat-grid">
+          <div className="admin-card admin-stat-tile">
+            <span className="admin-stat-label">오늘 예정된 체크인 / 체크아웃</span>
+            <span className="admin-stat-value">
+              {stats.checkInsToday} / {stats.checkOutsToday}
+            </span>
+          </div>
+          <div className="admin-card admin-stat-tile">
+            <span className="admin-stat-label">오늘 객실 점유율</span>
+            <span className="admin-stat-value">
+              {rooms && rooms.length > 0
+                ? `${Math.round((stats.occupiedRoomsToday / rooms.length) * 100)}%`
+                : '—%'}
+            </span>
+          </div>
+          <div className="admin-card admin-stat-tile">
+            <span className="admin-stat-label">오늘 매출 현황</span>
+            <span className="admin-stat-value">₩{stats.revenueToday.toLocaleString()}</span>
+          </div>
+          <div className="admin-card admin-stat-tile">
+            <span className="admin-stat-label">신규 예약 / 취소 건수</span>
+            <span className="admin-stat-value">
+              {stats.newReservationsToday} / {stats.cancellationsToday}
+            </span>
+          </div>
         </div>
       )}
 

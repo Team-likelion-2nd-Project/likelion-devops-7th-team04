@@ -35,6 +35,10 @@ service BookingService {
 
   // 특정 예약에 연결된 편의시설 이용 내역 목록 조회. reservationId가 존재하지 않으면 에러.
   rpc GetReservationFacilitiesByReservationId (GetReservationFacilitiesByReservationIdRequest) returns (ReservationFacilityListResponse);
+
+  // 관리자 호텔 상세 페이지의 "호텔별 지표" 섹션용 집계. hotelId 스냅샷 컬럼 덕분에
+  // hotel-service 호출 없이 이 서비스의 reservations 테이블만으로 계산된다.
+  rpc GetHotelBookingStats (GetHotelBookingStatsRequest) returns (HotelBookingStats);
 }
 
 message Empty {}
@@ -66,8 +70,9 @@ message CreateBookingRequest {
   string checkInDate = 3;
   string checkOutDate = 4;
   int32 guestCount = 7;
-  // 편의시설 요금(hotel-service의 facilities) 조회에만 사용되고 Reservation에는 저장되지 않는다
-  // (서비스 간 DB 분리 원칙 — roomId만 저장).
+  // 편의시설 요금(hotel-service의 facilities) 조회에 사용되고, Reservation에도 스냅샷 컬럼으로
+  // 저장된다 (호텔별 집계를 hotel-service 호출 없이 하기 위함 — totalAmount/facilityName과 동일한
+  // 스냅샷 원칙).
   int32 hotelId = 8;
   int32 poolGuestCount = 9; // 인도어풀 이용 인원수. 0 또는 미지정이면 미이용.
   int32 loungeGuestCount = 10; // 라운지 이용 인원수. 0 또는 미지정이면 미이용.
@@ -84,6 +89,7 @@ message Booking {
   int32 totalAmount = 8;
   string status = 9;
   int32 guestCount = 10;
+  int32 hotelId = 11; // 스냅샷 컬럼. 이 컬럼 추가 이전에 생성된 예약은 0으로 내려온다.
 }
 
 message BookingListResponse {
@@ -105,4 +111,18 @@ message ReservationFacilityItem {
 
 message ReservationFacilityListResponse {
   repeated ReservationFacilityItem reservationFacilities = 1;
+}
+
+message GetHotelBookingStatsRequest {
+  int32 hotelId = 1;
+  string date = 2; // 'YYYY-MM-DD'. 빈 문자열이면 서버 기준 오늘로 계산.
+}
+
+message HotelBookingStats {
+  int32 checkInsToday = 1;
+  int32 checkOutsToday = 2;
+  int32 occupiedRoomsToday = 3; // 점유율 분자. 분모(총 객실 수)는 hotel-service의 GetRooms 결과 재사용.
+  int32 newReservationsToday = 4; // 오늘 생성 + 결제 확정(RESERVED)된 예약 건수. PENDING_PAYMENT는 제외.
+  int32 cancellationsToday = 5; // 오늘 취소(CANCELLED)된 예약 건수.
+  int32 revenueToday = 6;
 }
