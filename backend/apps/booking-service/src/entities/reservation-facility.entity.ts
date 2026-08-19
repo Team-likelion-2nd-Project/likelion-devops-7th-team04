@@ -20,6 +20,12 @@ export class ReservationFacility {
   @Column({ name: 'facility_id' })
   facilityId!: number;
 
+  // 예약 생성 시점의 시설명 스냅샷. hotel-service에서 나중에 이름이 바뀌거나 시설이 삭제돼도
+  // 이 예약 건에 표시되는 이름은 구매 당시 그대로 유지된다 (totalAmount를 가격 스냅샷으로 저장하는
+  // 것과 같은 이유). 조회 시 hotel-service를 다시 호출하지 않아도 되는 효과도 있다.
+  @Column({ name: 'facility_name' })
+  facilityName!: string;
+
   @Column({ name: 'guest_count' })
   guestCount!: number;
 

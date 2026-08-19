@@ -33,7 +33,9 @@ import {
 } from '@app/common';
 import { CreateBookingDto } from './dto/create-booking.dto';
 
-// proto의 Booking 메시지와 1:1 대응되는 응답 형태
+// proto의 Booking 메시지와 1:1 대응되는 응답 형태. 편의시설(수영장/라운지) 이용 여부/인원수는
+// 여기 담기지 않는다 — reservation_facilities가 유일한 소스이며, GET /api/bookings/:reservationId/facilities로
+// 별도 조회한다.
 interface BookingDto {
   reservationId: number;
   userId: number;
@@ -41,10 +43,18 @@ interface BookingDto {
   checkInDate: string;
   checkOutDate: string;
   guestCount: number;
-  hasIndoorPool: boolean;
-  hasLounge: boolean;
   totalAmount: number;
   status: string;
+}
+
+// proto의 ReservationFacilityItem 메시지와 1:1 대응되는 응답 형태
+interface ReservationFacilityDto {
+  reservationFacilityId: number;
+  reservationId: number;
+  facilityId: number;
+  facilityName: string;
+  guestCount: number;
+  totalAmount: number;
 }
 
 // proto의 BookingService 스펙과 1:1 대응되는 TS 인터페이스
@@ -54,6 +64,7 @@ interface BookingService {
   getBookingsByUserId(data: {
     userId: number;
   }): Observable<{ bookings: BookingDto[] }>;
+  getBookingById(data: { reservationId: number }): Observable<BookingDto>;
   cancelBooking(data: {
     reservationId: number;
     userId: number;
@@ -68,6 +79,9 @@ interface BookingService {
     poolGuestCount?: number;
     loungeGuestCount?: number;
   }): Observable<BookingDto>;
+  getReservationFacilitiesByReservationId(data: {
+    reservationId: number;
+  }): Observable<{ reservationFacilities: ReservationFacilityDto[] }>;
 }
 
 @ApiTags('BookingService')
@@ -261,5 +275,50 @@ export class BookingController implements OnModuleInit {
         err?.details || err?.message || '예약 가능한 객실이 아닙니다.',
       );
     });
+  }
+
+  /**
+   * GET http://localhost:3000/api/bookings/{reservationId}/facilities
+   * 로그인한 사용자 본인 예약에 연결된 편의시설(수영장/라운지 등) 이용 내역을 조회합니다.
+   * getBookingById는 소유자 검증 없이 조회만 하므로(다른 서비스 간 호출용으로 설계됨), 여기서
+   * cancelBooking과 동일하게 reservation.userId와 요청자를 직접 비교해 검증한다.
+   */
+  @Get(':reservationId/facilities')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiParam({
+    name: 'reservationId',
+    description: '조회할 예약 PK ID',
+    type: Number,
+  })
+  @ApiOperation({
+    summary: '예약 편의시설 이용 내역 조회',
+    description:
+      '유효한 액세스 토큰을 가진 사용자 본인의 예약에 대해서만 조회할 수 있습니다. gRPC를 통해 booking-service의 reservation_facilities 목록을 가져옵니다.',
+  })
+  @ApiResponse({ status: 200, description: '편의시설 이용 내역 조회 성공' })
+  @ApiResponse({ status: 403, description: '본인의 예약이 아님' })
+  @ApiResponse({ status: 404, description: '존재하지 않는 예약' })
+  async getReservationFacilities(
+    @Param('reservationId', ParseIntPipe) reservationId: number,
+    @CurrentUser() user: AuthenticatedUser,
+  ): Promise<{ facilities: ReservationFacilityDto[] }> {
+    const booking = await firstValueFrom(
+      this.bookingService.getBookingById({ reservationId }),
+    ).catch((err) => {
+      throw new NotFoundException(
+        err?.details || err?.message || '존재하지 않는 예약입니다.',
+      );
+    });
+    if (booking.userId !== user.userId) {
+      throw new ForbiddenException('본인의 예약만 조회할 수 있습니다.');
+    }
+
+    const { reservationFacilities } = await firstValueFrom(
+      this.bookingService.getReservationFacilitiesByReservationId({
+        reservationId,
+      }),
+    );
+    return { facilities: reservationFacilities };
   }
 }

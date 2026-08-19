@@ -13,7 +13,8 @@ export interface CreateBookingRequest {
   loungeGuestCount?: number
 }
 
-// proto의 Booking 메시지 / gateway BookingDto와 1:1 대응
+// proto의 Booking 메시지 / gateway BookingDto와 1:1 대응. 편의시설(수영장/라운지) 이용 여부/인원수는
+// 여기 담기지 않는다 — fetchReservationFacilities로 별도 조회한다.
 export interface Booking {
   reservationId: number
   userId: number
@@ -21,10 +22,18 @@ export interface Booking {
   checkInDate: string
   checkOutDate: string
   guestCount: number
-  hasIndoorPool: boolean
-  hasLounge: boolean
   totalAmount: number
   status: string
+}
+
+// proto의 ReservationFacilityItem 메시지와 1:1 대응되는 응답 형태
+export interface ReservationFacility {
+  reservationFacilityId: number
+  reservationId: number
+  facilityId: number
+  facilityName: string
+  guestCount: number
+  totalAmount: number
 }
 
 async function parseJsonOrThrow<T>(res: Response): Promise<T> {
@@ -66,4 +75,18 @@ export async function fetchMyBookings(): Promise<Booking[]> {
   })
   const data = await parseJsonOrThrow<{ bookings: Booking[] }>(res)
   return data.bookings
+}
+
+// GET /api/bookings/{reservationId}/facilities — 해당 예약에 연결된 편의시설(수영장/라운지 등)
+// 이용 내역을 조회한다 (인증 필요, 본인 예약이 아니면 403).
+export async function fetchReservationFacilities(reservationId: number): Promise<ReservationFacility[]> {
+  const token = customerAuth.getAccessToken()
+  const res = await fetch(`${BASE_URL}/api/bookings/${reservationId}/facilities`, {
+    credentials: 'include',
+    headers: {
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+  })
+  const data = await parseJsonOrThrow<{ facilities: ReservationFacility[] }>(res)
+  return data.facilities
 }

@@ -1,6 +1,13 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
-import { cancelBooking, fetchMyBookings, refreshAccessToken, type Booking } from '../api/gateway'
+import {
+  cancelBooking,
+  fetchMyBookings,
+  fetchReservationFacilities,
+  refreshAccessToken,
+  type Booking,
+  type ReservationFacility,
+} from '../api/gateway'
 import { toImageDataUrl, type Room } from '../api/hotels'
 import type { Hotel } from '../data/hotels'
 import { CalendarIcon, PersonIcon, PinIcon } from '../components/reservation/icons'
@@ -39,6 +46,8 @@ function ReservationDetailPage() {
 
   const [roomInfo, setRoomInfo] = useState<{ hotel: Hotel; room: Room } | null>(null)
   const [isRoomLoading, setIsRoomLoading] = useState(false)
+
+  const [facilities, setFacilities] = useState<ReservationFacility[]>([])
 
   useEffect(() => {
     if (booking) return
@@ -104,6 +113,35 @@ function ReservationDetailPage() {
     }
   }, [booking])
 
+  // 편의시설(수영장/라운지 등) 이용 내역은 Booking 응답에 없으므로 별도로 조회한다.
+  // booking이 location.state(새로고침에도 브라우저가 history state를 들고 있으면 유지됨)에서
+  // 바로 복원된 경우, 위 booking 조회 effect는 아예 실행되지 않아 액세스 토큰이 메모리에 복구되지
+  // 않은 채로 이 요청이 나갈 수 있다 — 그래서 이 effect 자체에도 동일한 재시도 로직을 둔다.
+  useEffect(() => {
+    if (!booking) return
+    let cancelled = false
+
+    const load = async () => {
+      try {
+        const data = await fetchReservationFacilities(booking.reservationId)
+        if (!cancelled) setFacilities(data)
+      } catch {
+        try {
+          await refreshAccessToken()
+          const data = await fetchReservationFacilities(booking.reservationId)
+          if (!cancelled) setFacilities(data)
+        } catch {
+          if (!cancelled) setFacilities([])
+        }
+      }
+    }
+
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [booking])
+
   // PaymentModal이 결제 API 호출까지 마치고 알려주면, 결제창은 닫고 결제완료 모달을 띄운다.
   // 응답은 Payment이며 갱신된 Booking을 함께 내려주지 않으므로, 화면 상태도 함께 RESERVED로 반영한다.
   const handlePaid = (payment: Payment) => {
@@ -131,11 +169,9 @@ function ReservationDetailPage() {
   const checkOut = booking ? parseDateISO(booking.checkOutDate) : null
   const nights = checkIn && checkOut ? diffDays(checkOut, checkIn) : null
 
-  const selectedOptionLabels = booking
-    ? [booking.hasIndoorPool && '수영장 이용', booking.hasLounge && '라운지 이용'].filter(
-        (label): label is string => Boolean(label),
-      )
-    : []
+  const selectedOptionLabels = facilities.map((f) => `${f.facilityName} ${f.guestCount}인`)
+  const hasPoolFacility = facilities.some((f) => f.facilityName === '수영장')
+  const hasLoungeFacility = facilities.some((f) => f.facilityName === '라운지')
 
   const thumbnail = roomInfo?.room.images[0]
 
@@ -206,7 +242,14 @@ function ReservationDetailPage() {
                 <div className="reservation-detail-row">
                   <span className="reservation-detail-label">선택한 옵션</span>
                   <span className="reservation-detail-value">
-                    {selectedOptionLabels.length > 0 ? selectedOptionLabels.join(', ') : '선택한 옵션 없음'}
+                    {selectedOptionLabels.length > 0
+                      ? selectedOptionLabels.map((label, index) => (
+                          <Fragment key={label}>
+                            {index > 0 && <br />}
+                            {label}
+                          </Fragment>
+                        ))
+                      : '선택한 옵션 없음'}
                   </span>
                 </div>
 
@@ -232,10 +275,10 @@ function ReservationDetailPage() {
                   {selectedOptionLabels.length > 0 && (
                     <li>선택하신 옵션은 체크인 시 프런트에서 이용권으로 교환해 드립니다.</li>
                   )}
-                  {booking.hasIndoorPool && (
+                  {hasPoolFacility && (
                     <li>수영장 이용 시 수영모 착용은 필수이며, 만 12세 이하 어린이는 보호자 동반 하에 이용 가능합니다.</li>
                   )}
-                  {booking.hasLounge && <li>라운지 내 취식은 지정된 좌석에서만 가능하며, 외부 음식 반입은 제한됩니다.</li>}
+                  {hasLoungeFacility && <li>라운지 내 취식은 지정된 좌석에서만 가능하며, 외부 음식 반입은 제한됩니다.</li>}
                   <li>기타 문의사항은 프런트 데스크(02-0000-0000)로 연락해 주세요.</li>
                 </ul>
               </div>

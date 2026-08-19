@@ -64,7 +64,9 @@ function addDays(dateStr: string, offset: number): string {
 const FACILITY_NAME_INDOOR_POOL = '수영장';
 const FACILITY_NAME_LOUNGE = '라운지';
 
-// proto의 Booking 메시지와 1:1 대응되는 응답 형태
+// proto의 Booking 메시지와 1:1 대응되는 응답 형태. 편의시설(수영장/라운지) 이용 여부/인원수는
+// 여기 담지 않는다 — reservation_facilities가 유일한 소스이며, 필요하면
+// getReservationFacilitiesByReservationId로 별도 조회한다.
 export interface BookingGrpcResponse {
   reservationId: number;
   userId: number;
@@ -72,8 +74,6 @@ export interface BookingGrpcResponse {
   checkInDate: string;
   checkOutDate: string;
   guestCount: number;
-  hasIndoorPool: boolean;
-  hasLounge: boolean;
   totalAmount: number;
   status: string;
 }
@@ -151,6 +151,7 @@ export class BookingServiceService implements OnModuleInit {
     let totalAmount = roomAmount;
     const reservationFacilityInputs: {
       facilityId: number;
+      facilityName: string;
       guestCount: number;
       totalAmount: number;
     }[] = [];
@@ -173,6 +174,7 @@ export class BookingServiceService implements OnModuleInit {
         totalAmount += facilityAmount;
         reservationFacilityInputs.push({
           facilityId: facility.facilityId,
+          facilityName: facility.name,
           guestCount: selection.guestCount,
           totalAmount: facilityAmount,
         });
@@ -185,8 +187,6 @@ export class BookingServiceService implements OnModuleInit {
       checkInDate: data.checkInDate,
       checkOutDate: data.checkOutDate,
       guestCount: data.guestCount,
-      hasIndoorPool: (data.poolGuestCount ?? 0) > 0,
-      hasLounge: (data.loungeGuestCount ?? 0) > 0,
       totalAmount,
       status: ReservationStatus.PENDING_PAYMENT,
     });
@@ -196,6 +196,7 @@ export class BookingServiceService implements OnModuleInit {
       await this.reservationFacilityService.createReservationFacility({
         reservationId: saved.reservationId,
         facilityId: input.facilityId,
+        facilityName: input.facilityName,
         guestCount: input.guestCount,
         totalAmount: input.totalAmount,
       });
@@ -334,8 +335,6 @@ export class BookingServiceService implements OnModuleInit {
       checkInDate: reservation.checkInDate,
       checkOutDate: reservation.checkOutDate,
       guestCount: reservation.guestCount,
-      hasIndoorPool: reservation.hasIndoorPool,
-      hasLounge: reservation.hasLounge,
       totalAmount: reservation.totalAmount,
       status: reservation.status,
     };

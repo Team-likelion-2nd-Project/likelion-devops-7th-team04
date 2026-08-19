@@ -1,11 +1,12 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { HOTELS } from '../data/hotels'
 import type { Hotel } from '../data/hotels'
 import { fetchRoom, toImageDataUrl } from '../api/hotels'
 import type { Room } from '../api/hotels'
-import { fetchMyBookings } from '../api/bookings'
-import type { Booking } from '../api/bookings'
+import { fetchMyBookings, fetchReservationFacilities } from '../api/bookings'
+import type { Booking, ReservationFacility } from '../api/bookings'
+import { refreshAccessToken } from '../api/gateway'
 import { customerAuth } from '../api/tokenStore'
 import ReservationSteps from '../components/reservation/ReservationSteps'
 import { sumGuests } from '../components/reservation/guestTypes'
@@ -44,6 +45,7 @@ function ReservationCompletePage() {
   const [status, setStatus] = useState<LoadStatus>(booking ? 'success' : 'loading')
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [completedPayment, setCompletedPayment] = useState<Payment | null>(null)
+  const [facilities, setFacilities] = useState<ReservationFacility[]>([])
 
   // reservationId 자체가 없으면(예: 페이지 직접 잘못 접근) 예약 플로우 처음으로 돌려보낸다.
   useEffect(() => {
@@ -54,46 +56,83 @@ function ReservationCompletePage() {
 
   // state로 예약 정보가 전달되지 않은 경우(새로고침, 북마크/직접 접근 등) — 로그인한 사용자 본인의
   // 예약 목록에서 reservationId로 다시 찾아온다. 단건 조회 API가 없어 목록 조회로 대체한다.
-  // 로그인하지 않은 상태에서는 예약 정보를 조회할 방법이 없다 — 별도 상태 없이 렌더링 시점에 바로 판단한다.
-  const missingAuth = !booking && !!reservationId && !customerAuth.getAccessToken()
-
   useEffect(() => {
-    if (booking || !reservationId || missingAuth) return
+    if (booking || !reservationId) return
 
     let cancelled = false
 
-    fetchMyBookings()
-      .then(async (bookings) => {
-        const found = bookings.find((b) => b.reservationId === reservationId)
-        if (!found) {
-          if (!cancelled) setStatus('error')
-          return
-        }
-        if (cancelled) return
-        setBooking(found)
-
-        // Booking 응답엔 roomId만 있고 hotelId가 없어, 등록된 호텔들을 순서대로 시도해 소속 호텔/객실을 찾는다.
-        for (const h of HOTELS) {
-          try {
-            const r = await fetchRoom(h.hotelId, found.roomId)
-            if (cancelled) return
-            setHotel(h)
-            setRoom(r)
-            break
-          } catch {
-            // 이 호텔 소속 객실이 아님 — 다음 호텔로 계속 시도
-          }
-        }
-        if (!cancelled) setStatus('success')
-      })
-      .catch(() => {
+    const applyFound = async (bookings: Booking[]) => {
+      const found = bookings.find((b) => b.reservationId === reservationId)
+      if (!found) {
         if (!cancelled) setStatus('error')
+        return
+      }
+      if (cancelled) return
+      setBooking(found)
+
+      // Booking 응답엔 roomId만 있고 hotelId가 없어, 등록된 호텔들을 순서대로 시도해 소속 호텔/객실을 찾는다.
+      for (const h of HOTELS) {
+        try {
+          const r = await fetchRoom(h.hotelId, found.roomId)
+          if (cancelled) return
+          setHotel(h)
+          setRoom(r)
+          break
+        } catch {
+          // 이 호텔 소속 객실이 아님 — 다음 호텔로 계속 시도
+        }
+      }
+      if (!cancelled) setStatus('success')
+    }
+
+    fetchMyBookings()
+      .then(applyFound)
+      .catch(async () => {
+        // 새로고침 직후에는 액세스 토큰이 메모리에서 아직 복구되지 않았을 수 있으니
+        // 리프레시 토큰(쿠키)으로 한 번 재발급을 시도한 뒤 다시 조회한다.
+        try {
+          await refreshAccessToken()
+          const bookings = await fetchMyBookings()
+          if (cancelled) return
+          await applyFound(bookings)
+        } catch {
+          if (!cancelled) setStatus('error')
+        }
       })
 
     return () => {
       cancelled = true
     }
-  }, [booking, reservationId, missingAuth])
+  }, [booking, reservationId])
+
+  // 편의시설(수영장/라운지 등) 이용 내역은 Booking 응답에 없으므로 별도로 조회한다.
+  // booking이 location.state(새로고침에도 브라우저가 history state를 들고 있으면 유지됨)에서
+  // 바로 복원된 경우, 위 booking 조회 effect는 아예 실행되지 않아 액세스 토큰이 메모리에 복구되지
+  // 않은 채로 이 요청이 나갈 수 있다 — 그래서 이 effect 자체에도 동일한 재시도 로직을 둔다.
+  useEffect(() => {
+    if (!booking) return
+    let cancelled = false
+
+    const load = async () => {
+      try {
+        const data = await fetchReservationFacilities(booking.reservationId)
+        if (!cancelled) setFacilities(data)
+      } catch {
+        try {
+          await refreshAccessToken()
+          const data = await fetchReservationFacilities(booking.reservationId)
+          if (!cancelled) setFacilities(data)
+        } catch {
+          if (!cancelled) setFacilities([])
+        }
+      }
+    }
+
+    load()
+    return () => {
+      cancelled = true
+    }
+  }, [booking])
 
   // PaymentModal이 결제 API 호출까지 마치고 알려주면, 결제창은 닫고 결제완료 모달을 띄운다.
   // 응답은 Payment이며 갱신된 Booking을 함께 내려주지 않으므로, 화면 상태도 함께 RESERVED로 반영한다.
@@ -108,17 +147,14 @@ function ReservationCompletePage() {
     return null
   }
 
-  const effectiveStatus = missingAuth ? 'error' : status
   const checkIn = booking ? parseDateISO(booking.checkInDate) : null
   const checkOut = booking ? parseDateISO(booking.checkOutDate) : null
   const nights = checkIn && checkOut ? diffDays(checkOut, checkIn) : null
   const guests = state.guestRooms ? sumGuests(state.guestRooms) : null
 
-  const selectedOptionLabels = booking
-    ? [booking.hasIndoorPool && '수영장 이용', booking.hasLounge && '라운지 이용'].filter(
-        (label): label is string => Boolean(label),
-      )
-    : []
+  const selectedOptionLabels = facilities.map((f) => `${f.facilityName} ${f.guestCount}인`)
+  const hasPoolFacility = facilities.some((f) => f.facilityName === '수영장')
+  const hasLoungeFacility = facilities.some((f) => f.facilityName === '라운지')
 
   const thumbnail = room?.images[0]
   const greetingName = user ? `${user.name}님, ` : ''
@@ -131,16 +167,16 @@ function ReservationCompletePage() {
         <ReservationSteps activeStep={3} />
       </div>
 
-      {effectiveStatus === 'loading' && <p className="reservation-complete-status">예약 정보를 불러오는 중입니다…</p>}
+      {status === 'loading' && <p className="reservation-complete-status">예약 정보를 불러오는 중입니다…</p>}
 
-      {effectiveStatus === 'error' && (
+      {status === 'error' && (
         <div className="reservation-complete-status error">
           <p>예약 정보를 불러오지 못했습니다.</p>
           <Link to="/mypage/reservations">내 예약 내역에서 확인하기</Link>
         </div>
       )}
 
-      {effectiveStatus === 'success' && booking && (
+      {status === 'success' && booking && (
         <>
           <div className="reservation-complete-banner">
             <span className="reservation-complete-check" aria-hidden="true">
@@ -204,7 +240,14 @@ function ReservationCompletePage() {
                 <div className="reservation-complete-row">
                   <span className="reservation-complete-label">선택한 옵션</span>
                   <span className="reservation-complete-value">
-                    {selectedOptionLabels.length > 0 ? selectedOptionLabels.join(', ') : '선택한 옵션 없음'}
+                    {selectedOptionLabels.length > 0
+                      ? selectedOptionLabels.map((label, index) => (
+                          <Fragment key={label}>
+                            {index > 0 && <br />}
+                            {label}
+                          </Fragment>
+                        ))
+                      : '선택한 옵션 없음'}
                   </span>
                 </div>
 
@@ -222,10 +265,10 @@ function ReservationCompletePage() {
                   {selectedOptionLabels.length > 0 && (
                     <li>선택하신 옵션은 체크인 시 프런트에서 이용권으로 교환해 드립니다.</li>
                   )}
-                  {booking.hasIndoorPool && (
+                  {hasPoolFacility && (
                     <li>수영장 이용 시 수영모 착용은 필수이며, 만 12세 이하 어린이는 보호자 동반 하에 이용 가능합니다.</li>
                   )}
-                  {booking.hasLounge && (
+                  {hasLoungeFacility && (
                     <li>라운지 내 취식은 지정된 좌석에서만 가능하며, 외부 음식 반입은 제한됩니다.</li>
                   )}
                   <li>기타 문의사항은 프런트 데스크(02-0000-0000)로 연락해 주세요.</li>

@@ -73,14 +73,14 @@ message CreateBookingRequest {
   int32 loungeGuestCount = 10; // 라운지 이용 인원수. 0 또는 미지정이면 미이용.
 }
 
+// 편의시설(수영장/라운지 등) 이용 여부/인원수는 여기 담지 않는다 — reservation_facilities가
+// 유일한 소스이며, GetReservationFacilitiesByReservationId로 별도 조회한다.
 message Booking {
   int32 reservationId = 1;
   int32 userId = 2;
   int32 roomId = 3;
   string checkInDate = 4;
   string checkOutDate = 5;
-  bool hasIndoorPool = 6;
-  bool hasLounge = 7;
   int32 totalAmount = 8;
   string status = 9;
   int32 guestCount = 10;
@@ -100,6 +100,7 @@ message ReservationFacilityItem {
   int32 facilityId = 3;
   int32 guestCount = 4;
   int32 totalAmount = 5;
+  string facilityName = 6; // 예약 생성 시점의 시설명 스냅샷
 }
 
 message ReservationFacilityListResponse {
