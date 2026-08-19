@@ -161,6 +161,28 @@ module "ai_data" {
 }
 
 # =========================
+# DEV-187 Chatbot DynamoDB Tables
+# =========================
+# chat-bot-service가 기대하는 ChatSessions/ChatMessages 테이블이 이 저장소 어디에도
+# 프로비저닝된 적이 없어(코드 주석은 "infra/terraform으로 프로비저닝됩니다"라고
+# 되어 있었지만 실제로는 존재하지 않았음), IRSA 자격증명(DEV-184)과 IAM 권한(DEV-186)을
+# 다 고친 뒤에도 ResourceNotFoundException으로 로그인 사용자 챗봇 호출이 계속
+# 503을 반환했다(실측 확인). backend/scripts/dynamodb-init.ts(로컬 dynamodb-local용)와
+# 동일한 스키마로 실제 AWS DynamoDB에 생성한다.
+#
+# 리전은 별도 provider 없이 메인 provider(us-east-1)를 그대로 쓴다 — 원래
+# DYNAMODB_REGION이 ap-northeast-2였지만, EKS/ECR/VPC 등 이 프로젝트의 다른 인프라가
+# 전부 us-east-1이라 굳이 두 번째 리전을 쓸 이유가 없어 us-east-1로 통일한다.
+# (gitops/backend/base/chat-bot-service/deployment.yaml의 DYNAMODB_REGION도 같이
+# us-east-1로 맞춰야 함 — 별도 GitOps PR)
+module "dynamodb" {
+  source = "../../modules/dynamodb"
+
+  project_name = "team04-hotel"
+  environment  = "dev"
+}
+
+# =========================
 # DEV-53 CloudWatch Monitoring
 # =========================
 
