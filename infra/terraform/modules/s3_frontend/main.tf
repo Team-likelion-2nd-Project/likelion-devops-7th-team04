@@ -67,6 +67,21 @@ resource "aws_cloudfront_distribution" "frontend" {
     max_ttl                = 86400
   }
 
+  # SPA(React Router) fallback: S3(OAC로 보호된 private 버킷)는 존재하지 않는 키에
+  # 403(AccessDenied)을 반환하므로, CloudFront 단에서 index.html로 되돌려 클라이언트
+  # 라우터가 경로를 처리하게 한다. 404는 향후 버킷 정책이 바뀌는 경우를 대비한 방어적 설정.
+  custom_error_response {
+    error_code         = 403
+    response_code      = 200
+    response_page_path = "/index.html"
+  }
+
+  custom_error_response {
+    error_code         = 404
+    response_code      = 200
+    response_page_path = "/index.html"
+  }
+
   restrictions {
     geo_restriction {
       restriction_type = "none"
