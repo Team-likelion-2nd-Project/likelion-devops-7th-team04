@@ -43,6 +43,13 @@ service HotelService {
   // (같은 트랜잭션 내에서) 전부 isAvailable=false로 전환하고 가격 합계를 반환합니다.
   // 하루라도 row가 없거나 이미 isAvailable=false면 예약을 막기 위해 RpcException을 던집니다.
   rpc ReserveRoomAvailability (ReserveRoomAvailabilityRequest) returns (ReserveRoomAvailabilityResponse);
+
+  // 관리자 전용: 특정 호텔에 신규 편의시설을 등록합니다. (hotelId가 존재하지 않으면 에러)
+  rpc CreateFacility (CreateFacilityRequest) returns (Facility);
+
+  // 특정 호텔에 등록된 전체 편의시설 목록을 조회합니다. booking-service가 예약 생성 시 편의시설
+  // 요금(가격)을 조회하기 위해 호출합니다. (hotelId가 존재하지 않으면 에러)
+  rpc GetFacilities (GetFacilitiesRequest) returns (FacilityListResponse);
 }
 
 message Empty {}
@@ -197,4 +204,25 @@ message ReserveRoomAvailabilityRequest {
 message ReserveRoomAvailabilityResponse {
   // 예약 불가로 전환된 기간(startDate~endDate, 둘 다 포함)의 일별 price 합계
   int32 totalAmount = 1;
+}
+
+message Facility {
+  int32 facilityId = 1;
+  int32 hotelId = 2;
+  string name = 3;
+  int32 price = 4; // 1인 1회 기준 요금
+}
+
+message CreateFacilityRequest {
+  int32 hotelId = 1;
+  string name = 2;
+  int32 price = 3;
+}
+
+message GetFacilitiesRequest {
+  int32 hotelId = 1;
+}
+
+message FacilityListResponse {
+  repeated Facility facilities = 1;
 }

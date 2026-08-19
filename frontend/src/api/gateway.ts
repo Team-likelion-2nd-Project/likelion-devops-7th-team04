@@ -191,18 +191,36 @@ export async function adminLogin(payload: LoginRequest): Promise<AuthResponse> {
   return parseAuthResponse(res, adminAuth)
 }
 
+// 백엔드가 리프레시 토큰을 매 재발급마다 로테이션(재발급 즉시 이전 리프레시 토큰을 무효화)하기
+// 때문에, 같은 순간 여러 컴포넌트(App 부팅, AccountLayout의 뱃지 조회, 각 페이지의 재조회 등)가
+// 동시에 refreshAccessToken()을 호출하면 첫 번째 요청만 성공하고 나머지는 이미 무효화된 리프레시
+// 토큰으로 요청하게 되어 401을 받는다 — 그 결과로 로그인 상태인데도 로그아웃 처리되거나 일부
+// 정보만 빈 채로 남는 등 "꼬인" 것처럼 보이는 증상이 생긴다. 진행 중인 요청이 있으면 새 요청을
+// 보내지 않고 그 Promise를 그대로 공유해서, 실제 네트워크 호출은 항상 하나만 나가도록 한다.
+let refreshInFlight: Promise<AuthResponse> | null = null
+
 // httpOnly 리프레시 토큰 쿠키(refreshToken, 고객 전용)로 액세스 토큰을 재발급받는다. 새로고침 등으로
 // 메모리의 액세스 토큰이 사라졌을 때 세션을 복구하는 용도 (쿠키가 없거나 만료됐으면 401 -> 비로그인 상태로 처리).
 export async function refreshAccessToken(): Promise<AuthResponse> {
-  const res = await fetch(`${BASE_URL}/api/auth/refresh`, {
-    method: 'POST',
-    credentials: 'include',
-  })
+  if (refreshInFlight) return refreshInFlight
 
-  return parseAuthResponse(res, customerAuth)
+  refreshInFlight = (async () => {
+    const res = await fetch(`${BASE_URL}/api/auth/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+    return parseAuthResponse(res, customerAuth)
+  })()
+
+  try {
+    return await refreshInFlight
+  } finally {
+    refreshInFlight = null
+  }
 }
 
-// proto의 Booking 메시지와 1:1 대응되는 응답 형태 (api-gateway BookingController의 BookingDto와 동일)
+// proto의 Booking 메시지와 1:1 대응되는 응답 형태 (api-gateway BookingController의 BookingDto와 동일).
+// 편의시설(수영장/라운지) 이용 여부/인원수는 여기 담기지 않는다 — fetchReservationFacilities로 별도 조회한다.
 export interface Booking {
   reservationId: number
   userId: number
@@ -210,10 +228,18 @@ export interface Booking {
   checkInDate: string
   checkOutDate: string
   guestCount: number
-  hasIndoorPool: boolean
-  hasLounge: boolean
   totalAmount: number
   status: 'PENDING_PAYMENT' | 'RESERVED' | 'CANCELLED' | 'COMPLETED'
+}
+
+// proto의 ReservationFacilityItem 메시지와 1:1 대응되는 응답 형태
+export interface ReservationFacility {
+  reservationFacilityId: number
+  reservationId: number
+  facilityId: number
+  facilityName: string
+  guestCount: number
+  totalAmount: number
 }
 
 // api-gateway(GET /api/bookings/me) -> booking-service(gRPC)로 로그인한 사용자 본인의 예약 목록을 조회한다.
@@ -227,6 +253,14 @@ export async function fetchMyBookings(): Promise<Booking[]> {
 export async function cancelBooking(reservationId: number): Promise<Booking> {
   const res = await authorizedFetch(`/api/bookings/${reservationId}`, { method: 'PUT' })
   return parseJsonResponse<Booking>(res)
+}
+
+// api-gateway(GET /api/bookings/{reservationId}/facilities) -> booking-service(gRPC)로 해당 예약에
+// 연결된 편의시설(수영장/라운지 등) 이용 내역을 조회한다. 본인 예약이 아니면 403.
+export async function fetchReservationFacilities(reservationId: number): Promise<ReservationFacility[]> {
+  const res = await authorizedFetch(`/api/bookings/${reservationId}/facilities`)
+  const data = await parseJsonResponse<{ facilities: ReservationFacility[] }>(res)
+  return data.facilities
 }
 
 // proto의 SendMessageResponse 메시지와 1:1 대응되는 응답 형태
@@ -249,14 +283,26 @@ export async function sendChatMessage(message: string): Promise<ChatBotMessageRe
   return parseJsonResponse<ChatBotMessageResponse>(res)
 }
 
+// refreshAccessToken()과 동일한 이유(리프레시 토큰 로테이션 + 동시 호출 경쟁)로 진행 중인 요청을 공유한다.
+let adminRefreshInFlight: Promise<AuthResponse> | null = null
+
 // 관리자 전용 재발급. adminRefreshToken 쿠키를 사용하며, 고객 세션(refreshToken)에는 영향을 주지 않는다.
 export async function refreshAdminAccessToken(): Promise<AuthResponse> {
-  const res = await fetch(`${BASE_URL}/api/auth/admin/refresh`, {
-    method: 'POST',
-    credentials: 'include',
-  })
+  if (adminRefreshInFlight) return adminRefreshInFlight
 
-  return parseAuthResponse(res, adminAuth)
+  adminRefreshInFlight = (async () => {
+    const res = await fetch(`${BASE_URL}/api/auth/admin/refresh`, {
+      method: 'POST',
+      credentials: 'include',
+    })
+    return parseAuthResponse(res, adminAuth)
+  })()
+
+  try {
+    return await adminRefreshInFlight
+  } finally {
+    adminRefreshInFlight = null
+  }
 }
 
 // 서버에 로그아웃을 알려 리프레시 토큰(쿠키)을 무효화하고, 메모리의 액세스 토큰도 즉시 버린다.

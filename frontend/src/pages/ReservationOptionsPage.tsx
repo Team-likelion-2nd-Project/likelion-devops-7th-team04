@@ -122,8 +122,8 @@ function ReservationOptionsPage() {
   // 예약 - 결제 프로세스 변경: 이 페이지는 결제 없이 예약만 먼저 생성한다(booking-service
   // POST /api/bookings). 서버가 예약을 PENDING_PAYMENT 상태로 만들며, 실제 결제(POST /api/payments)는
   // 이어지는 예약완료 페이지(ReservationCompletePage)나 내 예약 내역 상세 페이지에서 별도로 진행한다.
-  // 주의: 백엔드 CreateBookingRequest는 옵션을 인원수가 아니라 boolean(hasIndoorPool/hasLounge)으로만
-  // 받으므로, 선택 인원이 1명 이상이면 true로 보낸다 — 옵션별 인원수/추가 요금은 서버에 반영되지 않는다.
+  // 옵션(수영장/라운지) 이용 인원수를 그대로 실어 보낸다 — 서버가 hotel-service의 facilities 테이블에서
+  // 실제 단가를 조회해 인원수만큼 곱해 요금에 반영한다(hasIndoorPool/hasLounge boolean 방식은 폐지됨).
   const handleReserve = async () => {
     if (!customerAuth.getAccessToken()) {
       setBookingStatus('error')
@@ -136,11 +136,12 @@ function ReservationOptionsPage() {
     try {
       const booking = await createBooking({
         roomId,
+        hotelId: hotel.hotelId,
         checkInDate: formatDateISO(search.checkIn),
         checkOutDate: formatDateISO(search.checkOut),
         guestCount: totalGuests,
-        hasIndoorPool: (optionCounts.pool ?? 0) > 0,
-        hasLounge: (optionCounts.lounge ?? 0) > 0,
+        poolGuestCount: optionCounts.pool ?? 0,
+        loungeGuestCount: optionCounts.lounge ?? 0,
       })
       // 예약 완료 페이지로 이동하면서, 이미 가진 정보(호텔/객실/투숙인원)를 함께 실어 보내
       // 완료 페이지가 다시 조회하지 않고도 바로 렌더링할 수 있게 한다.

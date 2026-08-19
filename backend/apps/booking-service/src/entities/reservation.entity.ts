@@ -35,12 +35,6 @@ export class Reservation {
   @Column({ name: 'guest_count' })
   guestCount!: number;
 
-  @Column({ name: 'has_indoor_pool', default: false })
-  hasIndoorPool!: boolean;
-
-  @Column({ name: 'has_lounge', default: false })
-  hasLounge!: boolean;
-
   @Column({ name: 'total_amount' })
   totalAmount!: number;
 

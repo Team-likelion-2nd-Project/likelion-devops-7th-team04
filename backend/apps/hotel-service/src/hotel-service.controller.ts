@@ -2,12 +2,14 @@ import { Controller, Get } from '@nestjs/common';
 import { GrpcMethod } from '@nestjs/microservices';
 import { HotelServiceService } from './hotel-service.service';
 import { RoomImageInput, RoomService } from './room.service';
+import { FacilityService } from './facility.service';
 
 @Controller()
 export class HotelServiceController {
   constructor(
     private readonly hotelServiceService: HotelServiceService,
     private readonly roomService: RoomService,
+    private readonly facilityService: FacilityService,
   ) {}
 
   // proto의 HotelService / GetHello 메서드와 매핑
@@ -145,6 +147,22 @@ export class HotelServiceController {
       data.startDate,
       data.endDate,
     );
+  }
+
+  // proto의 HotelService / CreateFacility 메서드와 매핑: 신규 편의시설 등록 (관리자 전용, api-gateway에서 권한 검증)
+  @GrpcMethod('HotelService', 'CreateFacility')
+  async createFacility(data: { hotelId: number; name: string; price: number }) {
+    return this.facilityService.createFacility(data);
+  }
+
+  // proto의 HotelService / GetFacilities 메서드와 매핑: 특정 호텔의 전체 편의시설 목록 조회
+  // (booking-service가 예약 생성 시 편의시설 요금 조회 용도로 호출)
+  @GrpcMethod('HotelService', 'GetFacilities')
+  async getFacilities(data: { hotelId: number }) {
+    const facilities = await this.facilityService.getFacilitiesByHotel(
+      data.hotelId,
+    );
+    return { facilities };
   }
 
   // DB 연결 확인 엔드포인트 (GET /db-check)

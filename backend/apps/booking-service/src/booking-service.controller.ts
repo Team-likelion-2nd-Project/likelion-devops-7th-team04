@@ -51,11 +51,12 @@ export class BookingServiceController {
   async createBooking(data: {
     userId: number;
     roomId: number;
+    hotelId: number;
     checkInDate: string;
     checkOutDate: string;
     guestCount: number;
-    hasIndoorPool: boolean;
-    hasLounge: boolean;
+    poolGuestCount?: number;
+    loungeGuestCount?: number;
   }) {
     return this.bookingServiceService.createBooking(data);
   }

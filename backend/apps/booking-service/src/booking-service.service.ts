@@ -4,6 +4,7 @@ import { ClientGrpc, RpcException } from '@nestjs/microservices';
 import { Observable, firstValueFrom } from 'rxjs';
 import { Repository } from 'typeorm';
 import { Reservation, ReservationStatus } from './entities/reservation.entity';
+import { ReservationFacilityService } from './reservation-facility.service';
 
 // libs/common/src/proto/hotel.proto의 HotelService / SetRoomAvailability와 1:1 대응
 interface HotelGrpcService {
@@ -27,6 +28,21 @@ interface HotelGrpcService {
   }): Observable<ReserveRoomAvailabilityGrpcResponse>;
 }
 
+// libs/common/src/proto/hotel.proto의 Facility 메시지와 1:1 대응
+interface FacilityGrpcResponse {
+  facilityId: number;
+  hotelId: number;
+  name: string;
+  price: number;
+}
+
+// libs/common/src/proto/hotel.proto의 HotelService / GetFacilities와 1:1 대응
+interface HotelGrpcService {
+  getFacilities(data: {
+    hotelId: number;
+  }): Observable<{ facilities: FacilityGrpcResponse[] }>;
+}
+
 // libs/common/src/proto/payment.proto의 PaymentService / RefundPayment와 1:1 대응
 interface PaymentGrpcService {
   refundPayment(data: {
@@ -42,13 +58,15 @@ function addDays(dateStr: string, offset: number): string {
   return date.toISOString().slice(0, 10);
 }
 
-// TODO: 편의시설(인도어풀/라운지) 요금을 지금은 상수로 하드코딩해서 계산한다.
-// 편의시설 종류가 늘어나거나 가격이 달라져야 한다면, 이 상수를 지우고 별도의 편의시설 전용 DB
-// 테이블(예: facilities/reservation_facilities)을 만들어 가격을 조회하도록 리팩터링해야 한다.
-const INDOOR_POOL_SURCHARGE = 30000;
-const LOUNGE_SURCHARGE = 50000;
+// 편의시설은 종류가 호텔마다 자유롭게 늘어날 수 있는 일반적인 카탈로그(hotel-service의 facilities
+// 테이블)로 분리되어 있지만, 프론트/이 서비스는 아직 수영장·라운지 두 가지 고정 옵션만 지원한다.
+// 호텔별 facilities 테이블에 아래 이름과 정확히 일치하는 row가 있어야 예약 시 해당 옵션을 선택할 수 있다.
+const FACILITY_NAME_INDOOR_POOL = '수영장';
+const FACILITY_NAME_LOUNGE = '라운지';
 
-// proto의 Booking 메시지와 1:1 대응되는 응답 형태
+// proto의 Booking 메시지와 1:1 대응되는 응답 형태. 편의시설(수영장/라운지) 이용 여부/인원수는
+// 여기 담지 않는다 — reservation_facilities가 유일한 소스이며, 필요하면
+// getReservationFacilitiesByReservationId로 별도 조회한다.
 export interface BookingGrpcResponse {
   reservationId: number;
   userId: number;
@@ -56,8 +74,6 @@ export interface BookingGrpcResponse {
   checkInDate: string;
   checkOutDate: string;
   guestCount: number;
-  hasIndoorPool: boolean;
-  hasLounge: boolean;
   totalAmount: number;
   status: string;
 }
@@ -71,6 +87,7 @@ export class BookingServiceService implements OnModuleInit {
   constructor(
     @InjectRepository(Reservation)
     private readonly reservationRepository: Repository<Reservation>,
+    private readonly reservationFacilityService: ReservationFacilityService,
     @Inject('HOTEL_SERVICE') private readonly hotelClient: ClientGrpc,
     @Inject('PAYMENT_SERVICE') private readonly paymentClient: ClientGrpc,
   ) {}
@@ -90,14 +107,21 @@ export class BookingServiceService implements OnModuleInit {
   // hotel-service의 ReserveRoomAvailability도 이 기간을 기준으로 검증/전환한다.
   // hotel-service가 이미 원자적으로 검증+전환을 수행하므로, 여기서는 그 결과(totalAmount)를 받아
   // 예약 row를 저장하기만 하면 된다.
+  //
+  // 편의시설(수영장/라운지) 요금은 hotel-service의 facilities 테이블에서 실제 단가(1인 1회 기준)를
+  // 조회한 뒤 이용 인원수(poolGuestCount/loungeGuestCount)를 곱해 계산한다 — 예약 전체 인원수
+  // (guestCount)와 무관하게 시설별로 실제 이용하는 인원만큼만 청구한다. 계산된 금액은
+  // reservation_facilities에 시설별로 한 행씩 기록되어 나중에 예약 상세에서 조회할 수 있다
+  // ([[facilities-reservation-facilities-design]] 메모리 참고).
   async createBooking(data: {
     userId: number;
     roomId: number;
+    hotelId: number;
     checkInDate: string;
     checkOutDate: string;
     guestCount: number;
-    hasIndoorPool: boolean;
-    hasLounge: boolean;
+    poolGuestCount?: number;
+    loungeGuestCount?: number;
   }): Promise<BookingGrpcResponse> {
     if (data.checkInDate >= data.checkOutDate) {
       throw new RpcException(
@@ -119,13 +143,42 @@ export class BookingServiceService implements OnModuleInit {
       );
     });
 
-    // 편의시설 요금 가산 (하드코딩, 상단 TODO 참고)
+    const facilitySelections = [
+      { name: FACILITY_NAME_INDOOR_POOL, guestCount: data.poolGuestCount ?? 0 },
+      { name: FACILITY_NAME_LOUNGE, guestCount: data.loungeGuestCount ?? 0 },
+    ].filter((selection) => selection.guestCount > 0);
+
     let totalAmount = roomAmount;
-    if (data.hasIndoorPool) {
-      totalAmount += INDOOR_POOL_SURCHARGE;
-    }
-    if (data.hasLounge) {
-      totalAmount += LOUNGE_SURCHARGE;
+    const reservationFacilityInputs: {
+      facilityId: number;
+      facilityName: string;
+      guestCount: number;
+      totalAmount: number;
+    }[] = [];
+
+    if (facilitySelections.length > 0) {
+      const { facilities } = await firstValueFrom(
+        this.hotelService.getFacilities({ hotelId: data.hotelId }),
+      ).catch(() => {
+        throw new RpcException('편의시설 정보를 확인할 수 없습니다.');
+      });
+
+      for (const selection of facilitySelections) {
+        const facility = facilities.find((f) => f.name === selection.name);
+        if (!facility) {
+          throw new RpcException(
+            `해당 호텔에 등록되지 않은 편의시설입니다: ${selection.name}`,
+          );
+        }
+        const facilityAmount = facility.price * selection.guestCount;
+        totalAmount += facilityAmount;
+        reservationFacilityInputs.push({
+          facilityId: facility.facilityId,
+          facilityName: facility.name,
+          guestCount: selection.guestCount,
+          totalAmount: facilityAmount,
+        });
+      }
     }
 
     const reservation = this.reservationRepository.create({
@@ -134,12 +187,21 @@ export class BookingServiceService implements OnModuleInit {
       checkInDate: data.checkInDate,
       checkOutDate: data.checkOutDate,
       guestCount: data.guestCount,
-      hasIndoorPool: data.hasIndoorPool,
-      hasLounge: data.hasLounge,
       totalAmount,
       status: ReservationStatus.PENDING_PAYMENT,
     });
     const saved = await this.reservationRepository.save(reservation);
+
+    for (const input of reservationFacilityInputs) {
+      await this.reservationFacilityService.createReservationFacility({
+        reservationId: saved.reservationId,
+        facilityId: input.facilityId,
+        facilityName: input.facilityName,
+        guestCount: input.guestCount,
+        totalAmount: input.totalAmount,
+      });
+    }
+
     return this.toGrpcResponse(saved);
   }
 
@@ -273,8 +335,6 @@ export class BookingServiceService implements OnModuleInit {
       checkInDate: reservation.checkInDate,
       checkOutDate: reservation.checkOutDate,
       guestCount: reservation.guestCount,
-      hasIndoorPool: reservation.hasIndoorPool,
-      hasLounge: reservation.hasLounge,
       totalAmount: reservation.totalAmount,
       status: reservation.status,
     };

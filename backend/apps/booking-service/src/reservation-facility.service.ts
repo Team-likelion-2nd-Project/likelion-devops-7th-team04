@@ -10,6 +10,7 @@ export interface ReservationFacilityGrpcResponse {
   reservationFacilityId: number;
   reservationId: number;
   facilityId: number;
+  facilityName: string;
   guestCount: number;
   totalAmount: number;
 }
@@ -31,6 +32,7 @@ export class ReservationFacilityService {
   async createReservationFacility(data: {
     reservationId: number;
     facilityId: number;
+    facilityName: string;
     guestCount: number;
     totalAmount: number;
   }): Promise<ReservationFacility> {
@@ -44,6 +46,7 @@ export class ReservationFacilityService {
     const reservationFacility = this.reservationFacilityRepository.create({
       reservationId: data.reservationId,
       facilityId: data.facilityId,
+      facilityName: data.facilityName,
       guestCount: data.guestCount,
       totalAmount: data.totalAmount,
     });
@@ -77,6 +80,7 @@ export class ReservationFacilityService {
       reservationFacilityId: reservationFacility.reservationFacilityId,
       reservationId: reservationFacility.reservationId,
       facilityId: reservationFacility.facilityId,
+      facilityName: reservationFacility.facilityName,
       guestCount: reservationFacility.guestCount,
       totalAmount: reservationFacility.totalAmount,
     };
