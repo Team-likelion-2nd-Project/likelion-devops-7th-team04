@@ -23,6 +23,7 @@ import ChangePasswordPage from './pages/ChangePasswordPage'
 import WithdrawPage from './pages/WithdrawPage'
 import PaymentsPage from './pages/PaymentsPage'
 import PaymentsPendingPage from './pages/PaymentsPendingPage'
+import PaymentDetailPage from './pages/PaymentDetailPage'
 import LoginPage from './pages/LoginPage'
 import SignupPage from './pages/SignupPage'
 import { refreshAccessToken } from './api/gateway'
@@ -64,8 +65,9 @@ function App() {
             <Route path="mypage/withdraw" element={<WithdrawPage />} />
             <Route path="mypage/reservations" element={<ReservationHistoryPage />} />
             <Route path="mypage/reservations/:reservationId" element={<ReservationDetailPage />} />
-            <Route path="payments" element={<PaymentsPage />} />
-            <Route path="payments/pending" element={<PaymentsPendingPage />} />
+            <Route path="mypage/payments" element={<PaymentsPage />} />
+            <Route path="mypage/payments/pending" element={<PaymentsPendingPage />} />
+            <Route path="mypage/payments/:paymentId" element={<PaymentDetailPage />} />
           </Route>
           <Route path="login" element={<LoginPage />} />
           <Route path="signup" element={<SignupPage />} />
