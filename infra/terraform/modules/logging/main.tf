@@ -37,7 +37,8 @@ resource "aws_s3_bucket_lifecycle_configuration" "logs" {
 # CloudFront 표준 로깅용 권한 (ACL 기반)
 # ------------------------------------------------------------------------------
 # CloudFront의 logging_config는 버킷 정책이 아니라 ACL로 전달 권한을 받는 레거시 방식.
-# awslogsdelivery라는 AWS 고정 계정(전 리전 공통)에 WRITE/READ_ACP 권한을 부여해야 함.
+# awslogsdelivery라는 AWS 고정 계정(전 리전 공통)에 FULL_CONTROL 권한을 부여해야 함
+# (AWS 공식 문서 기준 — WRITE/READ_ACP로 나눠 주는 게 아니라 FULL_CONTROL 단일 grant).
 # 이를 위해 버킷의 Object Ownership을 BucketOwnerPreferred로 완화해 ACL을 활성화한다.
 
 resource "aws_s3_bucket_ownership_controls" "logs" {
@@ -67,21 +68,14 @@ resource "aws_s3_bucket_acl" "logs" {
       permission = "FULL_CONTROL"
     }
 
-    # CloudFront 표준 로그 전달 전용 AWS 계정 ID (awslogsdelivery, 전 리전 공통 고정 값)
+    # CloudFront 표준 로그 전달 전용 AWS 계정 ID (awslogsdelivery, 전 리전 공통 고정 값).
+    # 64자 canonical ID — AWS 공식 문서(standard-logging-legacy-s3)에서 그대로 인용.
     grant {
       grantee {
         type = "CanonicalUser"
-        id   = "c4c1ede66af53448b93c283ce9448c4ba468c9432aa01d700d3878632f77d2d"
+        id   = "c4c1ede66af53448b93c283ce9448c4ba468c9432aa01d700d3878632f77d2d0"
       }
-      permission = "WRITE"
-    }
-
-    grant {
-      grantee {
-        type = "CanonicalUser"
-        id   = "c4c1ede66af53448b93c283ce9448c4ba468c9432aa01d700d3878632f77d2d"
-      }
-      permission = "READ_ACP"
+      permission = "FULL_CONTROL"
     }
   }
 }
