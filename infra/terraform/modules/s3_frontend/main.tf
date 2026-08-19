@@ -27,6 +27,15 @@ resource "aws_cloudfront_origin_access_control" "frontend_oac" {
   signing_protocol                  = "sigv4"
 }
 
+# DEV-171: CloudFront는 커스텀 도메인용 인증서가 반드시 us-east-1에 있어야 함(이미 충족).
+# domain_name이 빈 문자열이면 조회하지 않음(기존처럼 *.cloudfront.net 기본 도메인만 사용).
+data "aws_acm_certificate" "frontend" {
+  count       = var.domain_name != "" ? 1 : 0
+  domain      = var.certificate_domain
+  statuses    = ["ISSUED"]
+  most_recent = true
+}
+
 # 4. CloudFront Distribution
 resource "aws_cloudfront_distribution" "frontend" {
   origin {
@@ -38,6 +47,7 @@ resource "aws_cloudfront_distribution" "frontend" {
   enabled             = true
   is_ipv6_enabled     = true
   default_root_object = "index.html"
+  aliases             = var.domain_name != "" ? [var.domain_name] : null
 
   default_cache_behavior {
     allowed_methods  = ["GET", "HEAD"]
@@ -64,7 +74,10 @@ resource "aws_cloudfront_distribution" "frontend" {
   }
 
   viewer_certificate {
-    cloudfront_default_certificate = true
+    cloudfront_default_certificate = var.domain_name == ""
+    acm_certificate_arn            = var.domain_name != "" ? data.aws_acm_certificate.frontend[0].arn : null
+    ssl_support_method             = var.domain_name != "" ? "sni-only" : null
+    minimum_protocol_version       = var.domain_name != "" ? "TLSv1.2_2021" : null
   }
 
   tags = {

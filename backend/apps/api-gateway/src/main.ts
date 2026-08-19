@@ -17,7 +17,10 @@ async function bootstrap() {
   app.use(cookieParser());
 
   app.enableCors({
-    origin: 'http://localhost:5173',
+    // DEV-171: 로컬 개발은 기존처럼 5173, 배포 환경은 CORS_ORIGIN env var(예:
+    // https://www.team04hotel.kro.kr)로 오버라이드. gitops/backend/base/api-gateway/
+    // deployment.yaml에서 설정.
+    origin: process.env.CORS_ORIGIN || 'http://localhost:5173',
     // 프론트가 fetch(..., { credentials: 'include' })로 보내는 httpOnly 쿠키를 주고받으려면 필수
     credentials: true,
   });

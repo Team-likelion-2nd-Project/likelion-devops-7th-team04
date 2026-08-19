@@ -35,6 +35,10 @@ spec:
               value: "payment-service:3004"
             - name: CHAT_BOT_SERVICE_HOST
               value: "chat-bot-service:3005"
+            # DEV-171: 배포된 프론트엔드(CloudFront) origin. apps/api-gateway/src/main.ts의
+            # CORS 설정이 이 값을 읽습니다.
+            - name: CORS_ORIGIN
+              value: "https://www.team04hotel.kro.kr"
             # pg-mock-service가 보내는 결제 웹훅(POST /api/payments/webhook)의 HMAC 서명을
             # 검증하는 데 씁니다. pg-mock-service(gitops/backend/base/pg-mock-service/
             # deployment.yaml)와 backend-secrets의 같은 키를 참조하므로 값은 자동으로 동일합니다.

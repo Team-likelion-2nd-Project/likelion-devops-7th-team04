@@ -142,6 +142,11 @@ module "s3_frontend" {
 
   project_name = "team04"
   environment  = "dev"
+
+  # DEV-171: www.team04hotel.kro.kr을 CloudFront에 alias로 연결. DNS(kro.kr)는 팀원이
+  # 별도로 CNAME 등록 — 여기서는 CloudFront/ACM 쪽만 처리.
+  domain_name        = "www.team04hotel.kro.kr"
+  certificate_domain = "*.team04hotel.kro.kr"
 }
 
 # =========================
