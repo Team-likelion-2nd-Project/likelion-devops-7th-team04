@@ -1,10 +1,14 @@
 import { Controller } from '@nestjs/common';
 import { GrpcMethod } from '@nestjs/microservices';
 import { BookingServiceService } from './booking-service.service';
+import { ReservationFacilityService } from './reservation-facility.service';
 
 @Controller()
 export class BookingServiceController {
-  constructor(private readonly bookingServiceService: BookingServiceService) {}
+  constructor(
+    private readonly bookingServiceService: BookingServiceService,
+    private readonly reservationFacilityService: ReservationFacilityService,
+  ) {}
 
   @GrpcMethod('BookingService', 'GetHello')
   getHello(): { message: string } {
@@ -60,5 +64,17 @@ export class BookingServiceController {
   @GrpcMethod('BookingService', 'ConfirmBooking')
   async confirmBooking(data: { reservationId: number }) {
     return this.bookingServiceService.confirmBooking(data.reservationId);
+  }
+
+  // 특정 예약에 연결된 편의시설 이용 내역 목록 조회
+  @GrpcMethod('BookingService', 'GetReservationFacilitiesByReservationId')
+  async getReservationFacilitiesByReservationId(data: {
+    reservationId: number;
+  }) {
+    const reservationFacilities =
+      await this.reservationFacilityService.getReservationFacilitiesByReservationId(
+        data.reservationId,
+      );
+    return { reservationFacilities };
   }
 }

@@ -229,6 +229,26 @@ export async function cancelBooking(reservationId: number): Promise<Booking> {
   return parseJsonResponse<Booking>(res)
 }
 
+// proto의 SendMessageResponse 메시지와 1:1 대응되는 응답 형태
+export interface ChatBotMessageResponse {
+  sessionId: string
+  reply: string
+  createdAt: string
+}
+
+// api-gateway(POST /api/chat-bots/messages) -> chat-bot-service(gRPC)로 챗봇 응답을 요청한다.
+// authorizedFetch를 쓰므로 로그인 상태면 Authorization 헤더가 자동으로 실려 대화가 세션에 이어지고,
+// 비로그인이면 토큰 없이 호출되어 이력을 남기지 않는 1회성 질문으로 처리된다(둘 다 이 함수 하나로 처리).
+// IP당 분당 10회로 rate limit이 걸려 있어 초과 시 429가 온다.
+export async function sendChatMessage(message: string): Promise<ChatBotMessageResponse> {
+  const res = await authorizedFetch('/api/chat-bots/messages', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ message }),
+  })
+  return parseJsonResponse<ChatBotMessageResponse>(res)
+}
+
 // 관리자 전용 재발급. adminRefreshToken 쿠키를 사용하며, 고객 세션(refreshToken)에는 영향을 주지 않는다.
 export async function refreshAdminAccessToken(): Promise<AuthResponse> {
   const res = await fetch(`${BASE_URL}/api/auth/admin/refresh`, {
