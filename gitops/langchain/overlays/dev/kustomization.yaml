@@ -9,6 +9,6 @@ resources:
 # 쓰므로 여기 없습니다 — ECR로 빌드/push하지 않습니다.
 images:
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-ollama
-    newTag: 98596e953bc68bf9a90a28ab9340fbaa17a6d6dc
+    newTag: fb76eeb8b848cbbf9c09af51a673cce33a67930f
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-llm-service
-    newTag: 98596e953bc68bf9a90a28ab9340fbaa17a6d6dc
+    newTag: fb76eeb8b848cbbf9c09af51a673cce33a67930f

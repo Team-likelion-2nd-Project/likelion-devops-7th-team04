@@ -7,21 +7,22 @@ resources:
 # ${GITHUB_SHA}로 갱신합니다 (kustomize edit set image 사용).
 images:
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-api-gateway
-    newTag: 98596e953bc68bf9a90a28ab9340fbaa17a6d6dc
+    newTag: fb76eeb8b848cbbf9c09af51a673cce33a67930f
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-auth-service
-    newTag: 98596e953bc68bf9a90a28ab9340fbaa17a6d6dc
+    newTag: fb76eeb8b848cbbf9c09af51a673cce33a67930f
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-booking-service
-    newTag: 98596e953bc68bf9a90a28ab9340fbaa17a6d6dc
+    newTag: fb76eeb8b848cbbf9c09af51a673cce33a67930f
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-chat-bot-service
-    newTag: 98596e953bc68bf9a90a28ab9340fbaa17a6d6dc
+    newTag: fb76eeb8b848cbbf9c09af51a673cce33a67930f
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-hotel-service
-    newTag: 98596e953bc68bf9a90a28ab9340fbaa17a6d6dc
+    newTag: fb76eeb8b848cbbf9c09af51a673cce33a67930f
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-payment-service
-    newTag: 98596e953bc68bf9a90a28ab9340fbaa17a6d6dc
-  # pg-mock-service는 아직 한 번도 push된 적이 없어 실제 태그가 없습니다. 첫
-  # workflow_dispatch 실행 전까지는 ArgoCD에서 ImagePullBackOff가 정상이며, 첫 실행이
+    newTag: fb76eeb8b848cbbf9c09af51a673cce33a67930f
   # 끝나면 update-gitops-manifest 잡이 이 값을 실제 커밋 SHA로 자동 갱신합니다.
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-pg-mock-service
-    newTag: pending-first-build
+    # pg-mock-service는 아직 한 번도 push된 적이 없어 실제 태그가 없습니다. 첫
+
+    # workflow_dispatch 실행 전까지는 ArgoCD에서 ImagePullBackOff가 정상이며, 첫 실행이
+    newTag: fb76eeb8b848cbbf9c09af51a673cce33a67930f
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-user-service
-    newTag: 98596e953bc68bf9a90a28ab9340fbaa17a6d6dc
+    newTag: fb76eeb8b848cbbf9c09af51a673cce33a67930f
