@@ -18,6 +18,7 @@ resources:
 patches:
   - path: serviceaccount-chatbot-patch.yaml
   - path: deployment-dynamodb-tables-patch.yaml
+  - path: ingress-access-logs-patch.yaml
   - path: api-gateway-resources-patch.yaml
   - path: auth-service-resources-patch.yaml
   - path: booking-service-resources-patch.yaml

@@ -8,29 +8,48 @@
 # REDIS_PASSWORD/REDIS_TLS/JWT_ACCESS_SECRET/JWT_REFRESH_SECRET/MOCK_PG_SECRET)는 git에
 # 커밋되지 않는 backend/.env.k8s 파일에서 읽어 kubectl create secret 커맨드를 만듭니다.
 #
-# ⚠️ 이 세션에서 실행/검증하지 않았습니다 — EC2/ElastiCache가 아직 apply되지 않아
-#    terraform state에 해당 리소스가 없습니다. `bash -n`으로 문법만 확인했습니다.
+# DEV-201: 원래 TF_DIR이 environments/dev로 고정돼 있어서, kubeconfig를 prod로 바꿔서
+# 실행해도 DB_HOST/REDIS_HOST는 dev VPC의 값이 그대로 들어갔다 — prod는 별도 VPC라
+# auth/hotel/user/booking/payment-service가 전부 ETIMEDOUT으로 crash-loop함(실제로
+# 겪음). 첫 번째 인자로 환경(dev/prod)을 받게 바꾸고, kubeconfig의 현재 컨텍스트가 그
+# 환경의 클러스터가 맞는지 확인하는 가드를 추가했다 — 이 사고의 재발 방지용.
 #
 # 사용법:
 #   1. backend/.env.k8s.example을 backend/.env.k8s로 복사하고 실제 값을 채웁니다
 #      (DB_HOST/REDIS_HOST는 자동으로 채워지므로 비워둬도 됩니다)
 #   2. terraform apply로 EC2/ElastiCache를 만든 뒤 이 스크립트를 실행합니다
-#   3. kubeconfig가 team04-hotel-dev-eks를 가리키는 상태여야 합니다
-#      (aws eks update-kubeconfig --name team04-hotel-dev-eks --region us-east-1)
+#   3. kubeconfig가 대상 환경의 클러스터를 가리키는 상태여야 합니다
+#      (aws eks update-kubeconfig --name team04-hotel-<env>-eks --region us-east-1)
 #
-#   ./gitops/scripts/sync-backend-secrets.sh            # kubectl apply까지 실행
-#   ./gitops/scripts/sync-backend-secrets.sh --dry-run   # 생성될 Secret YAML만 출력
+#   ./gitops/scripts/sync-backend-secrets.sh dev             # kubectl apply까지 실행
+#   ./gitops/scripts/sync-backend-secrets.sh prod --dry-run  # 생성될 Secret YAML만 출력
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-TF_DIR="${REPO_ROOT}/infra/terraform/environments/dev"
 ENV_K8S_FILE="${REPO_ROOT}/backend/.env.k8s"
 
+ENVIRONMENT="${1:-dev}"
+if [[ "${ENVIRONMENT}" != "dev" && "${ENVIRONMENT}" != "prod" ]]; then
+  echo "사용법: $0 <dev|prod> [--dry-run]" >&2
+  exit 1
+fi
+TF_DIR="${REPO_ROOT}/infra/terraform/environments/${ENVIRONMENT}"
+
 DRY_RUN=false
-if [[ "${1:-}" == "--dry-run" ]]; then
+if [[ "${2:-}" == "--dry-run" ]]; then
   DRY_RUN=true
+fi
+
+CURRENT_CONTEXT="$(kubectl config current-context)"
+EXPECTED_CLUSTER="team04-hotel-${ENVIRONMENT}-eks"
+if [[ "${CURRENT_CONTEXT}" != *"${EXPECTED_CLUSTER}"* ]]; then
+  echo "경고: 현재 kubectl context('${CURRENT_CONTEXT}')가 ${ENVIRONMENT} 클러스터" \
+       "(${EXPECTED_CLUSTER})를 가리키고 있지 않은 것 같습니다." >&2
+  echo "다른 환경의 Secret을 덮어쓸 위험이 있어 중단합니다. aws eks update-kubeconfig" \
+       "--name ${EXPECTED_CLUSTER} --region us-east-1 로 context를 맞춘 뒤 다시 실행하세요." >&2
+  exit 1
 fi
 
 if [[ ! -f "${ENV_K8S_FILE}" ]]; then
