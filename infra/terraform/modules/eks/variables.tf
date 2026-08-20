@@ -94,3 +94,34 @@ variable "cloudwatch_observability_role_arn" {
   description = "IRSA role ARN for the amazon-cloudwatch-observability addon (Container Insights)"
   type        = string
 }
+
+# DEV-196: api-gateway/n8n용 전용 EC2 CPU 노드그룹 — aws_eks_node_group.api_cpu 참고.
+variable "api_cpu_instance_types" {
+  description = "EC2 instance types for the api-gateway/n8n dedicated CPU node group"
+  type        = list(string)
+  default     = ["t3.medium"]
+}
+
+variable "api_cpu_desired_size" {
+  description = "Desired number of api-cpu worker nodes. Unlike gpu_desired_size(=0, cost-saving default), this must stay up — api-gateway is on the live request path."
+  type        = number
+  default     = 2
+}
+
+# DEV-196: Cluster Autoscaler 도입 후 min_size=2로 올려 상시 최소 이중화를 보장한다
+# (Cluster Autoscaler는 min_size 밑으로는 절대 안 줄임) — api-gateway HPA
+# (gitops/backend/base/api-gateway/hpa.yaml)가 minReplicas=2라 이 노드그룹이 1대뿐이면
+# 그 노드 하나가 죽었을 때 api-gateway/n8n이 동시에 전부 다운되는 단일 장애점이 된다.
+variable "api_cpu_min_size" {
+  description = "Minimum number of api-cpu worker nodes"
+  type        = number
+  default     = 2
+}
+
+# DEV-196: HPA가 api-gateway를 최대 10 replica까지 늘릴 수 있어 여유를 넉넉히 잡음 —
+# Cluster Autoscaler가 필요할 때만 늘리므로 상한을 높게 잡아도 평소 비용엔 영향 없다.
+variable "api_cpu_max_size" {
+  description = "Maximum number of api-cpu worker nodes"
+  type        = number
+  default     = 4
+}
