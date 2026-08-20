@@ -4,6 +4,7 @@ on:
   pull_request:
     branches:
       - develop
+      - main
     paths:
       - "backend/**"
       - "langchain_rag/ollama/**"
@@ -12,6 +13,7 @@ on:
   push:
     branches:
       - develop
+      - main
     paths:
       - "backend/**"
       - "langchain_rag/ollama/**"
@@ -131,6 +133,61 @@ jobs:
           echo "${{ matrix.service }}"
           echo "${{ steps.login-ecr.outputs.registry }}/${REPOSITORY}:${IMAGE_TAG}"
 
+  # main 브랜치 전용 prod 배포. deploy와 스텝 구성은 완전히 동일하고, job-level env로
+  # ENVIRONMENT만 dev → prod로 덮어써서 team04-prod-* ECR에 push한다(job-level env는
+  # workflow-level env를 그 job의 스텝에서만 override함).
+  deploy-prod:
+    name: Build and Push Backend Images (prod)
+    needs: build-and-test
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, backend-cd]
+    env:
+      ENVIRONMENT: prod
+
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - api-gateway
+          - auth-service
+          - booking-service
+          - chat-bot-service
+          - hotel-service
+          - payment-service
+          - pg-mock-service
+          - user-service
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image variables
+        shell: bash
+        run: |
+          echo "REPOSITORY=${PROJECT_NAME}-${ENVIRONMENT}-${{ matrix.service }}" >> "$GITHUB_ENV"
+          echo "IMAGE_TAG=${GITHUB_SHA}" >> "$GITHUB_ENV"
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -f backend/apps/${{ matrix.service }}/Dockerfile \
+            -t ${{ steps.login-ecr.outputs.registry }}/${REPOSITORY}:${IMAGE_TAG} \
+            backend
+
+      - name: Push Docker image to ECR
+        run: |
+          docker push \
+            ${{ steps.login-ecr.outputs.registry }}/${REPOSITORY}:${IMAGE_TAG}
+
+      - name: Print pushed image
+        run: |
+          echo "${{ matrix.service }}"
+          echo "${{ steps.login-ecr.outputs.registry }}/${REPOSITORY}:${IMAGE_TAG}"
+
   # langchain_rag/ollama, langchain_rag/llm-service 이미지 push. backend의 7개 서비스와
   # Dockerfile 경로/빌드 컨텍스트 규칙이 달라(backend/apps/<svc>/Dockerfile 고정 컨텍스트
   # backend 대신 langchain_rag/<svc>/Dockerfile + 자기 자신 디렉터리가 컨텍스트) 같은
@@ -192,6 +249,57 @@ jobs:
           echo "${{ matrix.service }}"
           echo "${{ steps.login-ecr.outputs.registry }}/${REPOSITORY}:${IMAGE_TAG}"
 
+  # deploy-langchain과 동일, ENVIRONMENT만 job-level env로 prod로 덮어씀.
+  deploy-langchain-prod:
+    name: Build and Push langchain Pipeline Images (prod)
+    needs: build-and-test
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, backend-cd]
+    env:
+      ENVIRONMENT: prod
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: ollama
+            dockerfile: langchain_rag/ollama/Dockerfile
+            context: langchain_rag/ollama
+          - service: llm-service
+            dockerfile: langchain_rag/llm-service/Dockerfile
+            context: langchain_rag/llm-service
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Set image variables
+        shell: bash
+        run: |
+          echo "REPOSITORY=${PROJECT_NAME}-${ENVIRONMENT}-${{ matrix.service }}" >> "$GITHUB_ENV"
+          echo "IMAGE_TAG=${GITHUB_SHA}" >> "$GITHUB_ENV"
+
+      - name: Build Docker image
+        run: |
+          docker build \
+            -f ${{ matrix.dockerfile }} \
+            -t ${{ steps.login-ecr.outputs.registry }}/${REPOSITORY}:${IMAGE_TAG} \
+            ${{ matrix.context }}
+
+      - name: Push Docker image to ECR
+        run: |
+          docker push \
+            ${{ steps.login-ecr.outputs.registry }}/${REPOSITORY}:${IMAGE_TAG}
+
+      - name: Print pushed image
+        run: |
+          echo "${{ matrix.service }}"
+          echo "${{ steps.login-ecr.outputs.registry }}/${REPOSITORY}:${IMAGE_TAG}"
+
   # DEV-181: n8n은 자체 Dockerfile 없이 퍼블릭 n8nio/n8n 이미지를 그대로 쓰는데, Fargate
   # pod는 매번 새 micro-VM이라 이미지 캐시가 없고 원래 태그가 latest라 pull policy가
   # Always라서 매번 Docker Hub에서 새로 받아와 pod 기동이 느리고 rate limit 대상이 됨.
@@ -204,6 +312,37 @@ jobs:
     needs: build-and-test
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/develop'
     runs-on: [self-hosted, backend-cd]
+
+    steps:
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Pull public n8n image
+        run: docker pull n8nio/n8n:${N8N_VERSION}
+
+      - name: Tag and push to ECR
+        run: |
+          REPOSITORY="${PROJECT_NAME}-${ENVIRONMENT}-n8n"
+          docker tag n8nio/n8n:${N8N_VERSION} \
+            ${{ steps.login-ecr.outputs.registry }}/${REPOSITORY}:${N8N_VERSION}
+          docker push \
+            ${{ steps.login-ecr.outputs.registry }}/${REPOSITORY}:${N8N_VERSION}
+
+      - name: Print pushed image
+        run: |
+          echo "n8n"
+          echo "${{ steps.login-ecr.outputs.registry }}/${PROJECT_NAME}-${ENVIRONMENT}-n8n:${N8N_VERSION}"
+
+  # mirror-n8n과 동일, ENVIRONMENT만 job-level env로 prod로 덮어씀. N8N_VERSION은 dev/prod가
+  # 같은 고정 버전을 미러링한다(워크플로 최상단 env에서 한 곳으로 관리).
+  mirror-n8n-prod:
+    name: Mirror n8n Image to ECR (prod)
+    needs: build-and-test
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: [self-hosted, backend-cd]
+    env:
+      ENVIRONMENT: prod
 
     steps:
       - name: Login to Amazon ECR
@@ -299,6 +438,76 @@ jobs:
             echo "gh pr create --base develop --head ${BRANCH} \\"
             echo "  --title \"chore(gitops): backend image tag -> ${GITHUB_SHA}\" \\"
             echo "  --body \"8개 backend ECR 이미지(gitops/backend/overlays/dev/kustomization.yaml)와 ollama/llm-service 이미지(GITHUB_SHA)/n8n 이미지(N8N_VERSION=${N8N_VERSION}, gitops/langchain/overlays/dev/kustomization.yaml)의 GitOps manifest tag를 갱신합니다. merge하면 ArgoCD가 감지해 EKS에 반영합니다.\""
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "PR 생성 링크: ${COMPARE_URL}"
+
+  # update-gitops-manifest와 동일한 목적, prod overlay 대상. dev와 달리 kustomization.yaml의
+  # images 항목에 name(=base의 dev 이미지 이름, 매칭용)과 newName(=실제 prod ECR)이 둘 다
+  # 있어서, yq 필터는 name이 아니라 newName으로 걸어야 한다(gitops/backend/overlays/prod/
+  # kustomization.yaml 참고) — name으로 걸면 dev 항목이 잘못 걸린다.
+  update-gitops-manifest-prod:
+    name: Update GitOps Manifest (PR, prod)
+    needs: [deploy-prod, deploy-langchain-prod, mirror-n8n-prod]
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Update image tags in prod overlay
+        working-directory: gitops/backend/overlays/prod
+        run: |
+          REGISTRY="834922934330.dkr.ecr.us-east-1.amazonaws.com"
+          for repo in api-gateway auth-service booking-service chat-bot-service hotel-service payment-service pg-mock-service user-service; do
+            yq -i "(.images[] | select(.newName == \"${REGISTRY}/team04-prod-${repo}\")).newTag = \"${GITHUB_SHA}\"" kustomization.yaml
+          done
+          cat kustomization.yaml
+
+      - name: Update image tags in langchain prod overlay
+        working-directory: gitops/langchain/overlays/prod
+        run: |
+          REGISTRY="834922934330.dkr.ecr.us-east-1.amazonaws.com"
+          for repo in ollama llm-service; do
+            yq -i "(.images[] | select(.newName == \"${REGISTRY}/team04-prod-${repo}\")).newTag = \"${GITHUB_SHA}\"" kustomization.yaml
+          done
+          yq -i "(.images[] | select(.newName == \"${REGISTRY}/team04-prod-n8n\")).newTag = \"${N8N_VERSION}\"" kustomization.yaml
+          cat kustomization.yaml
+
+      - name: Create branch and commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          BRANCH="gitops-update-prod-${GITHUB_SHA}"
+          git checkout -b "$BRANCH"
+          git add gitops/backend/overlays/prod/kustomization.yaml gitops/langchain/overlays/prod/kustomization.yaml
+          git commit -m "chore(gitops): update prod backend/langchain image tags to ${GITHUB_SHA}"
+          git push origin "$BRANCH"
+
+      - name: Print PR instructions
+        run: |
+          BRANCH="gitops-update-prod-${GITHUB_SHA}"
+          COMPARE_URL="https://github.com/${{ github.repository }}/compare/main...${BRANCH}?quick_pull=1&title=chore(gitops)%3A+prod+backend+image+tag+-%3E+${GITHUB_SHA}"
+
+          {
+            echo "## GitOps Manifest 업데이트 완료(prod) — PR 생성이 필요합니다"
+            echo ""
+            echo "조직 정책상 GitHub Actions가 PR을 직접 생성할 수 없습니다. 아래 브랜치에 이미지 태그가"
+            echo "\`${GITHUB_SHA}\`로 갱신되어 push되었으니, 링크를 클릭하거나 CLI로 직접 PR을 만들어주세요."
+            echo ""
+            echo "- 브랜치: \`${BRANCH}\`"
+            echo "- PR 생성 링크: ${COMPARE_URL}"
+            echo ""
+            echo '```bash'
+            echo "gh pr create --base main --head ${BRANCH} \\"
+            echo "  --title \"chore(gitops): prod backend image tag -> ${GITHUB_SHA}\" \\"
+            echo "  --body \"prod ECR 이미지(gitops/backend/overlays/prod, gitops/langchain/overlays/prod)의 GitOps manifest tag를 갱신합니다. merge하면 prod ArgoCD가 감지해 반영합니다.\""
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
 
