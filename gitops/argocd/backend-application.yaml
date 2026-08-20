@@ -16,6 +16,18 @@ spec:
     server: https://kubernetes.default.svc
     # ArgoCD가 배포 대상과 동일한 클러스터(EKS team04-hotel-dev-eks)에 설치되어 있으므로
     # in-cluster 대상이며, 별도 Terraform 클러스터 등록이 필요 없습니다.
+  # HPA가 관리하는 Deployment들의 replicas 값을 selfHeal 비교 대상에서 제외한다.
+  # 이게 없으면 Git엔 replicas: 1로 고정돼 있어서, HPA가 부하에 맞춰 늘려놓은 값을
+  # ArgoCD가 매 동기화 주기(기본 3분)마다 도로 1로 되돌려버린다 — 실제로 부하테스트
+  # 중 7개 서비스 replicas가 동시에 1로 리셋되는 걸 kubectl 이벤트로 확인함(HPA가
+  # 즉시 minReplicas로 재조정하긴 하지만, 그 사이 매번 스케일이 끊기고 다시 올라가는
+  # 톱니바퀴 패턴이 반복됨). name을 지정 안 해서 이 네임스페이스의 모든 Deployment에
+  # 적용된다 — api-gateway 포함 8개 서비스 전부 해당.
+  ignoreDifferences:
+    - group: apps
+      kind: Deployment
+      jsonPointers:
+        - /spec/replicas
   syncPolicy:
     automated:
       selfHeal: true

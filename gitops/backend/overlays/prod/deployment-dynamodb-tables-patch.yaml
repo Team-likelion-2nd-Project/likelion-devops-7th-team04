@@ -1,0 +1,22 @@
+# DEV-201: base의 DYNAMODB_CHAT_SESSIONS_TABLE/DYNAMODB_CHAT_MESSAGES_TABLE은
+# dev 테이블명("ChatSessions"/"ChatMessages")이 그대로 박혀 있다. prod는
+# infra/terraform/environments/prod/main.tf의 module.dynamodb에서 별도 이름
+# (team04-hotel-prod-ChatSessions/team04-hotel-prod-ChatMessages)으로 실제
+# 테이블을 만들므로, 여기서도 반드시 같은 값으로 맞춰야 한다 — 안 그러면 prod
+# chat-bot-service가 dev 테이블을 찾아 ResourceNotFoundException을 낸다(테이블
+# 자체는 dev 계정과 동일하게 존재하지만 IRSA 권한이 prod 전용 테이블에만 나 있음).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chat-bot-service
+  namespace: backend
+spec:
+  template:
+    spec:
+      containers:
+        - name: chat-bot-service
+          env:
+            - name: DYNAMODB_CHAT_SESSIONS_TABLE
+              value: "team04-hotel-prod-ChatSessions"
+            - name: DYNAMODB_CHAT_MESSAGES_TABLE
+              value: "team04-hotel-prod-ChatMessages"

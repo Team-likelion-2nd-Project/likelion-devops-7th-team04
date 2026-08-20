@@ -23,11 +23,22 @@ spec:
       # 않아 IRSA로 전환됨, gitops/backend/base/serviceaccount-chatbot.yaml의
       # eks.amazonaws.com/role-arn 어노테이션 참고). 이름을 바꾸면 권한 연결이 끊깁니다.
       serviceAccountName: chatbot-service
+      # graceful shutdown: auth-service/deployment.yaml과 동일한 이유.
+      terminationGracePeriodSeconds: 30
       containers:
         - name: chat-bot-service
           image: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-chat-bot-service:dev
           ports:
             - containerPort: 3005
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 5"]
+          readinessProbe:
+            tcpSocket:
+              port: 3005
+            initialDelaySeconds: 5
+            periodSeconds: 5
           env:
             - name: NODE_ENV
               value: "production"

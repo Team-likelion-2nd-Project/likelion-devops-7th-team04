@@ -2,20 +2,18 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../../base
+
 # base 매니페스트의 image는 team04-dev-*로 박혀 있다. kustomize images 치환은 name이
-
 # base의 이미지 이름과 정확히 일치해야 매칭되므로, name엔 base 그대로의 dev 이름을
-
 # 적고 newName으로 prod ECR 리포지토리(team04-prod-*)로 바꾼다. newTag는 Step 7(prod
-
 # CI/CD)이 붙기 전까지 REPLACE_ME이며, 그 전엔 ArgoCD에서 ImagePullBackOff가 정상이다.
 images:
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-ollama
     newName: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-prod-ollama
-    newTag: c0d0e9d2538565f6f1a34d3eeaa8f5997f4fe680
+    newTag: REPLACE_ME
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-llm-service
     newName: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-prod-llm-service
-    newTag: c0d0e9d2538565f6f1a34d3eeaa8f5997f4fe680
+    newTag: REPLACE_ME
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-n8n
     newName: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-prod-n8n
     newTag: "2.35.3"
