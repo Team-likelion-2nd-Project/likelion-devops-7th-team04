@@ -2,18 +2,28 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../../base
-
 # dev(overlays/dev)와 동일한 base를 그대로 재사용한다 — replica/resource 값은 이번엔
+
 # dev 그대로 두기로 했으므로 여기서 별도 patch를 얹지 않는다. 단, chatbot-service의
+
 # IRSA role-arn만은 IAM Role 이름 자체가 dev/prod로 갈리기 때문에 patch가 필요하다
+
 # (serviceaccount-chatbot-patch.yaml, environments/prod/main.tf에서 iam 모듈
+
 # project_name을 "team04-hotel-prod"로 분리한 것과 짝을 이룬다).
+
 # DEV-201: DynamoDB 테이블명도 마찬가지로 dev/prod가 물리적으로 분리돼야 해서
+
 # (deployment-dynamodb-tables-patch.yaml, environments/prod/main.tf의
+
 # module.dynamodb 참고) patch를 추가한다.
+
 #
+
 # 스펙업(HPA 붙은 7개 서비스 CPU/메모리 requests·limits 상향) — dev HPA
+
 # 부하테스트에서 CPU 100%+로 응답이 느려진 것 대응. api_cpu 노드그룹을 t3.large로
+
 # 올린 것(environments/prod/main.tf)과 세트. pg-mock-service는 HPA가 없어 제외.
 patches:
   - path: serviceaccount-chatbot-patch.yaml
@@ -26,36 +36,41 @@ patches:
   - path: hotel-service-resources-patch.yaml
   - path: payment-service-resources-patch.yaml
   - path: user-service-resources-patch.yaml
-
 # base 매니페스트의 image는 team04-dev-*로 박혀 있다(dev가 기본값처럼 쓰인 base).
+
 # kustomize images 치환은 name이 base의 이미지 이름과 정확히 일치해야 매칭되므로,
+
 # name엔 base 그대로의 dev 이름을 적고 newName으로 prod ECR 리포지토리
+
 # (team04-prod-*, environments/prod/main.tf의 module.ecr)로 바꾼다.
+
 # newTag는 아직 prod용 CI/CD(Step 7)가 없어 실제로 push된 이미지가 없다 — Step 7이
+
 # 붙기 전까지는 ArgoCD에서 ImagePullBackOff가 정상이다(overlays/dev의 pg-mock-service가
+
 # 처음 겪었던 것과 동일한 상황).
 images:
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-api-gateway
     newName: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-prod-api-gateway
-    newTag: REPLACE_ME
+    newTag: 0bbf132c843e4905d4c2d17dd71918bc7dc26ef8
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-auth-service
     newName: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-prod-auth-service
-    newTag: REPLACE_ME
+    newTag: 0bbf132c843e4905d4c2d17dd71918bc7dc26ef8
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-booking-service
     newName: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-prod-booking-service
-    newTag: REPLACE_ME
+    newTag: 0bbf132c843e4905d4c2d17dd71918bc7dc26ef8
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-chat-bot-service
     newName: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-prod-chat-bot-service
-    newTag: REPLACE_ME
+    newTag: 0bbf132c843e4905d4c2d17dd71918bc7dc26ef8
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-hotel-service
     newName: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-prod-hotel-service
-    newTag: REPLACE_ME
+    newTag: 0bbf132c843e4905d4c2d17dd71918bc7dc26ef8
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-payment-service
     newName: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-prod-payment-service
-    newTag: REPLACE_ME
+    newTag: 0bbf132c843e4905d4c2d17dd71918bc7dc26ef8
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-pg-mock-service
     newName: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-prod-pg-mock-service
-    newTag: REPLACE_ME
+    newTag: 0bbf132c843e4905d4c2d17dd71918bc7dc26ef8
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-user-service
     newName: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-prod-user-service
-    newTag: REPLACE_ME
+    newTag: 0bbf132c843e4905d4c2d17dd71918bc7dc26ef8
