@@ -1,0 +1,19 @@
+# base/api-gateway/deployment.yaml의 CORS_ORIGIN은 dev 기본값(www.team04hotel.kro.kr,
+# 하이픈 없음)이 박혀 있고 prod overlay에는 지금까지 이를 덮어쓰는 patch가 없었다 — 그
+# 결과 prod api-gateway가 실제 prod 프론트 도메인(www.team04-hotel.kro.kr, 하이픈 있음,
+# infra/terraform/environments/prod/terraform.tfvars의 domain_name과 동일)과 다른
+# Origin을 허용해 브라우저 CORS가 막히는 문제가 있었다. dev overlay의
+# api-gateway-cors-patch.yaml과 동일한 패턴으로 prod 값을 명시적으로 덮어쓴다.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: backend
+spec:
+  template:
+    spec:
+      containers:
+        - name: api-gateway
+          env:
+            - name: CORS_ORIGIN
+              value: "https://www.team04-hotel.kro.kr"
