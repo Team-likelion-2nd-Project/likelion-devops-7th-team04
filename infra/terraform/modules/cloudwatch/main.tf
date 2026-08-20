@@ -36,6 +36,12 @@ resource "aws_cloudwatch_metric_alarm" "ec2_cpu_high" {
 # 범위(ClusterName/Namespace) 안에서 동적으로 찾는다.
 # ⚠️ 정확한 metric/차원 조합은 addon이 실제 데이터를 수집해야 CloudWatch 메트릭
 # 탐색기에서 확인 가능 — 적용 후 위젯에 데이터가 채워지는지 반드시 검증할 것.
+# 실제로 아래 2개가 이 문제로 깨져 있었던 걸 실제 데이터로 검증해서 확인 후 수정함(2026-08-20):
+# - Running Pod Count: metric 이름이 `pod_number_of_running_pods`였으나 이 클러스터엔 존재하지
+#   않는 이름 — 실제로는 `service_number_of_running_pods`.
+# - Node CPU/Memory: SEARCH() 스키마가 `{ClusterName,NodeName}` 2개뿐이었으나, 실제
+#   node_cpu_utilization/node_memory_utilization은 `InstanceId`까지 3개가 있어야 매칭됨(CloudWatch
+#   SEARCH의 `{...}` 스키마는 정확히 그 dimension 집합만 매칭 — 부분집합/초과집합은 매칭 안 됨).
 
 data "aws_region" "current" {}
 
@@ -57,7 +63,7 @@ resource "aws_cloudwatch_dashboard" "eks_hpa" {
           period = 300
           stat   = "Average"
           metrics = [
-            ["ContainerInsights", "pod_number_of_running_pods", "ClusterName", var.cluster_name, "Namespace", "backend", "Service", "api-gateway"]
+            ["ContainerInsights", "service_number_of_running_pods", "ClusterName", var.cluster_name, "Namespace", "backend", "Service", "api-gateway"]
           ]
         }
       },
@@ -126,7 +132,7 @@ resource "aws_cloudwatch_dashboard" "eks_hpa" {
           period = 300
           stat   = "Average"
           metrics = [
-            [{ expression = "SEARCH('{ContainerInsights,ClusterName,NodeName} MetricName=\"node_cpu_utilization\" ClusterName=\"${var.cluster_name}\"', 'Average', 300)", label = "", id = "ncpu1" }]
+            [{ expression = "SEARCH('{ContainerInsights,ClusterName,InstanceId,NodeName} MetricName=\"node_cpu_utilization\" ClusterName=\"${var.cluster_name}\"', 'Average', 300)", label = "", id = "ncpu1" }]
           ]
         }
       },
@@ -143,7 +149,7 @@ resource "aws_cloudwatch_dashboard" "eks_hpa" {
           period = 300
           stat   = "Average"
           metrics = [
-            [{ expression = "SEARCH('{ContainerInsights,ClusterName,NodeName} MetricName=\"node_memory_utilization\" ClusterName=\"${var.cluster_name}\"', 'Average', 300)", label = "", id = "nmem1" }]
+            [{ expression = "SEARCH('{ContainerInsights,ClusterName,InstanceId,NodeName} MetricName=\"node_memory_utilization\" ClusterName=\"${var.cluster_name}\"', 'Average', 300)", label = "", id = "nmem1" }]
           ]
         }
       }
