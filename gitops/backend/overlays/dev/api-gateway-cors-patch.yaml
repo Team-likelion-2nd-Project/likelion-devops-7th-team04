@@ -1,0 +1,17 @@
+# base/api-gateway/deployment.yaml의 CORS_ORIGIN은 prod 도메인(www.team04hotel.kro.kr)이
+# 기본값으로 박혀 있다(base가 사실상 dev 기본값 + prod가 그대로 계승하는 구조).
+# dev 프론트가 dev.team04hotel.kro.kr로 옮겨가면서(Step 1) dev api-gateway의 CORS 허용
+# origin도 같이 바뀌어야 한다 — 안 그러면 dev 프론트에서 dev API 호출이 CORS 에러로 막힌다.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: backend
+spec:
+  template:
+    spec:
+      containers:
+        - name: api-gateway
+          env:
+            - name: CORS_ORIGIN
+              value: "https://dev.team04hotel.kro.kr"

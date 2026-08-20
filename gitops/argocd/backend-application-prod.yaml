@@ -1,0 +1,30 @@
+# backend-application.yaml(dev)과 대칭되는 prod용 Application입니다. prod ArgoCD는
+# dev ArgoCD와 완전히 별개 인스턴스로 prod EKS 클러스터 안에 자체적으로 설치되어
+# 자기 클러스터만 관리합니다(environments/prod/addons/argocd.tf) — 그래서
+# destination.server가 dev와 똑같이 in-cluster(https://kubernetes.default.svc)를
+# 가리켜도 실제로는 서로 다른 클러스터를 가리키는 게 됩니다.
+#
+# 최초 1회 prod EKS 클러스터에 등록해야 하는 Application입니다:
+#   kubectl --context <prod-eks-context> apply -f gitops/argocd/backend-application-prod.yaml
+# 이 파일 자체를 kubectl apply하는 건 클러스터 조작이라 이번 세션에서 실행하지
+# 않았습니다.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: backend
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Team-likelion-2nd-Project/likelion-devops-7th-team04.git
+    # Step 7(CI/CD)에서 정한 대로 prod는 main 브랜치를 배포 대상으로 삼는다.
+    targetRevision: main
+    path: gitops/backend/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=false

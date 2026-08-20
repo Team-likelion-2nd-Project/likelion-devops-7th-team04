@@ -4,6 +4,12 @@ team_member_arns = [
   "arn:aws:iam::<ACCOUNT_ID>:user/<username>"
 ]
 
+# CloudFront alias 도메인 / ACM 인증서 도메인. dev/prod가 서로 다른 서브도메인을 쓰므로
+# 환경별로 여기서만 값이 갈린다 — main.tf엔 값이 전혀 없다. 실제 DNS(kro.kr) CNAME 등록은
+# Terraform 밖에서 별도로 해야 한다.
+domain_name = "dev.team04hotel.kro.kr"
+certificate_domain = "*.team04hotel.kro.kr"
+
 # DEV-102: backend/.env.example의 SEED_ADMIN_*와 동일한 역할 — mariadb user_data가
 # backend/scripts/seed.ts를 실행할 때 그대로 넘겨받는다.
 seed_admin_email    = "admin@example.com"

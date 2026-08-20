@@ -1,0 +1,29 @@
+# langchain-application.yaml(dev)과 대칭되는 prod용 Application입니다. backend와 별도
+# Application으로 분리한 이유는 dev와 동일 — 이 네임스페이스(langchain)의 ollama는
+# GPU node group(prod도 기본 desired_size=0, 비용 발생)을 쓰므로 backend 배포와
+# 독립적으로 sync/pause할 수 있어야 하기 때문입니다.
+#
+# prod ArgoCD는 dev ArgoCD와 완전히 별개 인스턴스로 prod EKS 클러스터 안에 자체적으로
+# 설치되어 자기 클러스터만 관리합니다(environments/prod/addons/argocd.tf).
+#
+# 최초 1회 prod EKS 클러스터에 등록해야 하는 Application입니다:
+#   kubectl --context <prod-eks-context> apply -f gitops/argocd/langchain-application-prod.yaml
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: langchain
+  namespace: argocd
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/Team-likelion-2nd-Project/likelion-devops-7th-team04.git
+    targetRevision: main
+    path: gitops/langchain/overlays/prod
+  destination:
+    server: https://kubernetes.default.svc
+  syncPolicy:
+    automated:
+      selfHeal: true
+      prune: true
+    syncOptions:
+      - CreateNamespace=false
