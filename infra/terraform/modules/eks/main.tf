@@ -39,15 +39,19 @@ resource "aws_eks_cluster" "main" {
 # CPU Fargate Profile
 # =========================
 # EC2 관리형 노드 그룹 대신 Fargate로 전환 (pod 수 증가로 인한 노드 수용량 한계 대응).
-# kube-system/argocd/backend 네임스페이스의 pod가 전부 여기서 스케줄됩니다.
-# chat-bot-service도 backend 네임스페이스로 통합되어 별도 selector가 필요 없습니다.
+# kube-system/argocd 네임스페이스의 pod는 전부 여기서 스케줄됩니다.
 #
-# langchain 네임스페이스(llm-service/n8n/ollama)는 label 기반 selector로 부분적으로만
-# 매칭합니다: `compute=fargate` 라벨이 붙은 pod(llm-service, n8n)만 여기서 Fargate로
-# 뜨고, 그 라벨이 없는 ollama pod는 이 selector에 걸리지 않아 일반 스케줄러를 거쳐
-# GPU node group(nodeSelector+taint toleration, 아래 aws_eks_node_group.gpu)으로 갑니다.
-# Fargate는 GPU를 지원하지 않으므로 네임스페이스 전체를 매칭하면 ollama가 스케줄 불가능한
-# 상태가 되어, 이렇게 같은 네임스페이스 안에서 label로 갈라야 합니다.
+# backend/langchain 네임스페이스는 둘 다 label 기반 selector로 부분적으로만 매칭합니다:
+# `compute=fargate` 라벨이 붙은 pod만 여기서 Fargate로 뜨고, 그 라벨이 없는 pod는 이
+# selector에 안 걸려 일반 스케줄러를 거쳐 다른 노드그룹으로 갑니다.
+# - backend: chat-bot-service를 포함한 7개 서비스는 이 라벨이 있어 Fargate로 뜨고,
+#   api-gateway는 DEV-196에서 이 라벨을 빼고 aws_eks_node_group.api_cpu로 이전했습니다
+#   (n8n 이미지 pull 속도/CloudWatch 지표 문제 — 그 노드그룹 리소스의 주석 참고).
+# - langchain: llm-service/n8n 중 n8n도 DEV-196에서 같은 이유로 이 라벨을 빼고
+#   aws_eks_node_group.api_cpu로 이전했습니다. llm-service는 그대로 Fargate. ollama는
+#   원래부터 이 라벨이 없어 GPU node group(nodeSelector+taint toleration, 아래
+#   aws_eks_node_group.gpu)으로 갑니다. Fargate는 GPU를 지원하지 않으므로 네임스페이스
+#   전체를 매칭하면 ollama가 스케줄 불가능한 상태가 되어, label로 갈라야 합니다.
 
 resource "aws_eks_fargate_profile" "cpu" {
   cluster_name           = aws_eks_cluster.main.name
@@ -62,7 +66,14 @@ resource "aws_eks_fargate_profile" "cpu" {
     namespace = "argocd"
   }
   selector {
+    # DEV-196: api-gateway를 aws_eks_node_group.api_cpu로 이전하며 backend selector도
+    # langchain과 같은 라벨 게이트 방식으로 전환 — 이 라벨이 없으면 Fargate로 안 간다.
+    # api-gateway를 제외한 나머지 7개 backend 서비스는 지금 배치를 유지하기 위해
+    # gitops에서 이 라벨을 새로 붙여야 한다.
     namespace = "backend"
+    labels = {
+      compute = "fargate"
+    }
   }
   selector {
     namespace = var.langchain_namespace
@@ -134,6 +145,66 @@ resource "aws_eks_node_group" "gpu" {
     Name        = "${var.project_name}-${var.environment}-gpu-nodes"
     Environment = var.environment
     Project     = var.project_name
+  }
+
+  depends_on = [
+    aws_eks_cluster.main,
+    aws_eks_addon.vpc_cni
+  ]
+}
+
+# =========================
+# API CPU Managed Node Group
+# =========================
+# DEV-196: api-gateway/n8n을 Fargate에서 이전 — (1) n8n 이미지(~365MB) pull이 Fargate의
+# pod마다 새 micro-VM이라는 구조(레이어 캐시 미공유) 때문에 매번 6~8분+ 걸리거나 실패함
+# (registry를 ECR로 미러링해도 재현 — Fargate 구조 자체의 문제로 실측 확인), (2)
+# api-gateway의 CPU%/메모리% CloudWatch 대시보드가 비어있는데, cloudwatch-agent
+# DaemonSet이 GPU 노드에서 불안정(3.5시간 11번 재시작 + 컨테이너 안에서만 DNS/STS 호출이
+# operation not permitted로 실패, 근본 원인 미해결)해서 그런 것으로 보여 이 GPU 노드
+# 특유의 문제를 우회하려는 목적. GPU만큼 특수하지 않지만(NVIDIA AMI 아님), 의도한 pod만
+# 오도록 GPU 노드그룹과 동일하게 taint를 둔다.
+
+resource "aws_eks_node_group" "api_cpu" {
+  cluster_name    = aws_eks_cluster.main.name
+  node_group_name = "${var.project_name}-${var.environment}-api-cpu-nodes"
+  node_role_arn   = var.node_role_arn
+  subnet_ids      = var.subnet_ids
+
+  ami_type       = "AL2023_x86_64_STANDARD"
+  instance_types = var.api_cpu_instance_types
+  capacity_type  = "ON_DEMAND"
+
+  scaling_config {
+    desired_size = var.api_cpu_desired_size
+    min_size     = var.api_cpu_min_size
+    max_size     = var.api_cpu_max_size
+  }
+
+  update_config {
+    max_unavailable = 1
+  }
+
+  labels = {
+    workload = "api-cpu"
+  }
+
+  taint {
+    key    = "dedicated"
+    value  = "api-cpu"
+    effect = "NO_SCHEDULE"
+  }
+
+  tags = {
+    Name        = "${var.project_name}-${var.environment}-api-cpu-nodes"
+    Environment = var.environment
+    Project     = var.project_name
+    # DEV-196: Cluster Autoscaler(infra/terraform/environments/dev/addons/
+    # cluster-autoscaler.tf)의 auto-discovery 대상 — 이 태그가 붙은 ASG만 관리한다.
+    # gpu 노드그룹은 의도적으로 이 태그를 안 붙여서 기존처럼 수동 스케일(gpu_desired_size)로
+    # 유지한다.
+    "k8s.io/cluster-autoscaler/enabled"                                    = "true"
+    "k8s.io/cluster-autoscaler/${var.project_name}-${var.environment}-eks" = "owned"
   }
 
   depends_on = [
