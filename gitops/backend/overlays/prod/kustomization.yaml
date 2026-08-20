@@ -8,8 +8,12 @@ resources:
 # IRSA role-arn만은 IAM Role 이름 자체가 dev/prod로 갈리기 때문에 patch가 필요하다
 # (serviceaccount-chatbot-patch.yaml, environments/prod/main.tf에서 iam 모듈
 # project_name을 "team04-hotel-prod"로 분리한 것과 짝을 이룬다).
+# DEV-201: DynamoDB 테이블명도 마찬가지로 dev/prod가 물리적으로 분리돼야 해서
+# (deployment-dynamodb-tables-patch.yaml, environments/prod/main.tf의
+# module.dynamodb 참고) patch를 추가한다.
 patches:
   - path: serviceaccount-chatbot-patch.yaml
+  - path: deployment-dynamodb-tables-patch.yaml
 
 # base 매니페스트의 image는 team04-dev-*로 박혀 있다(dev가 기본값처럼 쓰인 base).
 # kustomize images 치환은 name이 base의 이미지 이름과 정확히 일치해야 매칭되므로,

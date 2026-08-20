@@ -285,6 +285,16 @@ module "dynamodb" {
 
   project_name = "team04-hotel"
   environment  = "prod"
+
+  # DEV-201: 모듈 기본값(ChatSessions/ChatMessages)은 환경 구분 없이 고정된 이름이라
+  # dev가 먼저 만든 실제 테이블과 이름이 충돌해 prod apply가 ResourceInUseException으로
+  # 실패했다 — DynamoDB 테이블명은 계정+리전 단위로 유일해야 하는데 dev/prod가 같은
+  # 계정(us-east-1)을 쓰기 때문. prod 전용 이름으로 분리하고,
+  # gitops/backend/overlays/prod/deployment-dynamodb-tables-patch.yaml에서
+  # chat-bot-service의 DYNAMODB_CHAT_SESSIONS_TABLE/DYNAMODB_CHAT_MESSAGES_TABLE을
+  # 반드시 같은 값으로 맞춰야 한다.
+  chat_sessions_table_name = "team04-hotel-prod-ChatSessions"
+  chat_messages_table_name = "team04-hotel-prod-ChatMessages"
 }
 
 # =========================
@@ -327,6 +337,12 @@ module "iam" {
   eks_oidc_provider_url = module.eks.oidc_provider_url
 
   db_seed_bucket_arn = aws_s3_bucket.db_seed_artifacts.arn
+
+  # DEV-201: module.dynamodb 위쪽의 chat_sessions_table_name/chat_messages_table_name과
+  # 반드시 같은 값 — 어긋나면 chatbot_service IAM 정책의 Resource ARN이 실제 테이블을
+  # 가리키지 않아 AccessDeniedException이 난다.
+  chat_sessions_table_name = module.dynamodb.chat_sessions_table_name
+  chat_messages_table_name = module.dynamodb.chat_messages_table_name
 }
 
 # =========================

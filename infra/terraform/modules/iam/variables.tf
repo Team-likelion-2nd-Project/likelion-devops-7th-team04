@@ -64,3 +64,20 @@ variable "db_seed_bucket_arn" {
   description = "ARN of the S3 bucket holding the DB seed bundle (build-seed-bundle.sh output)"
   type        = string
 }
+
+# DEV-201: modules/dynamodb의 chat_sessions_table_name/chat_messages_table_name과
+# 반드시 같은 값을 넘겨야 한다 — 여기서 만드는 IAM 정책의 Resource ARN이 실제 테이블
+# 이름과 어긋나면 AccessDeniedException이 난다. 두 모듈은 형제 모듈이라 서로의 output을
+# 직접 참조할 수 없어(둘 다 environments/<env>/main.tf에서만 조립됨) 각 environment의
+# main.tf가 두 모듈 호출에 같은 리터럴 값을 각각 넘겨주는 방식으로 동기화한다.
+variable "chat_sessions_table_name" {
+  description = "ChatSessions 테이블 이름 — modules/dynamodb의 chat_sessions_table_name과 반드시 일치해야 합니다."
+  type        = string
+  default     = "ChatSessions"
+}
+
+variable "chat_messages_table_name" {
+  description = "ChatMessages 테이블 이름 — modules/dynamodb의 chat_messages_table_name과 반드시 일치해야 합니다."
+  type        = string
+  default     = "ChatMessages"
+}

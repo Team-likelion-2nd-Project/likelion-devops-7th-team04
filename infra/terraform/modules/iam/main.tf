@@ -389,9 +389,9 @@ resource "aws_iam_policy" "chatbot_dynamodb" {
         ]
 
         Resource = [
-          "arn:aws:dynamodb:${local.chatbot_dynamodb_region}:${data.aws_caller_identity.current.account_id}:table/ChatSessions",
-          "arn:aws:dynamodb:${local.chatbot_dynamodb_region}:${data.aws_caller_identity.current.account_id}:table/ChatSessions/index/userId-index",
-          "arn:aws:dynamodb:${local.chatbot_dynamodb_region}:${data.aws_caller_identity.current.account_id}:table/ChatMessages"
+          "arn:aws:dynamodb:${local.chatbot_dynamodb_region}:${data.aws_caller_identity.current.account_id}:table/${var.chat_sessions_table_name}",
+          "arn:aws:dynamodb:${local.chatbot_dynamodb_region}:${data.aws_caller_identity.current.account_id}:table/${var.chat_sessions_table_name}/index/userId-index",
+          "arn:aws:dynamodb:${local.chatbot_dynamodb_region}:${data.aws_caller_identity.current.account_id}:table/${var.chat_messages_table_name}"
         ]
       }
     ]

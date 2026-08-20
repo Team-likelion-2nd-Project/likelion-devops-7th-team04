@@ -357,6 +357,12 @@ module "iam" {
 
   # DEV-102: mariadb EC2(cloudwatch_agent instance profile)가 시딩 번들을 S3에서 받아올 수 있게
   db_seed_bucket_arn = aws_s3_bucket.db_seed_artifacts.arn
+
+  # DEV-201: module.dynamodb의 실제 테이블 이름을 그대로 물려받아 IAM 정책 ARN과 항상
+  # 동기화되게 한다 — prod에서 두 모듈의 테이블명이 각자 하드코딩된 기본값에 암묵적으로만
+  # 의존하다 어긋난 사고(chatbot_dynamodb 정책이 dev 테이블을 가리키게 됨)가 있었다.
+  chat_sessions_table_name = module.dynamodb.chat_sessions_table_name
+  chat_messages_table_name = module.dynamodb.chat_messages_table_name
 }
 
 # =========================
