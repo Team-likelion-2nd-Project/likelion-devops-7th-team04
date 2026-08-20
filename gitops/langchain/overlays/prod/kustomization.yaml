@@ -2,20 +2,22 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 resources:
   - ../../base
+
+# ollama를 GPU 노드 2대에 맞춰 수평 확장 — ollama-replicas-patch.yaml 참고.
+patches:
+  - path: ollama-replicas-patch.yaml
+
 # base 매니페스트의 image는 team04-dev-*로 박혀 있다. kustomize images 치환은 name이
-
 # base의 이미지 이름과 정확히 일치해야 매칭되므로, name엔 base 그대로의 dev 이름을
-
 # 적고 newName으로 prod ECR 리포지토리(team04-prod-*)로 바꾼다. newTag는 Step 7(prod
-
 # CI/CD)이 붙기 전까지 REPLACE_ME이며, 그 전엔 ArgoCD에서 ImagePullBackOff가 정상이다.
 images:
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-ollama
     newName: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-prod-ollama
-    newTag: 9673f91f2a69ae689fec24e5d0c7b77244fd3c70
+    newTag: REPLACE_ME
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-llm-service
     newName: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-prod-llm-service
-    newTag: 9673f91f2a69ae689fec24e5d0c7b77244fd3c70
+    newTag: REPLACE_ME
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-n8n
     newName: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-prod-n8n
     newTag: "2.35.3"

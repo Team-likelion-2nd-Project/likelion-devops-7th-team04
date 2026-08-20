@@ -1,0 +1,11 @@
+# prod GPU 노드그룹을 g4dn.xlarge 2대로 수평 확장(environments/prod/main.tf의
+# gpu_desired_size=2)한 것과 짝을 이룬다 — ollama도 replicas: 2로 맞춰야 실제로
+# 두 GPU 노드가 다 쓰인다(안 맞추면 여분 노드가 그냥 논다). GPU 노드는 1노드=1pod
+# 구조라(각 노드가 taint로 ollama pod만 받음) HPA 대신 고정 replicas로 단순하게 감.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ollama
+  namespace: langchain
+spec:
+  replicas: 2

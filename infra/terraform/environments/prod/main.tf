@@ -202,7 +202,11 @@ module "database" {
 
   iam_instance_profile_name = module.iam.cloudwatch_agent_instance_profile_name
 
-  instance_type   = "t3.micro"
+  # dev(t3.micro)보다 스펙업 — dev HPA 부하테스트에서 booking/auth/hotel/payment 등
+  # 여러 서비스가 동시에 느려졌는데, 공통 의존성이 MariaDB뿐이라 여기가 유력한 병목으로
+  # 판단됨. t3.micro는 버스터블이라 지속 부하 시 CPU 크레딧 고갈, 1GB RAM은 쿼리
+  # 버퍼로 빠듯함.
+  instance_type   = "t3.small"
   ebs_volume_size = 20
   ebs_volume_type = "gp3"
 
@@ -223,7 +227,7 @@ module "database" {
 # =========================
 # Redis Module
 # =========================
-# dev와 동일한 사이징 그대로 유지 (replication group 전환은 이번 범위 제외)
+# replication group 전환은 이번 범위 제외, 인스턴스 사이즈만 dev보다 한 단계 상향
 
 module "redis" {
   source = "../../modules/redis"
@@ -233,7 +237,7 @@ module "redis" {
   private_data_subnet_ids = module.network.private_data_subnet_ids
   redis_security_group_id = module.security.redis_security_group_id
 
-  node_type = "cache.t3.micro"
+  node_type = "cache.t3.small"
 }
 
 # =========================
@@ -397,30 +401,38 @@ module "eks" {
 
   fargate_pod_execution_role_arn = module.iam.fargate_pod_execution_role_arn
 
+  # 인스턴스 타입은 dev와 동일(g4dn.xlarge)하게 유지 — 더 비싼 GPU(g5.xlarge 등)로
+  # 수직 확장하는 대신, 대수를 늘려 ollama를 수평 확장하는 쪽을 택함(시간당 비용은
+  # 비슷한데 동시 추론 처리량은 늘어남). Cluster Autoscaler는 이 노드그룹을 관리하지
+  # 않으므로(api_cpu 노드그룹만 auto-discovery 태그 대상) desired_size가 실질적인
+  # 노드 개수다 — ollama도 gitops/langchain/overlays/prod에서 replicas: 2로 맞춰야
+  # 실제로 두 노드가 다 쓰인다(안 맞추면 여분 노드가 그냥 논다).
   gpu_instance_types = [
     "g4dn.xlarge"
   ]
 
-  # dev와 동일하게 유지 — g4dn.xlarge 비용이 apply 시점부터 바로 발생한다는 점 참고.
-  gpu_desired_size = 1
+  gpu_desired_size = 2
   gpu_min_size     = 0
-  gpu_max_size     = 1
+  gpu_max_size     = 3
 
   cloudwatch_observability_role_arn = module.iam.cloudwatch_observability_role_arn
 
-  # DEV-196: api-gateway/n8n 전용 EC2 CPU Node Group — dev와 동일하게 유지.
+  # DEV-196: api-gateway/n8n 전용 EC2 CPU Node Group. dev보다 스펙업 — dev HPA
+  # 부하테스트에서 api-gateway가 10 replica까지 늘 때 t3.medium 2대로는 용량이
+  # 부족해 Cluster Autoscaler의 신규 노드 추가 지연(1~2분) 동안 기존 pod에 부하가
+  # 몰렸음. t3.large로 올리고 min_size도 3으로 올려 스케일 반응 여유를 더 둔다.
   # n8n 이미지 pull이 Fargate 구조(pod마다 새 micro-VM, 레이어 캐시 미공유) 때문에 매번
   # 6~8분+ 걸리거나 실패하는 문제와, api-gateway의 CloudWatch CPU%/메모리% 지표가 안
   # 들어오는 문제(GPU 노드의 cloudwatch-agent 불안정 문제를 우회) — 둘 다 이 전용 노드로
   # 옮겨서 해결. api-gateway는 상시 트래픽 경로라 gpu_desired_size(=0, 비용 절감)와
-  # 달리 기본 2대(min_size와 동일)를 유지 — Cluster Autoscaler
+  # 달리 기본 3대(min_size와 동일)를 유지 — Cluster Autoscaler
   # (infra/terraform/environments/prod/addons/cluster-autoscaler.tf)가 이 노드그룹만
   # auto-discovery 태그로 관리하며, api-gateway HPA(minReplicas=2, maxReplicas=10)를
   # 따라갈 수 있도록 max_size를 넉넉히 잡는다.
-  api_cpu_instance_types = ["t3.medium"]
-  api_cpu_desired_size   = 2
-  api_cpu_min_size       = 2
-  api_cpu_max_size       = 4
+  api_cpu_instance_types = ["t3.large"]
+  api_cpu_desired_size   = 3
+  api_cpu_min_size       = 3
+  api_cpu_max_size       = 6
 }
 
 # =========================
