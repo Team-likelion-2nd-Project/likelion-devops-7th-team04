@@ -1,0 +1,18 @@
+# api-gateway-resources-patch.yaml과 동일한 이유로 스펙업.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: backend
+spec:
+  template:
+    spec:
+      containers:
+        - name: auth-service
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi

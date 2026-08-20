@@ -1,0 +1,21 @@
+# dev(100m/500m cpu, 128Mi/512Mi mem)보다 스펙업 — dev HPA 부하테스트에서 CPU
+# 100%+ 찍히며 응답이 느려지는 게 관찰됨. api_cpu 노드그룹도 t3.large로 같이
+# 올렸으니(environments/prod/main.tf) pod 쪽 상한도 맞춰서 올려야 실제로 노드
+# 여유를 pod가 활용할 수 있다.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: backend
+spec:
+  template:
+    spec:
+      containers:
+        - name: api-gateway
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: 1000m
+              memory: 1Gi
