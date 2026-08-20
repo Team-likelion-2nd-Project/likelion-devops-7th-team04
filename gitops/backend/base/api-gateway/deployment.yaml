@@ -26,11 +26,28 @@ spec:
         - key: dedicated
           value: api-cpu
           effect: NoSchedule
+      # graceful shutdown: SIGTERM이 가도 앱(main.ts의 enableShutdownHooks)이 진행 중인
+      # 요청을 마무리할 시간을 준다. preStop의 sleep은 Service/ALB에서 이 pod가 빠졌다는
+      # 사실이 전파되는 데 걸리는 시차(수 초) 동안, 그 사이 들어온 요청까지 받아서 처리를
+      # 끝낼 수 있게 하기 위함 — 이게 없으면 SIGTERM 직후 프로세스가 바로 죽어서, 스케일
+      # 다운/재배포 때마다 그 순간 처리 중이던 요청이 커넥션 리셋으로 끊겼다(부하테스트 중
+      # 실제로 pod가 Terminating -> Error로 종료되는 것과 요청 실패가 함께 관찰됨).
+      terminationGracePeriodSeconds: 30
       containers:
         - name: api-gateway
           image: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-api-gateway:dev
           ports:
             - containerPort: 3000
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 5"]
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 3000
+            initialDelaySeconds: 5
+            periodSeconds: 5
           env:
             - name: NODE_ENV
               value: "production"

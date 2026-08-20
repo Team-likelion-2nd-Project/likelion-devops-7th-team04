@@ -17,11 +17,25 @@ spec:
         # 지금 배치(Fargate)를 유지하려면 이 라벨이 필요합니다.
         compute: fargate
     spec:
+      # graceful shutdown: api-gateway/deployment.yaml과 동일한 이유 — 이 서비스도
+      # HPA(hpa.yaml)로 스케일다운되므로 SIGTERM 처리 없이는 그 순간 처리 중이던 gRPC
+      # 요청이 끊긴다. 이 서비스는 HTTP가 아니라 gRPC라 readinessProbe는 httpGet 대신
+      # tcpSocket을 쓴다(httpGet은 gRPC 포트에 안 맞아 계속 실패 판정 남).
+      terminationGracePeriodSeconds: 30
       containers:
         - name: auth-service
           image: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-auth-service:dev
           ports:
             - containerPort: 3006
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 5"]
+          readinessProbe:
+            tcpSocket:
+              port: 3006
+            initialDelaySeconds: 5
+            periodSeconds: 5
           env:
             - name: NODE_ENV
               value: "production"
