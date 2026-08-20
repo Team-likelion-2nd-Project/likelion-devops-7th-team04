@@ -62,3 +62,7 @@ output "fargate_pod_execution_role_arn" {
   description = "ARN of the EKS Fargate Pod Execution role"
   value       = aws_iam_role.fargate_pod_execution.arn
 }
+output "cluster_autoscaler_role_arn" {
+  description = "ARN of the Cluster Autoscaler IAM role (IRSA) — copy into addons/terraform.tfvars"
+  value       = aws_iam_role.cluster_autoscaler.arn
+}

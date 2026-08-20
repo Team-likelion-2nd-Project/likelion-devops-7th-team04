@@ -414,8 +414,9 @@ module "eks" {
   chatbot_service_account = "chatbot-service"
 
   # langchain AI 파이프라인(llm-service/n8n/ollama, gitops/langchain/)의 Fargate profile
-  # label selector 대상 네임스페이스 — compute=fargate 라벨이 있는 pod(llm-service, n8n)만
-  # 여기서 Fargate로 뜨고, ollama는 GPU node group으로 감(위 CPU Fargate Profile 주석 참고)
+  # label selector 대상 네임스페이스 — compute=fargate 라벨이 있는 pod(llm-service)만
+  # 여기서 Fargate로 뜨고, ollama는 GPU node group, n8n은 DEV-196에서 api_cpu node
+  # group으로 감(위 CPU Fargate Profile 주석 참고)
   langchain_namespace = "langchain"
 
   # EKS Cluster / Node는 Private App Subnet에 배치
@@ -445,6 +446,22 @@ module "eks" {
 
   # DEV-177: Container Insights addon의 IRSA role
   cloudwatch_observability_role_arn = module.iam.cloudwatch_observability_role_arn
+
+  # -------------------------
+  # DEV-196: api-gateway/n8n 전용 EC2 CPU Node Group
+  # -------------------------
+  # n8n 이미지 pull이 Fargate 구조(pod마다 새 micro-VM, 레이어 캐시 미공유) 때문에 매번
+  # 6~8분+ 걸리거나 실패하는 문제와, api-gateway의 CloudWatch CPU%/메모리% 지표가 안
+  # 들어오는 문제(GPU 노드의 cloudwatch-agent 불안정 문제를 우회) — 둘 다 이 전용 노드로
+  # 옮겨서 해결. api-gateway는 상시 트래픽 경로라 gpu_desired_size(=0, 비용 절감)와
+  # 달리 기본 2대(min_size와 동일)를 유지 — Cluster Autoscaler
+  # (infra/terraform/environments/dev/addons/cluster-autoscaler.tf)가 이 노드그룹만
+  # auto-discovery 태그로 관리하며, api-gateway HPA(minReplicas=2, maxReplicas=10)를
+  # 따라갈 수 있도록 max_size를 넉넉히 잡는다.
+  api_cpu_instance_types = ["t3.medium"]
+  api_cpu_desired_size   = 2
+  api_cpu_min_size       = 2
+  api_cpu_max_size       = 4
 }
 
 # =========================

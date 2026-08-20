@@ -665,3 +665,96 @@ resource "aws_iam_role_policy_attachment" "vpc_cni" {
   role       = aws_iam_role.vpc_cni.name
   policy_arn = "arn:aws:iam::aws:policy/AmazonEKS_CNI_Policy"
 }
+
+# =========================
+# Cluster Autoscaler Role
+# =========================
+# DEV-196: aws_eks_node_group.api_cpu(infra/terraform/modules/eks/main.tf)에 HPA
+# (gitops/backend/base/api-gateway/hpa.yaml, minReplicas 2/maxReplicas 10)가 늘리는
+# pod를 받을 노드가 자동으로 안 늘어나는 문제 — 이 role은 helm_release로 설치되는
+# Cluster Autoscaler(infra/terraform/environments/dev/addons/cluster-autoscaler.tf)가
+# 쓴다. alb_controller/cloudwatch_observability와 동일한 이유로 Pod Identity 대신
+# IRSA 사용(Fargate의 kube-system에서 뜨므로 eks-pod-identity-agent DaemonSet을 못 씀).
+# 정책은 AWS 공식 Cluster Autoscaler 문서 기준 최소 권한.
+
+resource "aws_iam_role" "cluster_autoscaler" {
+  name = "${var.project_name}-cluster-autoscaler-role"
+
+  assume_role_policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Principal = {
+          Federated = var.eks_oidc_provider_arn
+        }
+
+        Action = "sts:AssumeRoleWithWebIdentity"
+
+        Condition = {
+          StringEquals = {
+            "${var.eks_oidc_provider_url}:aud" = "sts.amazonaws.com"
+            "${var.eks_oidc_provider_url}:sub" = "system:serviceaccount:kube-system:cluster-autoscaler"
+          }
+        }
+      }
+    ]
+  })
+
+  tags = {
+    Name = "${var.project_name}-cluster-autoscaler-role"
+  }
+}
+
+resource "aws_iam_policy" "cluster_autoscaler" {
+  name        = "${var.project_name}-cluster-autoscaler-policy"
+  description = "IAM policy for Kubernetes Cluster Autoscaler (api_cpu node group only, via ASG auto-discovery tags)"
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+
+    Statement = [
+      {
+        Effect = "Allow"
+
+        Action = [
+          "autoscaling:DescribeAutoScalingGroups",
+          "autoscaling:DescribeAutoScalingInstances",
+          "autoscaling:DescribeLaunchConfigurations",
+          "autoscaling:DescribeTags",
+          "autoscaling:DescribeScalingActivities",
+          "ec2:DescribeInstanceTypes",
+          "ec2:DescribeLaunchTemplateVersions"
+        ]
+
+        Resource = "*"
+      },
+      {
+        Effect = "Allow"
+
+        Action = [
+          "autoscaling:SetDesiredCapacity",
+          "autoscaling:TerminateInstanceInAutoScalingGroup"
+        ]
+
+        Resource = "*"
+
+        # DEV-196: gpu 노드그룹은 auto-discovery 태그를 안 붙였으니 여기 안 걸림 —
+        # 그래도 태그 기반으로 명시적으로 한 번 더 좁혀서, 실수로 다른 ASG에
+        # scale-in/out을 걸지 않도록 방어한다.
+        Condition = {
+          StringEquals = {
+            "aws:ResourceTag/k8s.io/cluster-autoscaler/enabled" = "true"
+          }
+        }
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy_attachment" "cluster_autoscaler" {
+  role       = aws_iam_role.cluster_autoscaler.name
+  policy_arn = aws_iam_policy.cluster_autoscaler.arn
+}

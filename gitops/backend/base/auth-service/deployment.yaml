@@ -12,6 +12,10 @@ spec:
     metadata:
       labels:
         app: auth-service
+        # DEV-196: api-gateway를 aws_eks_node_group.api_cpu로 이전하며 backend Fargate
+        # profile selector가 라벨 게이트로 바뀌어(infra/terraform/modules/eks/main.tf),
+        # 지금 배치(Fargate)를 유지하려면 이 라벨이 필요합니다.
+        compute: fargate
     spec:
       containers:
         - name: auth-service
