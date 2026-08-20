@@ -17,11 +17,22 @@ spec:
         # 지금 배치(Fargate)를 유지하려면 이 라벨이 필요합니다.
         compute: fargate
     spec:
+      # graceful shutdown: auth-service/deployment.yaml과 동일한 이유.
+      terminationGracePeriodSeconds: 30
       containers:
         - name: payment-service
           image: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-payment-service:dev
           ports:
             - containerPort: 3004
+          lifecycle:
+            preStop:
+              exec:
+                command: ["sh", "-c", "sleep 5"]
+          readinessProbe:
+            tcpSocket:
+              port: 3004
+            initialDelaySeconds: 5
+            periodSeconds: 5
           # payment-service가 TypeORM(MariaDB)과 booking-service gRPC 클라이언트를 쓰게 되어
           # hotel-service/booking-service와 동일한 패턴으로 DB 접속 정보(backend-secrets Secret)와
           # BOOKING_SERVICE_HOST를 추가했습니다. PG_MOCK_SERVICE_URL은 pg-mock-service의
