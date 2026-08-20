@@ -9,7 +9,16 @@ resource "helm_release" "cluster_autoscaler" {
   namespace  = "kube-system"
   version    = "9.46.6"
 
-  atomic          = true
+  # DEV-201: alb_controller_role_arn/cluster_autoscaler_role_arn을 dev role -> prod
+  # role로 고치는 apply에서 atomic=true(내부적으로 --wait 포함)가 데드락에 빠졌다 —
+  # 이 변경은 ServiceAccount annotation만 바꿔서 Deployment pod template이 안 바뀌므로
+  # 기존에 CrashLoopBackOff 중이던 파드가 재생성되지 않고, Helm이 그 파드의 Ready를
+  # 영원히 기다리다 timeout → atomic 자동 롤백도 timeout(실제로 겪음, SA가 dev role로
+  # 되돌아가 있었음). 이번 apply만 atomic/wait를 끄고 대신 apply 직후 수동으로
+  # `kubectl rollout restart`를 실행해 파드를 재생성시킨다 — 안정화 확인되면 atomic=true로
+  # 되돌릴 것(평소엔 유효한 안전장치이므로 계속 꺼두지 않는다).
+  atomic          = false
+  wait            = false
   cleanup_on_fail = true
   timeout         = 600
 
