@@ -11,8 +11,8 @@ resources:
 # 고정 버전(워크플로 env의 N8N_VERSION)으로 관리합니다 — DEV-181 참고.
 images:
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-ollama
-    newTag: 9259dfa0f9c45732853ab2bd25405e72f67082c0
+    newTag: 8034eb2607ecf7b819532d540df46b658512f837
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-llm-service
-    newTag: 9259dfa0f9c45732853ab2bd25405e72f67082c0
+    newTag: 8034eb2607ecf7b819532d540df46b658512f837
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-n8n
     newTag: "2.35.3"
