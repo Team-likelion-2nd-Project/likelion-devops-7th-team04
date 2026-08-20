@@ -11,9 +11,20 @@ resources:
 # DEV-201: DynamoDB 테이블명도 마찬가지로 dev/prod가 물리적으로 분리돼야 해서
 # (deployment-dynamodb-tables-patch.yaml, environments/prod/main.tf의
 # module.dynamodb 참고) patch를 추가한다.
+#
+# 스펙업(HPA 붙은 7개 서비스 CPU/메모리 requests·limits 상향) — dev HPA
+# 부하테스트에서 CPU 100%+로 응답이 느려진 것 대응. api_cpu 노드그룹을 t3.large로
+# 올린 것(environments/prod/main.tf)과 세트. pg-mock-service는 HPA가 없어 제외.
 patches:
   - path: serviceaccount-chatbot-patch.yaml
   - path: deployment-dynamodb-tables-patch.yaml
+  - path: api-gateway-resources-patch.yaml
+  - path: auth-service-resources-patch.yaml
+  - path: booking-service-resources-patch.yaml
+  - path: chat-bot-service-resources-patch.yaml
+  - path: hotel-service-resources-patch.yaml
+  - path: payment-service-resources-patch.yaml
+  - path: user-service-resources-patch.yaml
 
 # base 매니페스트의 image는 team04-dev-*로 박혀 있다(dev가 기본값처럼 쓰인 base).
 # kustomize images 치환은 name이 base의 이미지 이름과 정확히 일치해야 매칭되므로,
