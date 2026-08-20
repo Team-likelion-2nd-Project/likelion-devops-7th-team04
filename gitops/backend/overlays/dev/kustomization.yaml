@@ -1,0 +1,34 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+
+# base의 CORS_ORIGIN 기본값(www.team04hotel.kro.kr)을 dev 도메인으로 덮어쓴다 —
+# api-gateway-cors-patch.yaml 참고.
+patches:
+  - path: api-gateway-cors-patch.yaml
+# backend-ci-cd.yml의 deploy job이 ECR push 직후 이 8개 newTag 값을
+
+# ${GITHUB_SHA}로 갱신합니다 (kustomize edit set image 사용).
+images:
+  - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-api-gateway
+    newTag: 8034eb2607ecf7b819532d540df46b658512f837
+  - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-auth-service
+    newTag: 8034eb2607ecf7b819532d540df46b658512f837
+  - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-booking-service
+    newTag: 8034eb2607ecf7b819532d540df46b658512f837
+  - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-chat-bot-service
+    newTag: 8034eb2607ecf7b819532d540df46b658512f837
+  - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-hotel-service
+    newTag: 8034eb2607ecf7b819532d540df46b658512f837
+  - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-payment-service
+    newTag: 8034eb2607ecf7b819532d540df46b658512f837
+  - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-pg-mock-service
+    # pg-mock-service는 아직 한 번도 push된 적이 없어 실제 태그가 없습니다. 첫
+
+    # 끝나면 update-gitops-manifest 잡이 이 값을 실제 커밋 SHA로 자동 갱신합니다.
+
+    # workflow_dispatch 실행 전까지는 ArgoCD에서 ImagePullBackOff가 정상이며, 첫 실행이
+    newTag: 8034eb2607ecf7b819532d540df46b658512f837
+  - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-user-service
+    newTag: 8034eb2607ecf7b819532d540df46b658512f837

@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api-gateway
+  namespace: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: api-gateway
+  template:
+    metadata:
+      labels:
+        app: api-gateway
+    spec:
+      # DEV-196: api-gateway를 backend Fargate profile(infra/terraform/modules/eks/main.tf,
+      # compute=fargate 라벨 게이트)에서 빼고 전용 aws_eks_node_group.api_cpu로 이전 —
+      # n8n 이미지 pull 속도 문제와 같은 이유(Fargate는 pod마다 새 micro-VM이라 이미지
+      # 캐시 미공유)에 더해, api-gateway의 CloudWatch CPU%/메모리% 지표가 안 들어오던
+      # 문제(GPU 노드의 cloudwatch-agent 불안정 문제를 우회)를 해결하기 위함. 이 라벨을
+      # 안 붙였으니(compute=fargate 없음) Fargate selector엔 안 걸리고, 아래
+      # nodeSelector/toleration으로 새 노드그룹에 명시적으로 배치한다.
+      nodeSelector:
+        workload: api-cpu
+      tolerations:
+        - key: dedicated
+          value: api-cpu
+          effect: NoSchedule
+      containers:
+        - name: api-gateway
+          image: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-api-gateway:dev
+          ports:
+            - containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: PORT
+              value: "3000"
+            - name: USER_SERVICE_HOST
+              value: "user-service:3001"
+            - name: AUTH_SERVICE_HOST
+              value: "auth-service:3006"
+            - name: BOOKING_SERVICE_HOST
+              value: "booking-service:3003"
+            - name: HOTEL_SERVICE_HOST
+              value: "hotel-service:3002"
+            - name: PAYMENT_SERVICE_HOST
+              value: "payment-service:3004"
+            - name: CHAT_BOT_SERVICE_HOST
+              value: "chat-bot-service:3005"
+            # DEV-171: 배포된 프론트엔드(CloudFront) origin. apps/api-gateway/src/main.ts의
+            # CORS 설정이 이 값을 읽습니다.
+            - name: CORS_ORIGIN
+              value: "https://www.team04hotel.kro.kr"
+            # pg-mock-service가 보내는 결제 웹훅(POST /api/payments/webhook)의 HMAC 서명을
+            # 검증하는 데 씁니다. pg-mock-service(gitops/backend/base/pg-mock-service/
+            # deployment.yaml)와 backend-secrets의 같은 키를 참조하므로 값은 자동으로 동일합니다.
+            - name: MOCK_PG_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: MOCK_PG_SECRET
+            - name: JWT_REFRESH_EXPIRES_IN
+              value: "7d"
+            - name: JWT_ACCESS_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: JWT_ACCESS_SECRET
+          # 실사용 트래픽 기준 없이 임시로 넣은 추정값입니다 (재사용할 기존 값 없음). 운영 전 조정 필요.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

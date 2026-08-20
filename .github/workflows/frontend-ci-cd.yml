@@ -1,0 +1,120 @@
+name: Frontend CI/CD Pipeline
+
+on:
+  # 1. 자동 CI 트리거: develop, infra, main 브랜치 대상 PR 및 Push 발생 시 실행
+  push:
+    branches:
+      - develop
+      - infra
+      - main
+    paths:
+      - 'frontend/**'
+  pull_request:
+    branches:
+      - develop
+      - infra
+      - main
+    paths:
+      - 'frontend/**'
+
+  # 2. 수동 CD 트리거
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  # [자동 CI] 코드 변경 시 빌드 및 테스트 자동 검증 (수동 배포 트리거일 땐 스킵)
+  build-and-test:
+    if: github.event_name != 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+
+      - name: Install Dependencies & Vite Build
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+  # [수동 CD] Actions 탭에서 develop 브랜치를 선택해 Run workflow 클릭 시 dev로 배포.
+  # Environments 접근 권한이 없어 GitHub Environment 대신 저장소 레벨
+  # Actions secrets/variables에 _DEV/_PROD 접미사로 값을 나눠 등록하는 방식을 쓴다 —
+  # Terraform의 environments/dev/terraform.tfvars와 같은 역할을 접미사로 흉내낸 것.
+  deploy-dev:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/develop'
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+
+      # DEV-171: VITE_API_URL은 Vite 빌드타임에 번들에 그대로 박혀서, 배포용 빌드를 만드는
+      # 이 스텝에서 반드시 설정해야 합니다(런타임 교체 불가). 값 자체는 공개 정보라 secret 불필요
+      # (Actions variable로 등록 — vars.VITE_API_URL_DEV).
+      - name: Install Dependencies & Vite Build
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL_DEV }}
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      # EC2 Instance Profile 자격증명을 자동으로 사용합니다 (별도 인증 스텝 불필요).
+      - name: Deploy to S3 (Vite dist folder)
+        run: |
+          aws s3 sync frontend/dist s3://${{ secrets.FRONTEND_S3_BUCKET_NAME_DEV }} --delete
+
+      - name: Invalidate CloudFront Cache
+        run: |
+          aws cloudfront create-invalidation --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID_DEV }} --paths "/*"
+
+  # [수동 CD] Actions 탭에서 main 브랜치를 선택해 Run workflow 클릭 시 prod로 배포.
+  # deploy-dev와 스텝 구성은 동일하고, 참조하는 secrets/variables만 _PROD로 바뀐다 — prod의
+  # FRONTEND_S3_BUCKET_NAME_PROD/CLOUDFRONT_DISTRIBUTION_ID_PROD는 environments/prod가
+  # 실제 apply된 뒤에 등록해야 값이 채워진다(현재는 자리만 만들어둠).
+  deploy-prod:
+    if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
+    runs-on: self-hosted
+
+    steps:
+      - name: Checkout Source Code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+
+      - name: Install Dependencies & Vite Build
+        env:
+          VITE_API_URL: ${{ vars.VITE_API_URL_PROD }}
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Deploy to S3 (Vite dist folder)
+        run: |
+          aws s3 sync frontend/dist s3://${{ secrets.FRONTEND_S3_BUCKET_NAME_PROD }} --delete
+
+      - name: Invalidate CloudFront Cache
+        run: |
+          aws cloudfront create-invalidation --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID_PROD }} --paths "/*"

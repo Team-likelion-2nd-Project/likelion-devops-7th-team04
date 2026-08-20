@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - ../../base
+# backend-ci-cd.yml의 deploy-langchain job이 ECR push 직후 ollama/llm-service의 newTag를
+
+# ${GITHUB_SHA}로 갱신합니다 (yq 사용). n8n은 빌드가 아니라 미러링 대상이라(자체
+
+# Dockerfile 없음) mirror-n8n job이 별도로 push하고, 태그도 GITHUB_SHA가 아니라
+
+# 고정 버전(워크플로 env의 N8N_VERSION)으로 관리합니다 — DEV-181 참고.
+images:
+  - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-ollama
+    newTag: 8034eb2607ecf7b819532d540df46b658512f837
+  - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-llm-service
+    newTag: 8034eb2607ecf7b819532d540df46b658512f837
+  - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-n8n
+    newTag: "2.35.3"

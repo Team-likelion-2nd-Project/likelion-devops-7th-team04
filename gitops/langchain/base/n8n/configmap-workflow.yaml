@@ -1,0 +1,237 @@
+# langchain_rag/n8n/workflows/chat-orchestration.json과
+# langchain_rag/n8n/scripts/activate-workflow.js를 그대로 담은 ConfigMap.
+# n8n Deployment의 initContainer(import) + postStart hook(activate)이 이걸 마운트해서
+# 씁니다 — 로컬 docker-compose의 n8n-init 서비스와 동일한 두 단계를 pod 안에서
+# 재현하는 것입니다 (아래 deployment.yaml 주석 참고). 원본 파일이 바뀌면 이 파일도
+# 같이 갱신해야 합니다 (자동 동기화 없음).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: n8n-workflow
+  namespace: langchain
+data:
+  chat-orchestration.json: |
+    {
+      "name": "chat-orchestration",
+      "nodes": [
+        {
+          "parameters": {
+            "content": "## chat-orchestration\n\nImplements the `N8N_WEBHOOK_URL` contract `backend/apps/chat-bot-service/src/n8n/n8n.client.ts` calls.\n\nRAG retrieval is no longer done here — llm-service does its own S3 Vectors lookup (`langchain_rag/llm-service/app/retrieval.py`) whenever it's called without a `context` field, which is exactly what this workflow now sends. There used to be a \"Mock RAG (placeholder)\" node here standing in for that; it's gone now that the real thing exists on the llm-service side.\n\nSee `langchain_rag/n8n/README.md` for how to run and test this locally.",
+            "height": 300,
+            "width": 380,
+            "color": 5
+          },
+          "id": "93e8eedb-a319-476a-840e-aecad900221b",
+          "name": "Sticky Note",
+          "type": "n8n-nodes-base.stickyNote",
+          "typeVersion": 1,
+          "position": [-200, -180]
+        },
+        {
+          "parameters": {
+            "httpMethod": "POST",
+            "path": "chat",
+            "responseMode": "responseNode",
+            "options": {}
+          },
+          "id": "e5eb284c-1ed5-4e35-8f1e-e1c4a6b436d3",
+          "name": "Webhook",
+          "type": "n8n-nodes-base.webhook",
+          "typeVersion": 2,
+          "position": [-200, 120],
+          "webhookId": "3a8fe01a-8a5e-4e19-a2fd-86dcb6f9fcee"
+        },
+        {
+          "parameters": {
+            "jsCode": "// Map chat-bot-service's contract (uppercase USER/ASSISTANT roles, per\n// apps/chat-bot-service/src/message/message.service.ts's ChatRole) onto\n// llm-service's contract (lowercase user/assistant, app/schemas.py).\n// sessionId/userId aren't needed for generation, so they're dropped here.\nconst body = $input.first().json.body ?? $input.first().json;\n\nconst history = (body.history || []).map((turn) => ({\n  role: turn.role === 'ASSISTANT' ? 'assistant' : 'user',\n  content: turn.content,\n}));\n\nreturn [\n  {\n    json: {\n      message: body.message,\n      history,\n    },\n  },\n];"
+          },
+          "id": "daa441e7-69c7-4067-bee9-c4f7a669cf85",
+          "name": "Map to llm-service contract",
+          "type": "n8n-nodes-base.code",
+          "typeVersion": 2,
+          "position": [40, 120]
+        },
+        {
+          "parameters": {
+            "method": "POST",
+            "url": "http://llm-service:8000/chat",
+            "sendBody": true,
+            "specifyBody": "json",
+            "jsonBody": "={{ { message: $json.message, history: $json.history } }}",
+            "options": {
+              "timeout": 25000
+            }
+          },
+          "id": "073d3cb7-efb4-4f34-999d-b9a4df03e984",
+          "name": "Call llm-service",
+          "type": "n8n-nodes-base.httpRequest",
+          "typeVersion": 4.2,
+          "position": [280, 120]
+        },
+        {
+          "parameters": {
+            "respondWith": "json",
+            "responseBody": "={{ { reply: $json.reply } }}",
+            "options": {}
+          },
+          "id": "09834828-4a52-4696-8488-89d3311881cc",
+          "name": "Respond to Webhook",
+          "type": "n8n-nodes-base.respondToWebhook",
+          "typeVersion": 1.1,
+          "position": [520, 120]
+        }
+      ],
+      "connections": {
+        "Webhook": {
+          "main": [
+            [
+              { "node": "Map to llm-service contract", "type": "main", "index": 0 }
+            ]
+          ]
+        },
+        "Map to llm-service contract": {
+          "main": [
+            [
+              { "node": "Call llm-service", "type": "main", "index": 0 }
+            ]
+          ]
+        },
+        "Call llm-service": {
+          "main": [
+            [
+              { "node": "Respond to Webhook", "type": "main", "index": 0 }
+            ]
+          ]
+        }
+      },
+      "active": true,
+      "settings": {
+        "executionOrder": "v1"
+      },
+      "id": "44c978a5-5152-42e6-ba03-d76a4dbffb22"
+    }
+  activate-workflow.js: |
+    #!/usr/bin/env node
+    // `n8n import:workflow` always force-deactivates whatever it imports — this
+    // is documented n8n CLI behavior, not something specific to this repo's
+    // setup (https://community.n8n.io/t/disable-deactivating-workflow-during-import/28217).
+    // On top of that, this n8n build separates "active" from a draft/publish
+    // workflow lifecycle: a plain `PATCH /rest/workflows/:id {"active":true}`
+    // is silently ignored, and the webhook only actually registers via
+    // `POST /rest/workflows/:id/activate`, which itself requires an
+    // authenticated session and the workflow's current `versionId`.
+    //
+    // k8s variant of langchain_rag/n8n/scripts/activate-workflow.js: runs as a
+    // postStart hook in the same pod as the n8n container (see
+    // gitops/langchain/base/n8n/deployment.yaml), after an initContainer has
+    // already run `n8n import:workflow`. No third-party deps — n8n's Alpine
+    // image ships neither curl nor jq — just Node's built-in `fetch`.
+
+    const fs = require('fs');
+
+    const N8N_URL = process.env.N8N_URL || 'http://localhost:5678';
+    const OWNER_EMAIL = process.env.N8N_INIT_OWNER_EMAIL || 'admin@example.com';
+    const OWNER_PASSWORD = process.env.N8N_INIT_OWNER_PASSWORD || 'ChangeMe123!';
+    const WORKFLOW_PATH = process.argv[2] || '/config/chat-orchestration.json';
+
+    async function waitForN8n() {
+      for (let i = 0; i < 30; i++) {
+        try {
+          const res = await fetch(`${N8N_URL}/healthz`);
+          if (res.ok) return;
+        } catch {
+          // not up yet, keep retrying
+        }
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+      }
+      throw new Error(`n8n did not become ready at ${N8N_URL} in time`);
+    }
+
+    // `/healthz` going green doesn't mean n8n's REST route table is mounted yet
+    // — retry the whole owner/login/activate sequence, not just the initial
+    // health check.
+    async function withRetries(fn, attempts = 10, delayMs = 3000) {
+      let lastErr;
+      for (let i = 1; i <= attempts; i++) {
+        try {
+          return await fn();
+        } catch (err) {
+          lastErr = err;
+          console.warn(`attempt ${i}/${attempts} failed: ${err.message}`);
+          if (i < attempts) await new Promise((resolve) => setTimeout(resolve, delayMs));
+        }
+      }
+      throw lastErr;
+    }
+
+    function extractCookie(res) {
+      const cookies =
+        typeof res.headers.getSetCookie === 'function' ? res.headers.getSetCookie() : [];
+      if (cookies.length) return cookies.map((c) => c.split(';')[0]).join('; ');
+      const raw = res.headers.get('set-cookie');
+      return raw ? raw.split(';')[0] : null;
+    }
+
+    async function ensureOwnerAndLogin() {
+      const setupRes = await fetch(`${N8N_URL}/rest/owner/setup`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: OWNER_EMAIL,
+          firstName: 'Admin',
+          lastName: 'User',
+          password: OWNER_PASSWORD,
+        }),
+      });
+      if (setupRes.ok) return extractCookie(setupRes);
+
+      const loginRes = await fetch(`${N8N_URL}/rest/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emailOrLdapLoginId: OWNER_EMAIL, password: OWNER_PASSWORD }),
+      });
+      if (!loginRes.ok) {
+        throw new Error(`n8n login failed (${loginRes.status}): ${await loginRes.text()}`);
+      }
+      return extractCookie(loginRes);
+    }
+
+    async function activateWorkflow(cookie) {
+      const { id, name } = JSON.parse(fs.readFileSync(WORKFLOW_PATH, 'utf8'));
+
+      const getRes = await fetch(`${N8N_URL}/rest/workflows/${id}`, {
+        headers: { Cookie: cookie },
+      });
+      if (!getRes.ok) {
+        throw new Error(`failed to fetch workflow ${id} (${getRes.status}): ${await getRes.text()}`);
+      }
+      const { data: workflow } = await getRes.json();
+
+      if (workflow.active) {
+        console.log(`"${name}" (${id}) is already active — nothing to do.`);
+        return;
+      }
+
+      const activateRes = await fetch(`${N8N_URL}/rest/workflows/${id}/activate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Cookie: cookie },
+        body: JSON.stringify({ versionId: workflow.versionId }),
+      });
+      if (!activateRes.ok) {
+        throw new Error(
+          `failed to activate workflow ${id} (${activateRes.status}): ${await activateRes.text()}`,
+        );
+      }
+      console.log(`"${name}" (${id}) activated — webhook is now live.`);
+    }
+
+    (async () => {
+      await waitForN8n();
+      await withRetries(async () => {
+        const cookie = await ensureOwnerAndLogin();
+        await activateWorkflow(cookie);
+      });
+    })().catch((err) => {
+      console.error(err.message);
+      process.exit(1);
+    });

@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: langchain
+  # infra/terraform/modules/eks/main.tf의 CPU Fargate profile이 이 네임스페이스를
+  # 전체가 아니라 label(compute=fargate)로만 부분 매칭한다: llm-service/n8n pod에는
+  # 그 라벨이 붙어 Fargate로, ollama pod는 라벨이 없어 GPU node group으로 스케줄된다.
+  # (Fargate는 GPU를 지원하지 않으므로 네임스페이스 전체를 매칭하면 ollama가 스케줄
+  # 불가능한 상태가 된다.)

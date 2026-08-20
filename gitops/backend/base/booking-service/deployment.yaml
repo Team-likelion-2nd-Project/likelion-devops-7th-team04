@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: booking-service
+  namespace: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: booking-service
+  template:
+    metadata:
+      labels:
+        app: booking-service
+        # DEV-196: api-gateway를 aws_eks_node_group.api_cpu로 이전하며 backend Fargate
+        # profile selector가 라벨 게이트로 바뀌어(infra/terraform/modules/eks/main.tf),
+        # 지금 배치(Fargate)를 유지하려면 이 라벨이 필요합니다.
+        compute: fargate
+    spec:
+      containers:
+        - name: booking-service
+          image: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-booking-service:dev
+          ports:
+            - containerPort: 3003
+          env:
+            - name: NODE_ENV
+              value: "production"
+            - name: HOTEL_SERVICE_HOST
+              value: "hotel-service:3002"
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: DB_HOST
+            - name: DB_USERNAME
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: DB_USERNAME
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: DB_PASSWORD
+            - name: DB_DATABASE
+              valueFrom:
+                secretKeyRef:
+                  name: backend-secrets
+                  key: DB_DATABASE
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

@@ -1,0 +1,44 @@
+# api-gateway를 ALB(Application Load Balancer)로 외부에 노출하는 Ingress.
+# backend 네임스페이스 파드는 EKS Fargate에서 뜨므로 target-type은 반드시 ip.
+# 서브넷에는 이미 kubernetes.io/role/elb=1(public)/internal-elb=1(private-app) 태그가
+# 있어(infra/terraform/modules/network/main.tf) auto-discovery로 충분하므로 subnets
+# annotation은 생략.
+# DEV-171: api.team04hotel.kro.kr용 ACM 인증서(*.team04hotel.kro.kr)가 발급되어 HTTPS(443)를
+# 추가하고 HTTP(80)는 ssl-redirect 액션으로 강제 리다이렉트한다(AWS Load Balancer Controller
+# 표준 패턴 — ssl-redirect라는 가상 서비스를 첫 rule로 두고 port: use-annotation으로 연결).
+# DEV-185: ALB 액세스 로그를 modules/logging의 로그 버킷(team04-dev-access-logs)에 저장.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: api-gateway
+  namespace: backend
+  annotations:
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP": 80}, {"HTTPS": 443}]'
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:834922934330:certificate/9d23ef05-5b75-4b0c-ad97-87ee9e319c72
+    alb.ingress.kubernetes.io/ssl-policy: ELBSecurityPolicy-TLS13-1-2-2021-06
+    alb.ingress.kubernetes.io/actions.ssl-redirect: '{"Type": "redirect", "RedirectConfig": {"Protocol": "HTTPS", "Port": "443", "StatusCode": "HTTP_301"}}'
+    alb.ingress.kubernetes.io/healthcheck-path: /
+    alb.ingress.kubernetes.io/healthcheck-protocol: HTTP
+    alb.ingress.kubernetes.io/success-codes: '200'
+    alb.ingress.kubernetes.io/load-balancer-attributes: access_logs.s3.enabled=true,access_logs.s3.bucket=team04-dev-access-logs,access_logs.s3.prefix=alb
+spec:
+  ingressClassName: alb
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: ssl-redirect
+                port:
+                  name: use-annotation
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: api-gateway
+                port:
+                  number: 3000
