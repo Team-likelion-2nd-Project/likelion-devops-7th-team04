@@ -1,0 +1,25 @@
+# Round 4 부하테스트(300 VU)에서 auth-service CPU%가 60~61%에서 정체되며 70% 문턱을
+# 한 번도 못 넘어 HPA가 전혀 스케일아웃하지 않는 걸 실측 확인함(docs/hpa-load-test-report.md
+# 참고) — bcrypt 큐잉 병목은 CPU를 많이 태우는 게 아니라 스레드풀 슬롯을 기다리는
+# 형태라, CPU%만 보는 HPA 입장에서 "아직 여유 있다"고 오판하기 쉽다.
+# - averageUtilization: 70 → 40 — 61%가 이미 위험 수위였다는 게 확인됐으므로, 그보다
+#   한참 낮은 지점에서 미리 반응하게 함(35%와 큰 차이는 없지만, 평상시(4~19%) CPU
+#   변동에 불필요하게 반응하지 않도록 40%로 설정 — 관찰된 두 구간(4~19% vs 57~61%)
+#   사이에 여유가 충분함).
+# - minReplicas: 2 → 3 — Fargate pod 기동(30~90초)이 CPU 급증 속도를 못 따라가는
+#   경우를 대비해, 반응해서 늘어나는 것과 별개로 상시 여유를 하나 더 확보.
+# 다른 6개 서비스는 이 병목이 없어 70%/min 2 그대로 유지.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: auth-service
+  namespace: backend
+spec:
+  minReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 40
