@@ -1,14 +1,19 @@
 # base/api-gateway/ingress.yaml의 certificate-arn은 *.team04hotel.kro.kr(하이픈 없음)용
 # 인증서로 하드코딩되어 있고 dev/prod가 이 값을 공유한다 — dev 도메인(dev.team04hotel.kro.kr)엔
-# 맞는 값이지만, 실제 prod 도메인은 www.team04-hotel.kro.kr/api.team04-hotel.kro.kr(하이픈
-# 있음)이라 브라우저가 TLS 인증서 CN 불일치로 요청을 거부한다(Failed to fetch로 나타남,
-# curl -k는 인증서 검증을 건너뛰어 지금까지 드러나지 않았다). *.team04-hotel.kro.kr용으로
-# 새로 발급받은 ACM 인증서로 prod만 덮어쓴다 — api-gateway-cors-patch.yaml과 동일한 이유,
-# 동일한 패턴.
+# 맞는 값이지만, prod는 애초에 다른 값이 필요했다.
+#
+# DEV-207: 이 patch는 원래 *.team04-hotel.kro.kr(하이픈 있음)용 인증서를 가리키도록 만들어졌으나,
+# 그 후 prod 프론트/API 도메인이 www.team04-hotel.kro.kr에서 team04-hotel-prod.kro.kr로
+# 이전되었다(api-gateway-cors-patch.yaml 참고 — CloudFront alias 충돌로 별도 apex 도메인을
+# 새로 등록). team04-hotel-prod.kro.kr은 team04-hotel.kro.kr의 서브도메인이 아니라서 기존
+# *.team04-hotel.kro.kr 인증서로는 CN/SAN이 매칭되지 않아 브라우저가 TLS 인증서 CN 불일치로
+# 요청을 거부했다(Failed to fetch / ERR_CERT_COMMON_NAME_INVALID로 나타남, curl -k는 인증서
+# 검증을 건너뛰어 지금까지 드러나지 않았다). *.team04-hotel-prod.kro.kr용으로 새로 발급받은
+# ACM 인증서로 교체한다.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: api-gateway
   namespace: backend
   annotations:
-    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:834922934330:certificate/4b892e6f-6b23-4545-9877-995e43916c59
+    alb.ingress.kubernetes.io/certificate-arn: arn:aws:acm:us-east-1:834922934330:certificate/bda740ed-0149-4187-bc7c-da6d032e7222
