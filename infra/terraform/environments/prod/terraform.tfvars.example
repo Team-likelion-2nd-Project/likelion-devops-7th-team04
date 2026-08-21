@@ -12,6 +12,10 @@ seed_admin_name     = "관리자"
 
 # CloudFront alias 도메인 / ACM 인증서 도메인. dev/prod가 서로 다른 서브도메인을 쓰므로
 # 환경별로 여기서만 값이 갈린다 — main.tf엔 값이 전혀 없다. 실제 DNS(kro.kr) CNAME 등록은
-# Terraform 밖에서 별도로 해야 한다. prod는 기존 서비스 도메인을 그대로 계승한다.
-domain_name = "www.team04hotel.kro.kr"
-certificate_domain = "*.team04hotel.kro.kr"
+# Terraform 밖에서 별도로 해야 한다.
+# DEV-207: 기존 www.team04hotel.kro.kr(하이픈 없음)/www.team04-hotel.kro.kr(하이픈 있음,
+# 예전 실 운영값)은 CloudFront alias가 이미 다른(team04-hotel 계정 소유 아닌) 배포본에
+# 점유돼 있어 새 배포본 생성이 CNAMEAlreadyExists로 실패했다. team04-hotel-prod.kro.kr은
+# team04-hotel.kro.kr의 서브도메인이 아니라 kro.kr에 별도로 등록한 새 도메인이다.
+domain_name = "www.team04-hotel-prod.kro.kr"
+certificate_domain = "*.team04-hotel-prod.kro.kr"
