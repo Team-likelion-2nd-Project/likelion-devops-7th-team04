@@ -39,6 +39,15 @@ spec:
           env:
             - name: NODE_ENV
               value: "production"
+            # 부하테스트에서 로그인(bcrypt.compare)이 Node 기본 libuv 스레드풀(4개)에
+            # 몰려 대기열이 쌓이며 p95가 34초까지 늘어지는 게 확인됨(trouble-shooting:
+            # docs/hpa-load-test-report.md Round 3). CPU 바운드 작업이라 스레드 수는
+            # pod에 할당된 vCPU 수에 맞춰야 의미가 있다 — prod는 auth-service만 별도로
+            # limits.cpu를 2000m(2 vCPU)로 올렸으므로(overlays/prod/
+            # auth-service-resources-patch.yaml) 그에 맞춰 8로 설정. 근본 해결책은
+            # 아니고 병목 발동 문턱을 늦추는 완화책 — HPA 수평 확장이 더 근본적인 대응.
+            - name: UV_THREADPOOL_SIZE
+              value: "8"
             - name: USER_SERVICE_HOST
               value: "user-service:3001"
             - name: DB_PORT

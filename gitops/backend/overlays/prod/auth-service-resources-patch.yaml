@@ -1,4 +1,8 @@
-# api-gateway-resources-patch.yaml과 동일한 이유로 스펙업.
+# api-gateway-resources-patch.yaml과 동일한 이유로 스펙업 + auth-service만 추가 상향.
+# HPA 판단 기준(averageUtilization)은 limits가 아니라 requests 대비 사용률이라
+# requests는 다른 서비스와 동일하게 낮게 유지해 스케일아웃 반응성을 유지하고,
+# limits만 CPU 바운드 병목(bcrypt, docs/hpa-load-test-report.md Round 3)에 맞춰
+# 2000m(2 vCPU)로 별도 상향 — base의 UV_THREADPOOL_SIZE=8과 세트로 맞춘 값.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -14,5 +18,5 @@ spec:
               cpu: 200m
               memory: 256Mi
             limits:
-              cpu: 1000m
+              cpu: 2000m
               memory: 1Gi
