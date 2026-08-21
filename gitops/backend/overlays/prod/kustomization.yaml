@@ -33,6 +33,7 @@ patches:
   - path: api-gateway-cert-patch.yaml
   - path: api-gateway-resources-patch.yaml
   - path: auth-service-resources-patch.yaml
+  - path: auth-service-hpa-patch.yaml
   - path: booking-service-resources-patch.yaml
   - path: chat-bot-service-resources-patch.yaml
   - path: hotel-service-resources-patch.yaml
