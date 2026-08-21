@@ -1,9 +1,14 @@
 # base/api-gateway/deployment.yaml의 CORS_ORIGIN은 dev 기본값(www.team04hotel.kro.kr,
 # 하이픈 없음)이 박혀 있고 prod overlay에는 지금까지 이를 덮어쓰는 patch가 없었다 — 그
-# 결과 prod api-gateway가 실제 prod 프론트 도메인(www.team04-hotel.kro.kr, 하이픈 있음,
-# infra/terraform/environments/prod/terraform.tfvars의 domain_name과 동일)과 다른
-# Origin을 허용해 브라우저 CORS가 막히는 문제가 있었다. dev overlay의
-# api-gateway-cors-patch.yaml과 동일한 패턴으로 prod 값을 명시적으로 덮어쓴다.
+# 결과 prod api-gateway가 실제 prod 프론트 도메인과 다른 Origin을 허용해 브라우저 CORS가
+# 막히는 문제가 있었다. dev overlay의 api-gateway-cors-patch.yaml과 동일한 패턴으로 prod
+# 값을 명시적으로 덮어쓴다.
+#
+# DEV-207: prod 프론트 도메인을 www.team04-hotel.kro.kr에서 www.team04-hotel-prod.kro.kr로
+# 이전 — 원래 도메인의 CloudFront alias가 이미 다른 배포본(team04-hotel 계정 소유 아님)에
+# 점유돼 있어 terraform apply가 CNAMEAlreadyExists로 계속 실패했다. team04-hotel-prod.kro.kr은
+# team04-hotel.kro.kr의 서브도메인이 아니라 kro.kr에 별도로 등록한 새 도메인이다 — 이 값은
+# infra/terraform/environments/prod/terraform.tfvars의 domain_name과 동일하게 맞춘다.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -16,4 +21,4 @@ spec:
         - name: api-gateway
           env:
             - name: CORS_ORIGIN
-              value: "https://www.team04-hotel.kro.kr"
+              value: "https://www.team04-hotel-prod.kro.kr"
