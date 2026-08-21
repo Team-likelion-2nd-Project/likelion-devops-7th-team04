@@ -54,25 +54,25 @@ patches:
 images:
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-api-gateway
     newName: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-prod-api-gateway
-    newTag: e4a02ba7c6a5a4ee656aeb96730fdc74ea52713b
+    newTag: 775b05161b1c1d7b488bde58199162ff89b57f32
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-auth-service
     newName: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-prod-auth-service
-    newTag: e4a02ba7c6a5a4ee656aeb96730fdc74ea52713b
+    newTag: 775b05161b1c1d7b488bde58199162ff89b57f32
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-booking-service
     newName: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-prod-booking-service
-    newTag: e4a02ba7c6a5a4ee656aeb96730fdc74ea52713b
+    newTag: 775b05161b1c1d7b488bde58199162ff89b57f32
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-chat-bot-service
     newName: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-prod-chat-bot-service
-    newTag: e4a02ba7c6a5a4ee656aeb96730fdc74ea52713b
+    newTag: 775b05161b1c1d7b488bde58199162ff89b57f32
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-hotel-service
     newName: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-prod-hotel-service
-    newTag: e4a02ba7c6a5a4ee656aeb96730fdc74ea52713b
+    newTag: 775b05161b1c1d7b488bde58199162ff89b57f32
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-payment-service
     newName: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-prod-payment-service
-    newTag: e4a02ba7c6a5a4ee656aeb96730fdc74ea52713b
+    newTag: 775b05161b1c1d7b488bde58199162ff89b57f32
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-pg-mock-service
     newName: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-prod-pg-mock-service
-    newTag: e4a02ba7c6a5a4ee656aeb96730fdc74ea52713b
+    newTag: 775b05161b1c1d7b488bde58199162ff89b57f32
   - name: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-dev-user-service
     newName: 834922934330.dkr.ecr.us-east-1.amazonaws.com/team04-prod-user-service
-    newTag: e4a02ba7c6a5a4ee656aeb96730fdc74ea52713b
+    newTag: 775b05161b1c1d7b488bde58199162ff89b57f32
