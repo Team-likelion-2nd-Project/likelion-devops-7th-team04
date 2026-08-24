@@ -168,6 +168,7 @@ docker compose up --build
 **Frontend**
 
 ```bash
+cp frontend/.env.example frontend/.env
 cd frontend
 npm install
 npm run dev
@@ -188,6 +189,7 @@ npm run dev
 - env 템플릿: 
   - `backend/.env.example`, 
   - `frontend/.env.example`
+  - `langchain_rag/llm-service/.env.example`
 
 **검증**
 
