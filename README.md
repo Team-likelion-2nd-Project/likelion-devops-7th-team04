@@ -25,12 +25,8 @@
 
 > **RAG 챗봇을 활용하여 손쉽게 호텔 정보 습득 및 호텔 예약이 가능한 웹 서비스**
 
-[![데모 영상](https://img.youtube.com/vi/{{YOUTUBE_ID}}/maxresdefault.jpg)]({{YOUTUBE_URL}})
-
 본 서비스는 일반 투숙 고객에게 직관적인 객실 탐색과 실시간 예약·결제는 물론, 24시간 맞춤형 상담을 지원하는 AI 챗봇 기능을 제공하는 클라우드 네이티브 호텔 예약 플랫폼입니다. 호텔 관리자에게는 객실 가용 상태, 부대시설 요금, 고객 문의 내역과 결제 데이터를 한눈에 통합 제어할 수 있는 효율적인 운영 환경을 지원합니다. MSA 및 고가용성 클라우드 인프라를 바탕으로 대규모 트래픽 상황에서도 오버부킹 없는 정확한 예약 처리와 높은 가용성을 목표로 설계 되었습니다.
 
-- **배포 주소:** {{https://example.com}}
-- **시연 영상:** [YouTube]({{YOUTUBE_URL}})
 - **문서 최종 정리일:** `2026-08-24` / **구현 기준일:** `2026-08-21`
 
 ---
@@ -43,18 +39,6 @@
 | 장세훈 | Full Stack | 유저/인증서비스, 예약/결제서비스 | [@wkdtpgns5016](https://github.com/wkdtpgns5016) |
 | 김좌형 | Infra | AWS 인프라, Terraform, EC2(RDS), ElastiCache(Redis), Neptune, S3/CloudFront, CloudWatch/SNS, FrontEnd CI/CD | [@kimjhn4188-ctrl](https://github.com/kimjhn4188-ctrl) |
 | 주병호 | Infra | AWS 인프라, Terraform, VPC, EKS, ECR, IAM/OIDC, Backend CI/CD | [@jack7051105](https://github.com/jack7051105) |
-
----
-
-## 빠른 심사 흐름 (5분)
-
-> 심사위원·멘토가 5분 안에 핵심 기능을 확인할 수 있는 순서로 작성합니다.
-
-1. 위 영상 썸네일을 클릭해 전체 시연을 확인합니다.
-2. {{배포 주소}} 를 엽니다.
-3. 테스트 계정으로 로그인합니다. (`ID: {{demo}}` / `PW: {{demo1234}}`)
-4. {{핵심 기능 1}} 을 실행합니다.
-5. {{핵심 기능 2}} 결과 화면에서 {{확인 포인트}} 를 확인합니다.
 
 ---
 
